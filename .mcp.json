@@ -6,6 +6,17 @@
         "serve"
       ],
       "type": "stdio"
+    },
+    "stitch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "stitch-mcp"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "6936872161388145357",
+        "STITCH_API_KEY": "AQ.Ab8RN6KRoq59KLqmd8iPorBiBq-6C4hTPOf03uoku65I3qPq8A"
+      }
     }
   }
 }

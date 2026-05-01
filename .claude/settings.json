@@ -1,4 +1,5 @@
 {
+  "enabledMcpjsonServers": ["code-review-graph", "stitch"],
   "hooks": {
     "PostToolUse": [
       {
