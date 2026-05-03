@@ -1,101 +1,47 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-require('dotenv').config();
-
+const { PORT, DATABASE_URL, NODE_ENV } = require('./config/env');
 const db = require('./db');
+const errorHandler = require('./middleware/errorHandler');
+const initDatabase = require('./db/initDatabase');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Health check
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', env: NODE_ENV });
+});
 
 // Routes
-app.get('/', (req, res) => {
-  res.send('Backend is running!');
-});
+app.use('/auth', require('./routes/auth'));
 
-// Example route to fetch users
-app.get('/users', async (req, res) => {
+// Error handler
+app.use(errorHandler);
+
+// Start server
+const startServer = async () => {
   try {
-    const result = await db.query('SELECT * FROM users');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).send('Internal Server Error');
-  }
-});
+    // Test DB connection
+    await db.query('SELECT NOW()');
+    console.log('✓ Database connected');
 
-app.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+    // Initialize database schema if needed
+    await initDatabase();
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
-  }
-
-  try {
-    const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
-    const user = result.rows[0];
-
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    res.status(200).json({ accessToken: 'mockAccessToken', refreshToken: 'mockRefreshToken' });
-  } catch (error) {
-    console.error('Error during login:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-app.post('/auth/signup', async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
-  }
-
-  try {
-    const result = await db.query(
-      'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING *',
-      [email, password]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error during sign-up:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-const initializeDatabase = async () => {
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    const result = await db.query('SELECT COUNT(*) FROM users');
-    if (parseInt(result.rows[0].count, 10) === 0) {
-      await db.query(
-        'INSERT INTO users (email, password) VALUES ($1, $2)',
-        ['admin@example.com', 'admin123']
-      );
-      console.log('Database initialized with default user.');
-    }
-  } catch (error) {
-    console.error('Error initializing database:', error);
+    app.listen(PORT, () => {
+      console.log(`✓ Server running on http://localhost:${PORT}`);
+      console.log(`✓ Environment: ${NODE_ENV}`);
+    });
+  } catch (err) {
+    console.error('✗ Failed to start server:', err.message);
+    process.exit(1);
   }
 };
 
-initializeDatabase();
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+startServer();

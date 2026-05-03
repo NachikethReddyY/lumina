@@ -18,3 +18,6 @@ The following links are for ideation and reference for this project:
   - **Action:** Installed Material UI and its dependencies for frontend styling.
   - **Command:** `npm install @mui/material @emotion/react @emotion/styled`
   - **Research:** Researched OAuth 2.0 required fields (https://oauth.net/2/). Key fields for Authorization Code flow include `response_type`, `client_id`, `redirect_uri`, and `grant_type`.
+
+node -e "const bcrypt = require('bcrypt'); bcrypt.hash('password123', 12, (err, hash) => { if (err) console.error(err);    
+      else console.log(hash); });"
