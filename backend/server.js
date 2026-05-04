@@ -20,6 +20,7 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/auth', require('./routes/auth'));
+app.use('/tickets', require('./routes/tickets'));
 
 // Error handler
 app.use(errorHandler);

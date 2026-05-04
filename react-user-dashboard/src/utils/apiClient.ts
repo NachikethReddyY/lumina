@@ -21,7 +21,7 @@ interface RefreshResponse {
 
 const refreshAccessToken = async (): Promise<string> => {
   const refreshToken = localStorage.getItem('refreshToken');
-  const response = await axios.post<RefreshResponse>('https://api.example.com/auth/refresh', { refreshToken });
+  const response = await axios.post<RefreshResponse>('http://localhost:5000/auth/refresh', { refreshToken });
   const { accessToken } = response.data;
   localStorage.setItem('authToken', accessToken);
   return accessToken;
