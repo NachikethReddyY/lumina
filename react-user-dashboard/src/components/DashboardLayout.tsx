@@ -1,12 +1,9 @@
-import { ReactNode, useState } from "react"
+import { useState } from "react"
+import { Outlet } from "react-router-dom"
 import { AppSidebar } from "./AppSidebar"
 import { PanelLeft, PanelLeftClose } from "lucide-react"
 
-interface DashboardLayoutProps {
-  children: ReactNode
-}
-
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const toggleSidebar = () => setIsCollapsed(!isCollapsed)
@@ -37,7 +34,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Dynamic Page Content */}
         <main className="flex-1 overflow-y-auto">
-          {children}
+          <Outlet />
         </main>
       </div>
     </div>

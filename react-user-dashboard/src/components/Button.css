@@ -1,0 +1,123 @@
+/* Button Component - CSS3 Premium */
+
+.btn {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  
+  /* Standardized Sizing */
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  padding: 12px 20px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+/* Primary Button */
+.btn--primary {
+  background-color: #3b82f6;
+  color: #ffffff;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background-color: #60a5fa;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn--primary:active:not(:disabled) {
+  background-color: #1d4ed8;
+  transform: scale(0.98);
+}
+
+.btn--primary:focus:not(:disabled) {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Secondary Button - Glass */
+.btn--secondary {
+  background: rgba(255, 255, 255, 0.02);
+  color: #f7f8f8;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+.btn--secondary:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(0.98);
+}
+
+/* Secondary Dark Button */
+.btn--secondary-dark {
+  background-color: rgba(0, 0, 0, 0.4);
+  color: #f7f8f8;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.btn--secondary-dark:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.5);
+  border-color: rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Text Link Button */
+.btn--text-link {
+  background-color: transparent;
+  color: #3b82f6;
+  border: none;
+  padding: 0;
+  height: auto;
+  border-radius: 0;
+  text-decoration: none;
+}
+
+.btn--text-link:hover:not(:disabled) {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+/* Disabled State */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading State */
+.btn-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-loading::after {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
