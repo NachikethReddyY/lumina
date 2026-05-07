@@ -1,0 +1,17 @@
+{
+  "name": "lumina-fullstack",
+  "version": "1.0.0",
+  "description": "Lumina - Full-stack IT Helpdesk Dashboard",
+  "scripts": {
+    "lumina": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && node server.js",
+    "frontend": "cd react-user-dashboard && npm run dev",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd react-user-dashboard && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "fallow": "^2.66.2"
+  }
+}

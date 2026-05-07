@@ -1,17 +1,40 @@
-import React from 'react';
+import { motion } from 'framer-motion';
+import Header from './Header';
+import Container from './Container';
+import './DashboardPage.css';
 
-const DashboardPage: React.FC = () => {
+export function DashboardPage() {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-blue-500 text-white p-4">
-        <h1 className="text-xl font-bold">Dashboard</h1>
-      </header>
-      <main className="p-4">
-        <p>Welcome to your dashboard!</p>
-        <p>Here you can manage your account and view your data.</p>
+    <div className="dashboard-page">
+      <Header />
+
+      <main className="dashboard-main">
+        <Container maxWidth="lg">
+          <motion.div
+            className="dashboard-placeholder"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="placeholder-icon">✓</div>
+            <h1 className="placeholder-title">Welcome to Your Dashboard</h1>
+            <p className="placeholder-subtitle">
+              Your account has been created successfully. The dashboard is coming soon!
+            </p>
+            <p className="placeholder-text">
+              Here you'll be able to:
+            </p>
+            <ul className="placeholder-features">
+              <li>Submit and track support tickets</li>
+              <li>Monitor ticket status in real-time</li>
+              <li>View ticket history</li>
+              <li>Receive automated updates</li>
+            </ul>
+          </motion.div>
+        </Container>
       </main>
     </div>
   );
-};
+}
 
 export default DashboardPage;

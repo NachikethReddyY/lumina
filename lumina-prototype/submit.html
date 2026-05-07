@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Request | Lumina</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #0B0C0E; font-family: 'Inter', sans-serif; }
+        .serif { font-family: 'Playfair Display', serif; }
+        .glass-card { 
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+        }
+    </style>
+</head>
+<body class="text-gray-300 antialiased min-h-screen flex flex-col">
+
+    <nav class="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
+        <div class="flex items-center space-x-3">
+            <svg width="20" height="20" viewBox="0 0 128 128" fill="none">
+                <defs>
+                    <linearGradient id="nav-logo-grad" x1="64" y1="0" x2="64" y2="128" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#FFF700" />
+                        <stop offset="45%" stop-color="#B066FF" />
+                        <stop offset="100%" stop-color="#007AFF" />
+                    </linearGradient>
+                </defs>
+                <path d="M64 0C64 0 68 60 128 64C68 68 64 128 64 128C64 128 60 68 0 64C60 60 64 0 64 0Z" fill="url(#nav-logo-grad)" />
+            </svg>
+            <span class="text-white font-medium tracking-tight text-lg" style="font-size: 20px; font-family: 'Inter', sans-serif;">Lumina</span>
+        </div>
+        <div class="flex items-center space-x-6 text-sm">
+            <a href="index.html" class="text-gray-400 hover:text-white transition">Return Home</a>
+            <a href="admin.html" class="text-gray-400 hover:text-white transition">Admin Portal</a>
+        </div>
+    </nav>
+
+    <main class="flex-1 flex items-center justify-center px-4 py-12">
+        <div class="glass-card w-full max-w-xl p-10 shadow-2xl">
+            <header class="text-center mb-10">
+                <h1 class="text-3xl text-white font-light mb-2">Initialize Routing</h1>
+                <p class="text-gray-500 text-sm">Lumina AI will evaluate priority and assign an expert.</p>
+            </header>
+
+            <form class="space-y-6">
+                <div class="space-y-2">
+                    <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Issue Subject</label>
+                    <input type="text" placeholder="e.g. Database connection timeout" 
+                        class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Category</label>
+                        <select class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition appearance-none">
+                            <option>Software Issue</option>
+                            <option>Hardware Problem</option>
+                            <option>Security / Access</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Priority</label>
+                        <select class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition appearance-none">
+                            <option>Normal (Level 3)</option>
+                            <option>High (Level 2)</option>
+                            <option>Critical (Level 1)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Detailed Context</label>
+                    <textarea rows="4" placeholder="Describe the behavior or error message..." 
+                        class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+                </div>
+
+                <button type="button" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-lg font-bold transition shadow-lg shadow-blue-600/20 mt-4">
+                    Submit Request
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <footer class="py-8 text-center text-xs text-gray-600">
+        &copy; 2026 Lumina AI. Human-centric routing.
+    </footer>
+
+</body>
+</html>
