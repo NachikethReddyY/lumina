@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Button from '../components/Button';
 import Container from '../components/Container';
-import DashboardLayout from '../components/DashboardLayout';
 import './Dashboard.css';
 
 interface Ticket {
@@ -102,8 +101,7 @@ export function UserDashboard() {
   const resolvedTickets = tickets.filter((t) => t.status === 'resolved').length;
 
   return (
-    <DashboardLayout>
-      <div className="dashboard-content py-8">
+    <div className="dashboard-content py-8">
         <Container maxWidth="xl">
           {/* Dashboard Header */}
           <motion.div
@@ -303,7 +301,6 @@ export function UserDashboard() {
           </motion.div>
         </Container>
       </div>
-    </DashboardLayout>
   );
 }
 
