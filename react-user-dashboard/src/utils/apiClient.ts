@@ -1,75 +1,75 @@
-import axios from 'axios';
+// API Client - Stub for future integration
+// Replace with actual axios or fetch implementation when backend is ready
 
-const apiClient = axios.create({
-  baseURL: 'http://localhost:5000', // Updated to local backend URL
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-const onRefreshed = (token: string) => {
-  refreshSubscribers.forEach((callback) => callback(token));
-  refreshSubscribers = [];
-};
-
-interface RefreshResponse {
-  accessToken: string;
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  body?: unknown;
 }
 
-const refreshAccessToken = async (): Promise<string> => {
-  const refreshToken = localStorage.getItem('refreshToken');
-  const response = await axios.post<RefreshResponse>('http://localhost:5000/auth/refresh', { refreshToken });
-  const { accessToken } = response.data;
-  localStorage.setItem('authToken', accessToken);
-  return accessToken;
+// Helper function to get auth token
+const getAuthToken = (): string | null => {
+  return localStorage.getItem('authToken');
 };
 
-apiClient.interceptors.request.use((config: any) => {
-  const token = localStorage.getItem('authToken');
+// API request wrapper
+export async function apiRequest(
+  endpoint: string,
+  options: RequestOptions = {}
+): Promise<Response> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  const token = getAuthToken();
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
-  return config;
-});
 
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error: any) => {
-    const originalRequest = error.config;
+  const response = await fetch(url, {
+    method: options.method || 'GET',
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
 
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshSubscribers.push((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(apiClient(originalRequest));
-          });
-        });
-      }
-
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const newToken = await refreshAccessToken();
-        isRefreshing = false;
-        onRefreshed(newToken);
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-        return apiClient(originalRequest);
-      } catch (refreshError) {
-        isRefreshing = false;
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
-      }
-    }
-
-    return Promise.reject(error);
+  if (response.status === 401) {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
+    window.location.href = '/login';
   }
-);
 
-export default apiClient;
+  return response;
+}
+
+// Auth endpoints
+export const authApi = {
+  login: (email: string, password: string) =>
+    apiRequest('/api/auth/login', {
+      method: 'POST',
+      body: { email, password },
+    }),
+
+  signup: (data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+    role: string;
+  }) =>
+    apiRequest('/api/auth/signup', {
+      method: 'POST',
+      body: data,
+    }),
+
+  refreshToken: () =>
+    apiRequest('/api/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken: localStorage.getItem('refreshToken') },
+    }),
+};
+
+export default apiRequest;
