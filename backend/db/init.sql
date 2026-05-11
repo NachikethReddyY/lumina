@@ -1,6 +1,126 @@
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Enums
+CREATE TYPE user_role AS ENUM ('user', 'admin', 'super_admin');
+CREATE TYPE user_status AS ENUM ('pending', 'active', 'suspended');
+
+CREATE TYPE ticket_type AS ENUM ('hardware', 'software', 'bug');
+CREATE TYPE ticket_priority AS ENUM ('P1', 'P2', 'P3', 'P4');
+CREATE TYPE ticket_status AS ENUM (
+  'open',
+  'assigned',
+  'in_progress',
+  'resolved',
+  'closed',
+  'on_hold',
+  'pending_routing'
+);
+
+CREATE TYPE oauth_provider AS ENUM ('google');
+
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  password_hash VARCHAR(255),
+  first_name VARCHAR(255) NOT NULL,
+  last_name VARCHAR(255) NOT NULL,
+  role user_role NOT NULL,
+  status user_status NOT NULL,
+  email_is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  avatar_url VARCHAR(255),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login_at TIMESTAMP
+);
+
+-- Categories
+CREATE TABLE IF NOT EXISTS categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  is_active BOOLEAN NOT NULL
+);
+
+-- Tickets
+CREATE TABLE IF NOT EXISTS tickets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  category_id UUID NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+  type ticket_type NOT NULL,
+  priority ticket_priority NOT NULL,
+  status ticket_status NOT NULL,
+  submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  replication_steps TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- Ticket assignments
+CREATE TABLE IF NOT EXISTS ticket_assignment (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  assigned_to UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  assigned_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  is_active BOOLEAN NOT NULL,
+  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Satisfaction ratings (1:1 per ticket)
+CREATE TABLE IF NOT EXISTS satisfaction_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id UUID NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+  rated_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  rating INTEGER NOT NULL,
+  comment TEXT
+);
+
+-- Audit logs
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  action VARCHAR(100) NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- OAuth accounts
+CREATE TABLE IF NOT EXISTS oauth_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider oauth_provider NOT NULL,
+  provider_user_id VARCHAR(255) UNIQUE NOT NULL,
+  access_token TEXT,
+  refresh_token TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Email verifications
+CREATE TABLE IF NOT EXISTS email_verifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR(255) UNIQUE NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  used_at TIMESTAMP
+);
+
+-- Password resets
+CREATE TABLE IF NOT EXISTS password_reset (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR(255) UNIQUE NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  used_at TIMESTAMP
+);
+
+-- Sessions
+CREATE TABLE IF NOT EXISTS sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  session_token VARCHAR(255) UNIQUE NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_agent TEXT NOT NULL,
+  ipaddress TEXT NOT NULL
 );

@@ -1,0 +1,404 @@
+const crypto = require('crypto');
+const express = require('express');
+const db = require('../db');
+const { signAccessToken } = require('../lib/jwt');
+const { verifyGoogleIdToken } = require('../lib/google');
+const {
+  validationError,
+  validateSignupBody,
+  validateLoginBody,
+  validateForgotPasswordBody,
+  validateResetPasswordBody,
+} = require('../lib/authValidation');
+const { isMailConfigured, sendMail } = require('../lib/mailer');
+const { getFrontendBaseUrl } = require('../lib/frontendUrl');
+
+const router = express.Router();
+
+const VERIFY_TTL_MS = 48 * 60 * 60 * 1000;
+
+async function sendVerificationEmail(toEmail, token) {
+  const base = getFrontendBaseUrl();
+  const url = `${base}/verify-email?token=${encodeURIComponent(token)}`;
+  await sendMail({
+    to: toEmail,
+    subject: 'Activate your Lumina account',
+    text: `Welcome to Lumina.\n\nOpen this link to activate your account (expires in 48 hours):\n${url}\n\nIf you did not sign up, you can ignore this email.`,
+    html: `<p>Welcome to Lumina.</p><p><a href="${url}">Activate your account</a></p><p style="word-break:break-all;color:#666">${url}</p><p><small>Expires in 48 hours. If you did not sign up, ignore this email.</small></p>`,
+  });
+}
+
+async function sendPasswordResetEmail(toEmail, token) {
+  const base = getFrontendBaseUrl();
+  const url = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+  await sendMail({
+    to: toEmail,
+    subject: 'Reset your Lumina password',
+    text: `We received a request to reset your Lumina password.\n\nOpen this link (expires in 1 hour):\n${url}\n\nIf you did not request this, ignore this email.`,
+    html: `<p>We received a request to reset your Lumina password.</p><p><a href="${url}">Set a new password</a></p><p style="word-break:break-all;color:#666">${url}</p><p><small>Expires in 1 hour.</small></p>`,
+  });
+}
+
+router.post('/login', async (req, res, next) => {
+  const parsed = validateLoginBody(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json(validationError(parsed.details));
+  }
+  const { email, password } = parsed;
+
+  try {
+    const result = await db.query(
+      `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+       FROM users
+       WHERE lower(email) = lower($1)
+         AND password_hash IS NOT NULL
+         AND crypt($2, password_hash) = password_hash`,
+      [email, password]
+    );
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    if (user.status === 'pending') {
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    const accessToken = signAccessToken(user);
+    return res.status(200).json({
+      accessToken,
+      refreshToken: '',
+      user,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/signup', async (req, res, next) => {
+  const parsed = validateSignupBody(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json(validationError(parsed.details));
+  }
+  const { email, password, firstName, lastName } = parsed;
+  const mailConfigured = isMailConfigured();
+
+  try {
+    const status = mailConfigured ? 'pending' : 'active';
+    const emailVerified = !mailConfigured;
+
+    const result = await db.query(
+      `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
+       VALUES ($1, crypt($2, gen_salt('bf')), $3, $4, 'user'::user_role, $5::user_status, $6)
+       RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
+      [email, password, firstName, lastName, status, emailVerified]
+    );
+    const user = result.rows[0];
+
+    if (!mailConfigured) {
+      const accessToken = signAccessToken(user);
+      return res.status(201).json({
+        user,
+        accessToken,
+        refreshToken: '',
+        requiresEmailVerification: false,
+        message:
+          'Account is ready. (SMTP is not configured on the server, so email verification was skipped.)',
+      });
+    }
+
+    const vToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+    await db.query(
+      `INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)`,
+      [user.id, vToken, expiresAt]
+    );
+
+    try {
+      await sendVerificationEmail(user.email, vToken);
+    } catch (mailErr) {
+      console.error('Verification email failed:', mailErr.message);
+      return res.status(503).json({
+        error:
+          'Account was created but the verification email could not be sent. Check SMTP settings or try resend.',
+        code: 'MAIL_FAILED',
+      });
+    }
+
+    return res.status(201).json({
+      user,
+      requiresEmailVerification: true,
+      message: 'Check your email to activate your account before signing in.',
+    });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'An account with this email already exists' });
+    }
+    return next(err);
+  }
+});
+
+router.post('/verify-email', async (req, res, next) => {
+  const token = String(req.body?.token ?? '').trim();
+  if (!token) {
+    return res.status(400).json(validationError({ token: 'Verification token is required' }));
+  }
+
+  try {
+    const r = await db.query(
+      `SELECT ev.id, ev.user_id
+       FROM email_verifications ev
+       JOIN users u ON u.id = ev.user_id
+       WHERE ev.token = $1 AND ev.used_at IS NULL AND ev.expires_at > NOW()`,
+      [token]
+    );
+    const row = r.rows[0];
+    if (!row) {
+      return res.status(400).json({ error: 'Invalid or expired activation link' });
+    }
+
+    await db.query(
+      `UPDATE users SET status = 'active'::user_status, email_is_verified = TRUE WHERE id = $1`,
+      [row.user_id]
+    );
+    await db.query(`UPDATE email_verifications SET used_at = NOW() WHERE id = $1`, [row.id]);
+
+    const u = await db.query(
+      `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+       FROM users WHERE id = $1`,
+      [row.user_id]
+    );
+    const user = u.rows[0];
+    const accessToken = signAccessToken(user);
+
+    return res.json({
+      message: 'Your account is active. You can use Lumina now.',
+      user,
+      accessToken,
+      refreshToken: '',
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/resend-verification', async (req, res, next) => {
+  const parsed = validateForgotPasswordBody(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json(validationError(parsed.details));
+  }
+  const { email } = parsed;
+
+  const generic = {
+    message: 'If this account is waiting for activation, we sent a new verification email.',
+  };
+
+  try {
+    if (!isMailConfigured()) {
+      return res.status(503).json({
+        error: 'Email is not configured on the server. Ask an admin to set SMTP variables.',
+        code: 'MAIL_NOT_CONFIGURED',
+      });
+    }
+
+    const u = await db.query(
+      `SELECT id, email FROM users
+       WHERE lower(email) = lower($1) AND status = 'pending'::user_status AND password_hash IS NOT NULL`,
+      [email]
+    );
+    const user = u.rows[0];
+    if (!user) {
+      return res.json(generic);
+    }
+
+    await db.query(
+      `UPDATE email_verifications SET used_at = NOW()
+       WHERE user_id = $1 AND used_at IS NULL`,
+      [user.id]
+    );
+
+    const vToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+    await db.query(
+      `INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)`,
+      [user.id, vToken, expiresAt]
+    );
+
+    try {
+      await sendVerificationEmail(user.email, vToken);
+    } catch (mailErr) {
+      console.error('Resend verification failed:', mailErr.message);
+      return res.status(503).json({ error: 'Could not send email.', code: 'MAIL_FAILED' });
+    }
+
+    return res.json(generic);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/google', async (req, res, next) => {
+  const credential = req.body.credential;
+  if (!credential) {
+    return res.status(400).json({ error: 'Missing Google credential' });
+  }
+
+  let payload;
+  try {
+    payload = await verifyGoogleIdToken(credential);
+  } catch (err) {
+    const status = err.status || 401;
+    return res.status(status).json({ error: err.message || 'Invalid Google token' });
+  }
+
+  const sub = payload.sub;
+  const email = payload.email;
+  if (!sub || !email) {
+    return res.status(400).json({ error: 'Google account has no usable identity' });
+  }
+
+  try {
+    let userRow;
+    const existingOAuth = await db.query(
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.email_is_verified, u.created_at
+       FROM oauth_accounts o
+       JOIN users u ON u.id = o.user_id
+       WHERE o.provider = 'google'::oauth_provider AND o.provider_user_id = $1`,
+      [sub]
+    );
+
+    if (existingOAuth.rows[0]) {
+      userRow = existingOAuth.rows[0];
+    } else {
+      const byEmail = await db.query(
+        `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+         FROM users WHERE lower(email) = lower($1)`,
+        [email]
+      );
+
+      if (byEmail.rows[0]) {
+        userRow = byEmail.rows[0];
+        await db.query(
+          `INSERT INTO oauth_accounts (user_id, provider, provider_user_id)
+           VALUES ($1, 'google'::oauth_provider, $2)
+           ON CONFLICT (provider_user_id) DO NOTHING`,
+          [userRow.id, sub]
+        );
+      } else {
+        const first = payload.given_name || 'Google';
+        const last = payload.family_name || 'User';
+        const ins = await db.query(
+          `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
+           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'active'::user_status, $4)
+           RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
+          [email, first, last, Boolean(payload.email_verified)]
+        );
+        userRow = ins.rows[0];
+        await db.query(
+          `INSERT INTO oauth_accounts (user_id, provider, provider_user_id)
+           VALUES ($1, 'google'::oauth_provider, $2)`,
+          [userRow.id, sub]
+        );
+      }
+    }
+
+    const accessToken = signAccessToken(userRow);
+    return res.json({ accessToken, refreshToken: '', user: userRow });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/forgot-password', async (req, res, next) => {
+  const parsed = validateForgotPasswordBody(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json(validationError(parsed.details));
+  }
+  const { email } = parsed;
+
+  const generic = {
+    message:
+      'If an account exists for this email, you will receive password reset instructions shortly.',
+  };
+
+  try {
+    const u = await db.query(
+      `SELECT id, email FROM users WHERE lower(email) = lower($1) AND password_hash IS NOT NULL`,
+      [email]
+    );
+    const user = u.rows[0];
+    if (!user) {
+      return res.json({ ...generic, emailSent: false });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await db.query(
+      `INSERT INTO password_reset (user_id, token, expires_at) VALUES ($1, $2, $3)`,
+      [user.id, token, expiresAt]
+    );
+
+    let emailSent = false;
+    let devResetLink;
+    if (isMailConfigured()) {
+      try {
+        await sendPasswordResetEmail(user.email, token);
+        emailSent = true;
+      } catch (mailErr) {
+        console.error('Password reset email failed:', mailErr.message);
+      }
+    }
+    if (!emailSent && process.env.NODE_ENV !== 'production') {
+      const base = getFrontendBaseUrl();
+      devResetLink = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+    }
+
+    return res.json({
+      ...generic,
+      emailSent,
+      ...(devResetLink ? { devResetLink } : {}),
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/reset-password', async (req, res, next) => {
+  const parsed = validateResetPasswordBody(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json(validationError(parsed.details));
+  }
+  const { token, password } = parsed;
+
+  try {
+    const r = await db.query(
+      `SELECT pr.id, pr.user_id
+       FROM password_reset pr
+       WHERE pr.token = $1 AND pr.used_at IS NULL AND pr.expires_at > NOW()`,
+      [token]
+    );
+    const row = r.rows[0];
+    if (!row) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    await db.query(`UPDATE users SET password_hash = crypt($1, gen_salt('bf')) WHERE id = $2`, [
+      password,
+      row.user_id,
+    ]);
+    await db.query(`UPDATE password_reset SET used_at = NOW() WHERE id = $1`, [row.id]);
+    return res.json({ message: 'Password updated. You can sign in now.' });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/refresh', (req, res) => {
+  res.status(501).json({ error: 'Refresh token flow is not implemented yet' });
+});
+
+module.exports = router;

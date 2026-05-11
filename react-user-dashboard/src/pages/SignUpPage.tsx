@@ -5,6 +5,9 @@ import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Container from '../components/Container';
+import { GoogleAuthButton } from '../components/GoogleAuthButton';
+import { authApi, type AuthValidationErrorBody } from '../utils/apiClient';
+import { getNewPasswordError, PASSWORD_REQUIREMENTS_TEXT } from '../utils/passwordPolicy';
 import './AuthPage.css';
 
 export function SignUpPage() {
@@ -20,6 +23,10 @@ export function SignUpPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState('');
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendNote, setResendNote] = useState('');
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -33,11 +40,8 @@ export function SignUpPage() {
     if (!formData.firstName) newErrors.firstName = 'First name is required';
     if (!formData.lastName) newErrors.lastName = 'Last name is required';
 
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    }
+    const pwErr = getNewPasswordError(formData.password);
+    if (pwErr) newErrors.password = pwErr;
 
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
@@ -62,15 +66,53 @@ export function SignUpPage() {
 
     setLoading(true);
     try {
-      // TODO: Call backend API to create account
-      // For now, simulate success
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Navigate to account review page (future)
-      // For now, redirect to login
+      const res = await authApi.signup({
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        password: formData.password,
+        role: formData.role,
+      });
+      const data = (await res.json().catch(() => ({}))) as AuthValidationErrorBody & {
+        accessToken?: string;
+        refreshToken?: string;
+        requiresEmailVerification?: boolean;
+        message?: string;
+        code?: string;
+      };
+      if (!res.ok) {
+        if (data.details && Object.keys(data.details).length > 0) {
+          setErrors({
+            ...data.details,
+            form: data.message || data.error || 'Please fix the highlighted fields.',
+          });
+        } else {
+          setErrors({
+            form:
+              data.error ||
+              (res.status === 503 && data.code === 'MAIL_FAILED'
+                ? 'Account may exist but the verification email failed. Check SMTP in backend/.env.'
+                : 'Failed to create account. Please try again.'),
+          });
+        }
+        return;
+      }
+      if (data.requiresEmailVerification) {
+        setPendingEmail(formData.email);
+        setPendingMessage(
+          data.message || 'Check your email and click the link to activate your account.'
+        );
+        return;
+      }
+      if (data.accessToken) {
+        localStorage.setItem('authToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken || '');
+        navigate('/dashboard');
+        return;
+      }
       navigate('/login', { state: { message: 'Account created! Please sign in.' } });
-    } catch (_error) {
-      setErrors({ form: 'Failed to create account. Please try again.' });
+    } catch {
+      setErrors({ form: 'Failed to create account. Check your connection and try again.' });
     } finally {
       setLoading(false);
     }
@@ -111,19 +153,72 @@ export function SignUpPage() {
           {/* Logo */}
           <motion.div className="auth-logo" variants={itemVariants}>
             <Link to="/">
-              <Logo size="md" showText={true} />
+              <Logo size="md" showText={true} vertical={true} />
             </Link>
           </motion.div>
 
           {/* Header */}
           <motion.div className="auth-header" variants={itemVariants}>
-            <h1 className="auth-title">Create Your Account</h1>
+            <h1 className="auth-title">
+              {pendingEmail ? 'Check your email' : 'Create Your Account'}
+            </h1>
             <p className="auth-subtitle">
-              Join Lumina to streamline your support ticketing system
+              {pendingEmail
+                ? pendingMessage
+                : 'Join Lumina to streamline your support ticketing system'}
             </p>
           </motion.div>
 
-          {/* Form */}
+          {pendingEmail ? (
+            <motion.div
+              className="reset-success"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4 }}
+            >
+              <div className="success-icon">✓</div>
+              <p className="success-text">
+                We sent an activation link to <strong>{pendingEmail}</strong>
+              </p>
+              <p className="success-subtext">
+                After you activate, you can sign in. If you do not see the message, check spam or
+                resend below.
+              </p>
+              {resendNote && <p className="auth-notice auth-notice--info">{resendNote}</p>}
+              <Button
+                variant="secondary"
+                size="lg"
+                type="button"
+                loading={resendBusy}
+                onClick={async () => {
+                  setResendBusy(true);
+                  setResendNote('');
+                  try {
+                    const r = await authApi.resendVerification(pendingEmail);
+                    const body = (await r.json().catch(() => ({}))) as { message?: string; error?: string };
+                    if (!r.ok) {
+                      setResendNote(body.error || 'Could not resend. Is SMTP configured on the server?');
+                    } else {
+                      setResendNote(body.message || 'If the account is pending, a new email was sent.');
+                    }
+                  } catch {
+                    setResendNote('Network error. Try again.');
+                  } finally {
+                    setResendBusy(false);
+                  }
+                }}
+              >
+                Resend verification email
+              </Button>
+              <Link to="/login">
+                <Button variant="primary" size="lg">
+                  Back to Sign In
+                </Button>
+              </Link>
+            </motion.div>
+          ) : null}
+
+          {!pendingEmail ? (
           <motion.form
             className="auth-form"
             onSubmit={handleSubmit}
@@ -190,7 +285,7 @@ export function SignUpPage() {
                 value={formData.password}
                 onChange={handleChange}
                 error={errors.password}
-                helpText="Must be at least 8 characters"
+                helpText={PASSWORD_REQUIREMENTS_TEXT}
                 required
               />
             </motion.div>
@@ -224,7 +319,10 @@ export function SignUpPage() {
               </Button>
             </motion.div>
           </motion.form>
+          ) : null}
 
+          {!pendingEmail ? (
+          <>
           {/* Divider */}
           <motion.div className="auth-divider" variants={itemVariants}>
             <span>or</span>
@@ -232,28 +330,13 @@ export function SignUpPage() {
 
           {/* Google Sign-Up */}
           <motion.div variants={itemVariants}>
-            <Button variant="secondary" size="lg" className="auth-google-btn">
-              <svg width="18" height="18" viewBox="0 0 24 24">
-                <path
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  fill="#EA4335"
-                />
-              </svg>
-              Sign up with Google
-            </Button>
+            <GoogleAuthButton
+              mode="signup"
+              onError={(msg) => setErrors((prev) => ({ ...prev, form: msg }))}
+            />
           </motion.div>
+          </>
+          ) : null}
 
           {/* Sign In Link */}
           <motion.div className="auth-footer" variants={itemVariants}>

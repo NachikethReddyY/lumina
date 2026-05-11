@@ -189,6 +189,8 @@ As an admin, I want to move tickets through statuses so queue state remains accu
 - Only valid next action is shown per ticket status.
 - Updated status is immediately reflected in list and counters.
 
+---
+
 ## 6. Non-Functional Requirements
 
 For this school project, non-functional goals focus on delivering a stable, understandable MVP rather than enterprise-grade scale.
@@ -198,6 +200,8 @@ For this school project, non-functional goals focus on delivering a stable, unde
 - **Accessibility:** Core forms and actions should be usable with keyboard navigation and clear labels.
 - **Reliability:** API and UI errors should be handled gracefully with user-friendly feedback.
 - **Maintainability:** Code should stay modular so mock flows can be replaced with real API calls without large rewrites.
+
+---
 
 ## 7. UX and Interaction Requirements
 
@@ -209,6 +213,8 @@ For this school project, non-functional goals focus on delivering a stable, unde
   - ticket list and status actions third
 - Empty states should explain what to do next (for example, create a ticket or clear filters).
 - UI should remain clean and simple, with advanced features deferred until core workflows are stable.
+
+---
 
 ## 8. Assumptions, Risks, and Dependencies
 
@@ -228,6 +234,8 @@ For this school project, non-functional goals focus on delivering a stable, unde
 - Backend API maturity for auth and ticket CRUD endpoints.
 - Frontend integration for authenticated sessions and role-based routing.
 - Future integration with email service for password reset.
+
+---
 
 ## 9. Milestones and Phasing
 
@@ -251,12 +259,16 @@ For this school project, non-functional goals focus on delivering a stable, unde
 - Introduce scoring/routing suggestions using priority, complexity, and workload signals.
 - Add confidence indicators and routing explainability surfaces.
 
+---
+
 ## 10. Open Questions
 - What is the initial source of truth for user role assignment (signup-time, admin panel, or seed config)?
 - Should non-admin users see only self-created tickets or team-shared tickets?
 - What SLA expectations (by priority) should Lumina enforce in v1?
 - What email provider/service will back password reset and notifications?
 - Which analytics platform will own KPI instrumentation?
+
+---
 
 ## 11. Definition of Done (MVP)
 - All core user journeys (signup, login, forgot password request, create ticket, view ticket status, admin status updates) run end-to-end against real backend APIs.
