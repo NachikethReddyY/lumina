@@ -12,19 +12,33 @@ const {
 } = require('../lib/authValidation');
 const { isMailConfigured, sendMail } = require('../lib/mailer');
 const { getFrontendBaseUrl } = require('../lib/frontendUrl');
+const { verificationEmailHtml, passwordResetEmailHtml } = require('../lib/emailTemplates');
 
 const router = express.Router();
 
 const VERIFY_TTL_MS = 48 * 60 * 60 * 1000;
+const OTP_TTL_MS = 10 * 60 * 1000;
 
-async function sendVerificationEmail(toEmail, token) {
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(String(otp)).digest('hex');
+}
+
+async function sendVerificationEmail(toEmail, token, otp) {
   const base = getFrontendBaseUrl();
   const url = `${base}/verify-email?token=${encodeURIComponent(token)}`;
   await sendMail({
     to: toEmail,
     subject: 'Activate your Lumina account',
-    text: `Welcome to Lumina.\n\nOpen this link to activate your account (expires in 48 hours):\n${url}\n\nIf you did not sign up, you can ignore this email.`,
-    html: `<p>Welcome to Lumina.</p><p><a href="${url}">Activate your account</a></p><p style="word-break:break-all;color:#666">${url}</p><p><small>Expires in 48 hours. If you did not sign up, ignore this email.</small></p>`,
+    text:
+      `Welcome to Lumina.\n\n` +
+      `Option 1: Open this link to activate your account (expires in 48 hours):\n${url}\n\n` +
+      `Option 2: Enter this one-time code in the app (expires in 10 minutes):\n${otp}\n\n` +
+      `If you did not sign up, you can ignore this email.`,
+    html: verificationEmailHtml({ url, otp }),
   });
 }
 
@@ -35,7 +49,7 @@ async function sendPasswordResetEmail(toEmail, token) {
     to: toEmail,
     subject: 'Reset your Lumina password',
     text: `We received a request to reset your Lumina password.\n\nOpen this link (expires in 1 hour):\n${url}\n\nIf you did not request this, ignore this email.`,
-    html: `<p>We received a request to reset your Lumina password.</p><p><a href="${url}">Set a new password</a></p><p style="word-break:break-all;color:#666">${url}</p><p><small>Expires in 1 hour.</small></p>`,
+    html: passwordResetEmailHtml({ url }),
   });
 }
 
@@ -112,14 +126,17 @@ router.post('/signup', async (req, res, next) => {
     }
 
     const vToken = crypto.randomBytes(32).toString('hex');
+    const otp = generateOtp();
+    const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
     const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
     await db.query(
-      `INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-      [user.id, vToken, expiresAt]
+      `INSERT INTO email_verifications (user_id, token, otp_hash, otp_expires_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, vToken, hashOtp(otp), otpExpiresAt, expiresAt]
     );
 
     try {
-      await sendVerificationEmail(user.email, vToken);
+      await sendVerificationEmail(user.email, vToken, otp);
     } catch (mailErr) {
       console.error('Verification email failed:', mailErr.message);
       return res.status(503).json({
@@ -186,6 +203,59 @@ router.post('/verify-email', async (req, res, next) => {
   }
 });
 
+router.post('/verify-email-otp', async (req, res, next) => {
+  const email = String(req.body?.email ?? '').trim();
+  const otp = String(req.body?.otp ?? '').trim();
+
+  const details = {};
+  if (!email) details.email = 'Email is required';
+  if (!otp) details.otp = 'Code is required';
+  if (Object.keys(details).length) {
+    return res.status(400).json(validationError(details));
+  }
+
+  try {
+    const r = await db.query(
+      `SELECT ev.id, ev.user_id
+       FROM email_verifications ev
+       JOIN users u ON u.id = ev.user_id
+       WHERE lower(u.email) = lower($1)
+         AND ev.used_at IS NULL
+         AND ev.otp_expires_at IS NOT NULL
+         AND ev.otp_expires_at > NOW()
+         AND ev.otp_hash = $2`,
+      [email, hashOtp(otp)]
+    );
+    const row = r.rows[0];
+    if (!row) {
+      return res.status(400).json({ error: 'Invalid or expired code' });
+    }
+
+    await db.query(
+      `UPDATE users SET status = 'active'::user_status, email_is_verified = TRUE WHERE id = $1`,
+      [row.user_id]
+    );
+    await db.query(`UPDATE email_verifications SET used_at = NOW() WHERE id = $1`, [row.id]);
+
+    const u = await db.query(
+      `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+       FROM users WHERE id = $1`,
+      [row.user_id]
+    );
+    const user = u.rows[0];
+    const accessToken = signAccessToken(user);
+
+    return res.json({
+      message: 'Your account is active. You can use Lumina now.',
+      user,
+      accessToken,
+      refreshToken: '',
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post('/resend-verification', async (req, res, next) => {
   const parsed = validateForgotPasswordBody(req.body);
   if (!parsed.ok) {
@@ -222,14 +292,17 @@ router.post('/resend-verification', async (req, res, next) => {
     );
 
     const vToken = crypto.randomBytes(32).toString('hex');
+    const otp = generateOtp();
+    const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
     const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
     await db.query(
-      `INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-      [user.id, vToken, expiresAt]
+      `INSERT INTO email_verifications (user_id, token, otp_hash, otp_expires_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, vToken, hashOtp(otp), otpExpiresAt, expiresAt]
     );
 
     try {
-      await sendVerificationEmail(user.email, vToken);
+      await sendVerificationEmail(user.email, vToken, otp);
     } catch (mailErr) {
       console.error('Resend verification failed:', mailErr.message);
       return res.status(503).json({ error: 'Could not send email.', code: 'MAIL_FAILED' });
@@ -291,11 +364,14 @@ router.post('/google', async (req, res, next) => {
       } else {
         const first = payload.given_name || 'Google';
         const last = payload.family_name || 'User';
+        const mailConfigured = isMailConfigured();
+        const status = mailConfigured ? 'pending' : 'active';
+        const emailVerified = !mailConfigured;
         const ins = await db.query(
           `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
-           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'active'::user_status, $4)
+           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, $4::user_status, $5)
            RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
-          [email, first, last, Boolean(payload.email_verified)]
+          [email, first, last, status, emailVerified]
         );
         userRow = ins.rows[0];
         await db.query(
@@ -303,7 +379,32 @@ router.post('/google', async (req, res, next) => {
            VALUES ($1, 'google'::oauth_provider, $2)`,
           [userRow.id, sub]
         );
+
+        // Send verification email for new OAuth signups when SMTP is configured.
+        if (mailConfigured) {
+          const vToken = crypto.randomBytes(32).toString('hex');
+          const otp = generateOtp();
+          const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
+          const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+          await db.query(
+            `INSERT INTO email_verifications (user_id, token, otp_hash, otp_expires_at, expires_at)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [userRow.id, vToken, hashOtp(otp), otpExpiresAt, expiresAt]
+          );
+          try {
+            await sendVerificationEmail(userRow.email, vToken, otp);
+          } catch (mailErr) {
+            console.error('OAuth verification email failed:', mailErr.message);
+          }
+        }
       }
+    }
+
+    if (userRow.status === 'pending') {
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
     }
 
     const accessToken = signAccessToken(userRow);

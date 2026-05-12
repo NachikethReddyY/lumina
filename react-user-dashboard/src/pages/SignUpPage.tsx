@@ -184,6 +184,11 @@ export function SignUpPage() {
                 After you activate, you can sign in. If you do not see the message, check spam or
                 resend below.
               </p>
+              <Link to={`/verify-email-otp?email=${encodeURIComponent(pendingEmail)}`}>
+                <Button variant="secondary" size="lg" type="button">
+                  Enter code instead
+                </Button>
+              </Link>
               {resendNote && <p className="auth-notice auth-notice--info">{resendNote}</p>}
               <Button
                 variant="secondary"

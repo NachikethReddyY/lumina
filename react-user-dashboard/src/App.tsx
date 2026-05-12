@@ -5,6 +5,7 @@ import SignUpPage from './pages/SignUpPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import VerifyEmailOtpPage from './pages/VerifyEmailOtpPage';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
@@ -18,6 +19,7 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/verify-email-otp" element={<VerifyEmailOtpPage />} />
       <Route path="/user/dashboard" element={<UserDashboard />} />
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="/dashboard" element={<UserDashboard />} />

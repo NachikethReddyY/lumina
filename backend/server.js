@@ -54,8 +54,44 @@ async function seedDemoUsers() {
   }
 }
 
+async function seedDefaultCategories() {
+  const admin = await db.query(
+    `SELECT id
+     FROM users
+     WHERE role IN ('admin'::user_role, 'super_admin'::user_role)
+     ORDER BY created_at ASC
+     LIMIT 1`
+  );
+  const adminId = admin.rows[0]?.id;
+  if (!adminId) {
+    return;
+  }
+
+  const categories = [
+    ['Hardware Support', 'Device issues, peripherals, and workstation setup'],
+    ['Software Support', 'Application access, system setup, and account tooling'],
+    ['Bug Reports', 'Unexpected errors, crashes, and reproducible defects'],
+  ];
+
+  for (const [name, description] of categories) {
+    try {
+      await db.query(
+        `INSERT INTO categories (name, description, created_by, is_active)
+         SELECT $1, $2, $3, TRUE
+         WHERE NOT EXISTS (
+           SELECT 1 FROM categories WHERE lower(name) = lower($1)
+         )`,
+        [name, description, adminId]
+      );
+    } catch (error) {
+      console.warn('Default category seed skipped:', error.message);
+    }
+  }
+}
+
 initializeDatabase()
   .then(() => seedDemoUsers())
+  .then(() => seedDefaultCategories())
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);

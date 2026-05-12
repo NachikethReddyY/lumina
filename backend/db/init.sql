@@ -101,9 +101,15 @@ CREATE TABLE IF NOT EXISTS email_verifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token VARCHAR(255) UNIQUE NOT NULL,
+  otp_hash TEXT,
+  otp_expires_at TIMESTAMP,
   expires_at TIMESTAMP NOT NULL,
   used_at TIMESTAMP
 );
+
+-- If the table already exists (from an older init.sql), ensure the OTP column exists too.
+ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS otp_hash TEXT;
+ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
 
 -- Password resets
 CREATE TABLE IF NOT EXISTS password_reset (
@@ -124,3 +130,39 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_agent TEXT NOT NULL,
   ipaddress TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_categories_active ON categories (is_active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_name_lower_unique ON categories ((lower(name)));
+CREATE INDEX IF NOT EXISTS idx_tickets_submitted_by ON tickets (submitted_by);
+CREATE INDEX IF NOT EXISTS idx_tickets_category_id ON tickets (category_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_status_priority ON tickets (status, priority);
+CREATE INDEX IF NOT EXISTS idx_ticket_assignment_active ON ticket_assignment (ticket_id, assigned_to, is_active);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_user_id ON email_verifications (user_id, used_at, expires_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset (user_id, used_at, expires_at);
+
+CREATE OR REPLACE VIEW admin_workload AS
+SELECT
+  u.id AS admin_id,
+  u.email,
+  u.first_name,
+  u.last_name,
+  COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_1_count,
+  COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_2_count,
+  COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_3_count,
+  COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_4_count,
+  COALESCE(COUNT(CASE WHEN t.status IN ('open', 'assigned', 'in_progress') THEN 1 END), 0)::int AS total_open,
+  (
+    COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('open', 'assigned', 'in_progress') THEN 3 ELSE 0 END), 0) +
+    COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('open', 'assigned', 'in_progress') THEN 2 ELSE 0 END), 0) +
+    COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0) +
+    COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)
+  )::int AS load_score
+FROM users u
+LEFT JOIN ticket_assignment ta
+  ON ta.assigned_to = u.id
+ AND ta.is_active = TRUE
+LEFT JOIN tickets t
+  ON t.id = ta.ticket_id
+WHERE u.role IN ('admin', 'super_admin')
+GROUP BY u.id, u.email, u.first_name, u.last_name;

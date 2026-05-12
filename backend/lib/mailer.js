@@ -34,7 +34,9 @@ function createTransport() {
 async function sendMail({ to, subject, text, html }) {
   const transporter = createTransport();
   if (!transporter) {
-    const err = new Error('SMTP is not configured (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL)');
+    const err = new Error(
+      'SMTP is not configured (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL)'
+    );
     err.code = 'MAIL_NOT_CONFIGURED';
     throw err;
   }

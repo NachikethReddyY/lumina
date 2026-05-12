@@ -101,6 +101,12 @@ export const authApi = {
       body: { token },
     }),
 
+  verifyEmailOtp: (email: string, otp: string) =>
+    apiRequest('/auth/verify-email-otp', {
+      method: 'POST',
+      body: { email, otp },
+    }),
+
   resendVerification: (email: string) =>
     apiRequest('/auth/resend-verification', {
       method: 'POST',
