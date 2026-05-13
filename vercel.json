@@ -1,31 +1,30 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "backend/server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "react-user-dashboard/dist"
+      }
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/backend/server.js"
+      "destination": "backend/server.js"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/backend/server.js"
+      "destination": "backend/server.js"
     },
     {
       "source": "/(.*)",
-      "destination": "/react-user-dashboard/$1"
+      "destination": "/$1"
     }
-  ],
-  "redirects": [
-    {
-      "source": "/react-user-dashboard",
-      "destination": "/",
-      "permanent": true
-    }
-  ],
-  "functions": {
-    "backend/server.js": {
-      "runtime": "nodejs20.x",
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  }
+  ]
 }
