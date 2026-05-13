@@ -198,22 +198,39 @@ router.patch('/:id/role', requireAuth, requireRole('super_admin'), async (req, r
   }
 });
 
-router.delete('/:id', requireAuth, requireRole('super_admin'), async (req, res, next) => {
-  if (req.params.id === req.user.id) {
-    return res.status(400).json({ error: 'You cannot delete your own account' });
+router.delete('/:id', requireAuth, async (req, res, next) => {
+  const targetId = req.params.id;
+  const isOwnAccount = targetId === req.user.id;
+  const isSuperAdmin = req.user.role === 'super_admin';
+
+  // Allow self-deletion for any authenticated user
+  // OR allow super_admin to delete other users
+  if (!isOwnAccount && !isSuperAdmin) {
+    return res.status(403).json({ error: 'You can only delete your own account' });
   }
 
   try {
-    const check = await db.query(`SELECT id, email FROM users WHERE id = $1`, [req.params.id]);
+    const check = await db.query(`SELECT id, email, role FROM users WHERE id = $1`, [targetId]);
     if (!check.rows[0]) {
       return res.status(404).json({ error: 'User not found' });
     }
-    await db.query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
+
+    // Prevent deletion of the last super_admin
+    if (check.rows[0].role === 'super_admin') {
+      const superAdminCount = await db.query(
+        `SELECT COUNT(*) as count FROM users WHERE role = 'super_admin'`
+      );
+      if (superAdminCount.rows[0].count <= 1) {
+        return res.status(400).json({ error: 'Cannot delete the last super admin account' });
+      }
+    }
+
     await db.query(
       `INSERT INTO audit_logs (actor_id, action, metadata)
        VALUES ($1, 'user_deleted', $2::jsonb)`,
-      [req.user.id, JSON.stringify({ deleted_email: check.rows[0].email })]
+      [req.user.id, JSON.stringify({ deleted_email: check.rows[0].email, target_id: targetId })]
     );
+    await db.query(`DELETE FROM users WHERE id = $1`, [targetId]);
     res.json({ success: true });
   } catch (error) {
     next(error);

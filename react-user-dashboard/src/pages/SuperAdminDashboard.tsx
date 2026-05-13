@@ -316,7 +316,7 @@ export function SuperAdminDashboard() {
                           <div className="sa-user-cell">
                             <div className="sa-user-avatar">
                               {u.avatar_url
-                                ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${u.avatar_url}`} alt="" />
+                                ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${u.avatar_url}`} alt="" />
                                 : `${u.first_name[0]}${u.last_name[0]}`
                               }
                             </div>

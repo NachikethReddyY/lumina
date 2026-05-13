@@ -194,9 +194,7 @@ router.post('/verify-email', async (req, res, next) => {
 
     await db.query(
       `UPDATE users
-       SET status = 'active'::user_status,
-           email_is_verified = TRUE,
-           approved_at = COALESCE(approved_at, NOW())
+       SET email_is_verified = TRUE
        WHERE id = $1`,
       [row.user_id]
     );
@@ -211,7 +209,7 @@ router.post('/verify-email', async (req, res, next) => {
     const accessToken = signAccessToken(user);
 
     return res.json({
-      message: 'Your account is active. You can use Lumina now.',
+      message: 'Email verified. Please complete your onboarding to continue.',
       user,
       accessToken,
       refreshToken: '',
@@ -251,9 +249,7 @@ router.post('/verify-email-otp', otpLimiter, async (req, res, next) => {
 
     await db.query(
       `UPDATE users
-       SET status = 'active'::user_status,
-           email_is_verified = TRUE,
-           approved_at = COALESCE(approved_at, NOW())
+       SET email_is_verified = TRUE
        WHERE id = $1`,
       [row.user_id]
     );
@@ -268,7 +264,7 @@ router.post('/verify-email-otp', otpLimiter, async (req, res, next) => {
     const accessToken = signAccessToken(user);
 
     return res.json({
-      message: 'Your account is active. You can use Lumina now.',
+      message: 'Email verified. Please complete your onboarding to continue.',
       user,
       accessToken,
       refreshToken: '',

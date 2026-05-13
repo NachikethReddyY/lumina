@@ -112,6 +112,48 @@ This starts:
 - backend on `http://localhost:5000`
 - frontend on `http://localhost:5173`
 
+### If port 5000 is already in use (`EADDRINUSE`)
+
+Something else is listening on the same port as `PORT` (default **5000**). Free it or pick another port in `.env` (`PORT` and `VITE_API_URL` must stay aligned).
+
+**macOS and Linux — find and stop the process**
+
+1. See which process holds the port:
+
+```bash
+lsof -nP -iTCP:5000 -sTCP:LISTEN
+```
+
+2. Stop it using the `PID` from that output (replace `PID` with the number):
+
+```bash
+kill PID
+```
+
+If it does not exit, force kill (only when you are sure it is safe):
+
+```bash
+kill -9 PID
+```
+
+If you use `npm run dev` / `bun run dev`, stop that terminal with **Ctrl+C** first; a stray `node` or `bun` process may still be bound until you `kill` it.
+
+**macOS — AirPlay Receiver**
+
+Apple’s **AirPlay Receiver** sometimes uses port 5000. If `lsof` shows `ControlCenter` or similar on `5000`, turn off **AirPlay Receiver** under **System Settings → General → AirDrop & Handoff** (wording varies by macOS version), or set `PORT` / `VITE_API_URL` to another free port (for example `5001`) in `.env`.
+
+**Windows (PowerShell or CMD)**
+
+```text
+netstat -ano | findstr :5000
+```
+
+Note the PID in the last column, then:
+
+```text
+taskkill /PID <PID> /F
+```
+
 ## Other useful root commands
 
 ```bash

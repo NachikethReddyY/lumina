@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, RotateCcw } from 'lucide-react';
@@ -13,33 +13,20 @@ export function PendingApprovalPage() {
   const { user, refetch } = useCurrentUser();
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [isChecking, setIsChecking] = useState(false);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (user?.status === 'active') {
-      navigate('/dashboard');
-      return;
+      navigate('/dashboard', { replace: true });
     }
-
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        await refetch();
-        setLastChecked(new Date());
-      } catch {
-        // Polling error, will retry
-      }
-    }, 5000);
-
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
-  }, [user?.status, navigate, refetch]);
+  }, [user?.status, navigate]);
 
   const handleManualCheck = async () => {
     setIsChecking(true);
     try {
       await refetch();
       setLastChecked(new Date());
+    } catch {
+      // Error during refetch, continue
     } finally {
       setIsChecking(false);
     }
@@ -69,9 +56,9 @@ export function PendingApprovalPage() {
           </motion.div>
 
           <motion.div className="pending-approval-header" variants={itemVariants}>
-            <h1 className="pending-approval-title">Pending Approval</h1>
+            <h1 className="pending-approval-title">Application Processed</h1>
             <p className="pending-approval-subtitle">
-              Your account is under review. An administrator will verify your details shortly.
+              Please wait for the administrator to give you access to Lumina.
             </p>
           </motion.div>
 
@@ -87,7 +74,7 @@ export function PendingApprovalPage() {
               <motion.div
                 className="pending-approval-dot"
                 animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'ease-in-out' }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
               />
             </div>
 

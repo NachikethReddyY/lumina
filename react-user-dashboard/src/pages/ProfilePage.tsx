@@ -1,15 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { Camera, Shield, Mail, Calendar, Clock, CheckCircle2, TicketIcon, Star } from 'lucide-react';
+import { Camera, Shield, Mail, Calendar, Clock, CheckCircle2, TicketIcon, Star, Trash2 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import Container from '../components/Container';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usersApi, ticketsApi, type ApiTicket } from '../utils/apiClient';
 import './ProfilePage.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 function centerAspectCrop(width: number, height: number, aspect: number): Crop {
   return centerCrop(
@@ -46,10 +47,13 @@ async function cropImageToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<
 }
 
 export function ProfilePage() {
+  const navigate = useNavigate();
   const { user, setUser } = useCurrentUser();
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
 
   // crop modal state
   const [showCropModal, setShowCropModal] = useState(false);
@@ -107,6 +111,29 @@ export function ProfilePage() {
       setUploadError('Upload failed. Please try again.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmEmail !== user?.email) {
+      alert('Email does not match. Please try again.');
+      return;
+    }
+
+    if (!confirm(`Are you absolutely sure? This will permanently delete your account and cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await usersApi.delete(user!.id);
+      if (res.ok) {
+        localStorage.removeItem('authToken');
+        navigate('/login', { replace: true });
+      } else {
+        alert('Failed to delete account. Please try again.');
+      }
+    } catch {
+      alert('Error deleting account. Please try again.');
     }
   };
 
@@ -286,6 +313,113 @@ export function ProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Delete Account Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+        className="profile-danger-zone"
+      >
+        <div className="danger-zone-header">
+          <h3 style={{ margin: 0, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Trash2 size={18} />
+            Danger Zone
+          </h3>
+          <p style={{ margin: '4px 0 0 0', color: '#9ca3af', fontSize: '13px' }}>
+            Permanent actions that cannot be undone
+          </p>
+        </div>
+
+        {!showDeleteConfirm ? (
+          <div style={{ padding: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.05)' }}>
+            <p style={{ margin: '0 0 12px 0', color: '#d1d5db', fontSize: '13px' }}>
+              Once you delete your account, there is no going back. Please be certain.
+            </p>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{
+                padding: '10px 16px',
+                background: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Trash2 size={14} />
+              Delete My Account
+            </button>
+          </div>
+        ) : (
+          <div style={{ padding: '16px', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)' }}>
+            <p style={{ margin: '0 0 12px 0', color: '#d1d5db', fontSize: '13px', fontWeight: '600' }}>
+              To confirm deletion, please type your email address:
+            </p>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={deleteConfirmEmail}
+              onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '6px',
+                background: 'rgba(31, 34, 40, 0.6)',
+                color: '#f7f8f8',
+                fontSize: '13px',
+                marginBottom: '12px',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmEmail('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  color: '#60a5fa',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmEmail !== user?.email}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  background: deleteConfirmEmail === user?.email ? '#ef4444' : 'rgba(239, 68, 68, 0.5)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: deleteConfirmEmail === user?.email ? 'pointer' : 'not-allowed',
+                  opacity: deleteConfirmEmail === user?.email ? 1 : 0.5,
+                }}
+              >
+                Permanently Delete
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
     </DashboardLayout>
   );
 }
