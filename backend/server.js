@@ -80,53 +80,61 @@ const initializeDatabase = async () => {
   }
 };
 
-initializeDatabase().then(() => {
-  const server = app.listen(PORT, (arg) => {
-    // Express wires this callback to `server.once('error', done)` as well as the
-    // listening callback, so it runs with an Error on bind failures (e.g. EADDRINUSE).
-    if (arg instanceof Error) {
+if (process.env.VERCEL) {
+  // Database check without blocking in serverless context
+  initializeDatabase();
+} else {
+  initializeDatabase().then(() => {
+    const server = app.listen(PORT, (arg) => {
+      // Express wires this callback to `server.once('error', done)` as well as the
+      // listening callback, so it runs with an Error on bind failures (e.g. EADDRINUSE).
+      if (arg instanceof Error) {
+        // #region agent log
+        _agentDbg('H2', 'server.js:listen', 'listen_failed_callback', {
+          code: arg.code,
+          message: arg.message,
+        });
+        // #endregion
+        console.error(`Server failed to listen on port ${PORT}:`, arg.message);
+        process.exit(1);
+      }
+      console.log(`Server is running on http://localhost:${PORT}`);
       // #region agent log
-      _agentDbg('H2', 'server.js:listen', 'listen_failed_callback', {
-        code: arg.code,
-        message: arg.message,
+      _agentDbg('H2', 'server.js:listen', 'listen_callback', {
+        listening: server.listening,
+        address: server.address(),
       });
       // #endregion
-      console.error(`Server failed to listen on port ${PORT}:`, arg.message);
-      process.exit(1);
-    }
-    console.log(`Server is running on http://localhost:${PORT}`);
+    });
     // #region agent log
-    _agentDbg('H2', 'server.js:listen', 'listen_callback', {
-      listening: server.listening,
-      address: server.address(),
+    server.on('error', (err) => {
+      _agentDbg('H2', 'server.js:server.error', err.message, {
+        code: err.code,
+      });
+    });
+    server.on('close', () => {
+      _agentDbg('H2', 'server.js:server.close', 'server_closed', {});
     });
     // #endregion
+  }).catch((err) => {
+    // #region agent log
+    try {
+      fs.appendFileSync(
+        _AGENT_LOG,
+        JSON.stringify({
+          sessionId: _AGENT_SESSION,
+          hypothesisId: 'H6',
+          location: 'server.js:init_chain',
+          message: 'initializeDatabase_then_rejected',
+          data: { message: err && err.message },
+          timestamp: Date.now(),
+        }) + '\n'
+      );
+    } catch (_) {}
+    // #endregion
+    throw err;
   });
-  // #region agent log
-  server.on('error', (err) => {
-    _agentDbg('H2', 'server.js:server.error', err.message, {
-      code: err.code,
-    });
-  });
-  server.on('close', () => {
-    _agentDbg('H2', 'server.js:server.close', 'server_closed', {});
-  });
-  // #endregion
-}).catch((err) => {
-  // #region agent log
-  try {
-    fs.appendFileSync(
-      _AGENT_LOG,
-      JSON.stringify({
-        sessionId: _AGENT_SESSION,
-        hypothesisId: 'H6',
-        location: 'server.js:init_chain',
-        message: 'initializeDatabase_then_rejected',
-        data: { message: err && err.message },
-        timestamp: Date.now(),
-      }) + '\n'
-    );
-  } catch (_) {}
-  // #endregion
-  throw err;
-});
+}
+
+module.exports = app;
+
