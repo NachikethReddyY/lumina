@@ -3,12 +3,20 @@
   "version": "1.0.0",
   "description": "Lumina - Full-stack IT Helpdesk Dashboard",
   "scripts": {
-    "lumina": "concurrently \"npm run backend\" \"npm run frontend\"",
-    "backend": "cd backend && node server.js",
-    "frontend": "cd react-user-dashboard && npm run dev",
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix react-user-dashboard run dev -- --host 0.0.0.0",
+    "start": "concurrently -k -n api,web -c blue,magenta \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "npm --prefix backend run start",
+    "start:frontend": "npm --prefix react-user-dashboard run preview -- --host 0.0.0.0",
+    "build": "npm run build:frontend",
+    "build:frontend": "npm --prefix react-user-dashboard run build",
+    "lint:frontend": "npm --prefix react-user-dashboard run lint",
+    "db:init": "psql \"$DATABASE_URL\" -f backend/db/init.sql",
     "install:all": "npm run install:backend && npm run install:frontend",
-    "install:backend": "cd backend && npm install",
-    "install:frontend": "cd react-user-dashboard && npm install"
+    "install:backend": "npm --prefix backend install",
+    "install:frontend": "npm --prefix react-user-dashboard install",
+    "install:bun": "cd backend && bun install && cd ../react-user-dashboard && bun install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

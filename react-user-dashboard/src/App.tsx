@@ -8,6 +8,9 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyEmailOtpPage from './pages/VerifyEmailOtpPage';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import RoleDashboardPage from './pages/RoleDashboardPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
 function App() {
@@ -20,9 +23,13 @@ function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/verify-email-otp" element={<VerifyEmailOtpPage />} />
-      <Route path="/user/dashboard" element={<UserDashboard />} />
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
-      <Route path="/dashboard" element={<UserDashboard />} />
+      <Route path="/user/dashboard" element={<ProtectedRoute roles={['user']}><UserDashboard /></ProtectedRoute>} />
+      <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin', 'super_admin']}><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/super-admin/dashboard" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
+      <Route path="/dashboard/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
+      <Route path="/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
+      <Route path="/routing-logs" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

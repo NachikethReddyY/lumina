@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
-import Input from '../components/Input';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
 import { authApi } from '../utils/apiClient';
 import './AuthPage.css';
 
@@ -14,15 +15,19 @@ export function VerifyEmailOtpPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const emailFromQuery = searchParams.get('email') || '';
+  const storedEmail =
+    typeof window !== 'undefined' ? localStorage.getItem('pendingVerificationEmail') || '' : '';
+  const pendingEmail = emailFromQuery || storedEmail;
 
-  const [email, setEmail] = useState(emailFromQuery);
   const [otp, setOtp] = useState('');
-  const [status, setStatus] = useState<Status>('idle');
+  const [status, setStatus] = useState<Status>(pendingEmail ? 'idle' : 'error');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    setEmail(emailFromQuery);
-  }, [emailFromQuery]);
+    if (!pendingEmail) {
+      setMessage('We could not find the email waiting for verification. Please sign up again or resend the code from login.');
+    }
+  }, [pendingEmail]);
 
   const itemVariants = {
     hidden: { opacity: 0, y: 10 },
@@ -70,7 +75,7 @@ export function VerifyEmailOtpPage() {
               setStatus('loading');
               setMessage('');
               try {
-                const res = await authApi.verifyEmailOtp(email, otp);
+                const res = await authApi.verifyEmailOtp(pendingEmail, otp);
                 const data = (await res.json().catch(() => ({}))) as {
                   error?: string;
                   message?: string;
@@ -85,6 +90,7 @@ export function VerifyEmailOtpPage() {
                   localStorage.setItem('authToken', data.accessToken);
                   localStorage.setItem('refreshToken', '');
                 }
+                localStorage.removeItem('pendingVerificationEmail');
                 setStatus('success');
                 setMessage(data.message || 'Your account is active.');
                 navigate('/dashboard');
@@ -94,25 +100,32 @@ export function VerifyEmailOtpPage() {
               }
             }}
           >
-            <Input
-              label="Email"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input
-              label="6-digit code"
-              name="otp"
-              inputMode="numeric"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\\D/g, '').slice(0, 6))}
-              required
-              placeholder="123456"
-            />
+            {pendingEmail ? (
+              <p className="auth-notice auth-notice--info">
+                Verifying <strong>{pendingEmail}</strong>
+              </p>
+            ) : null}
+            <div className="form-group">
+              <label>6-digit code</label>
+              <InputOTP
+                maxLength={6}
+                pattern={REGEXP_ONLY_DIGITS}
+                value={otp}
+                onChange={(value) => setOtp(value)}
+                containerClassName="justify-center"
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
 
-            <Button type="submit" size="lg" loading={status === 'loading'}>
+            <Button type="submit" size="lg" loading={status === 'loading'} disabled={!pendingEmail}>
               Verify
             </Button>
           </form>
@@ -135,4 +148,3 @@ export function VerifyEmailOtpPage() {
 }
 
 export default VerifyEmailOtpPage;
-

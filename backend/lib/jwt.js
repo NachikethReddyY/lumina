@@ -8,6 +8,10 @@ function getSecret() {
   return secret || 'lumina-dev-only-change-me';
 }
 
+function getAccessTokenTtl() {
+  return process.env.JWT_ACCESS_EXPIRES_IN || '7d';
+}
+
 function signAccessToken(user) {
   return jwt.sign(
     {
@@ -16,7 +20,7 @@ function signAccessToken(user) {
       role: user.role,
     },
     getSecret(),
-    { expiresIn: '7d' }
+    { expiresIn: getAccessTokenTtl() }
   );
 }
 

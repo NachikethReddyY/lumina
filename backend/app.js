@@ -6,10 +6,18 @@ const { apiVersionHeader } = require('./middleware/apiVersion');
 
 function createApp() {
   const app = express();
+  app.disable('x-powered-by');
 
   const origins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map((s) => s.trim()).filter(Boolean)
     : true;
+
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
 
   app.use(
     cors({

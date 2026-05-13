@@ -23,7 +23,7 @@ async function getAdminWorkloads(client = db) {
       AND ta.is_active = TRUE
      LEFT JOIN tickets t
        ON t.id = ta.ticket_id
-     WHERE u.role IN ('admin', 'super_admin') AND u.status = 'active'
+     WHERE u.role = 'admin' AND u.status = 'active'
      GROUP BY u.id, u.email, u.first_name, u.last_name
      ORDER BY u.first_name, u.last_name`
   );
@@ -160,4 +160,3 @@ module.exports = {
   deterministicRoute,
   getAdminWorkloads,
 };
-

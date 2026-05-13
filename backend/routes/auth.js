@@ -13,8 +13,13 @@ const {
 const { isMailConfigured, sendMail } = require('../lib/mailer');
 const { getFrontendBaseUrl } = require('../lib/frontendUrl');
 const { verificationEmailHtml, passwordResetEmailHtml } = require('../lib/emailTemplates');
+const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, key: (req) => req.ip });
+const otpLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, key: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}` });
+
+router.use(authLimiter);
 
 const VERIFY_TTL_MS = 48 * 60 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -25,6 +30,19 @@ function generateOtp() {
 
 function hashOtp(otp) {
   return crypto.createHash('sha256').update(String(otp)).digest('hex');
+}
+
+async function createVerificationChallenge(userId) {
+  const vToken = crypto.randomBytes(32).toString('hex');
+  const otp = generateOtp();
+  const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
+  const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+  await db.query(
+    `INSERT INTO email_verifications (user_id, token, otp_hash, otp_expires_at, expires_at)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [userId, vToken, hashOtp(otp), otpExpiresAt, expiresAt]
+  );
+  return { token: vToken, otp };
 }
 
 async function sendVerificationEmail(toEmail, token, otp) {
@@ -79,8 +97,17 @@ router.post('/login', async (req, res, next) => {
       return res.status(403).json({
         error: 'Please verify your email before signing in.',
         code: 'EMAIL_NOT_VERIFIED',
+        verificationEmail: user.email,
       });
     }
+    if (user.status === 'suspended') {
+      return res.status(403).json({
+        error: 'This account has been suspended. Contact a super admin.',
+        code: 'ACCOUNT_SUSPENDED',
+      });
+    }
+
+    await db.query(`UPDATE users SET last_login_at = NOW() WHERE id = $1`, [user.id]);
 
     const accessToken = signAccessToken(user);
     return res.status(200).json({
@@ -100,40 +127,22 @@ router.post('/signup', async (req, res, next) => {
   }
   const { email, password, firstName, lastName } = parsed;
   const mailConfigured = isMailConfigured();
+  if (!mailConfigured) {
+    return res.status(503).json({
+      error: 'Email verification is required, but SMTP is not configured on the server.',
+      code: 'MAIL_NOT_CONFIGURED',
+    });
+  }
 
   try {
-    const status = mailConfigured ? 'pending' : 'active';
-    const emailVerified = !mailConfigured;
-
     const result = await db.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
        VALUES ($1, crypt($2, gen_salt('bf')), $3, $4, 'user'::user_role, $5::user_status, $6)
        RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
-      [email, password, firstName, lastName, status, emailVerified]
+      [email, password, firstName, lastName, 'pending', false]
     );
     const user = result.rows[0];
-
-    if (!mailConfigured) {
-      const accessToken = signAccessToken(user);
-      return res.status(201).json({
-        user,
-        accessToken,
-        refreshToken: '',
-        requiresEmailVerification: false,
-        message:
-          'Account is ready. (SMTP is not configured on the server, so email verification was skipped.)',
-      });
-    }
-
-    const vToken = crypto.randomBytes(32).toString('hex');
-    const otp = generateOtp();
-    const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
-    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
-    await db.query(
-      `INSERT INTO email_verifications (user_id, token, otp_hash, otp_expires_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [user.id, vToken, hashOtp(otp), otpExpiresAt, expiresAt]
-    );
+    const { token: vToken, otp } = await createVerificationChallenge(user.id);
 
     try {
       await sendVerificationEmail(user.email, vToken, otp);
@@ -141,7 +150,7 @@ router.post('/signup', async (req, res, next) => {
       console.error('Verification email failed:', mailErr.message);
       return res.status(503).json({
         error:
-          'Account was created but the verification email could not be sent. Check SMTP settings or try resend.',
+          'Account was created but the verification email could not be sent. Check SMTP settings and try again.',
         code: 'MAIL_FAILED',
       });
     }
@@ -179,7 +188,11 @@ router.post('/verify-email', async (req, res, next) => {
     }
 
     await db.query(
-      `UPDATE users SET status = 'active'::user_status, email_is_verified = TRUE WHERE id = $1`,
+      `UPDATE users
+       SET status = 'active'::user_status,
+           email_is_verified = TRUE,
+           approved_at = COALESCE(approved_at, NOW())
+       WHERE id = $1`,
       [row.user_id]
     );
     await db.query(`UPDATE email_verifications SET used_at = NOW() WHERE id = $1`, [row.id]);
@@ -203,7 +216,7 @@ router.post('/verify-email', async (req, res, next) => {
   }
 });
 
-router.post('/verify-email-otp', async (req, res, next) => {
+router.post('/verify-email-otp', otpLimiter, async (req, res, next) => {
   const email = String(req.body?.email ?? '').trim();
   const otp = String(req.body?.otp ?? '').trim();
 
@@ -232,7 +245,11 @@ router.post('/verify-email-otp', async (req, res, next) => {
     }
 
     await db.query(
-      `UPDATE users SET status = 'active'::user_status, email_is_verified = TRUE WHERE id = $1`,
+      `UPDATE users
+       SET status = 'active'::user_status,
+           email_is_verified = TRUE,
+           approved_at = COALESCE(approved_at, NOW())
+       WHERE id = $1`,
       [row.user_id]
     );
     await db.query(`UPDATE email_verifications SET used_at = NOW() WHERE id = $1`, [row.id]);
@@ -256,7 +273,7 @@ router.post('/verify-email-otp', async (req, res, next) => {
   }
 });
 
-router.post('/resend-verification', async (req, res, next) => {
+router.post('/resend-verification', otpLimiter, async (req, res, next) => {
   const parsed = validateForgotPasswordBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));
@@ -291,15 +308,7 @@ router.post('/resend-verification', async (req, res, next) => {
       [user.id]
     );
 
-    const vToken = crypto.randomBytes(32).toString('hex');
-    const otp = generateOtp();
-    const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
-    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
-    await db.query(
-      `INSERT INTO email_verifications (user_id, token, otp_hash, otp_expires_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [user.id, vToken, hashOtp(otp), otpExpiresAt, expiresAt]
-    );
+    const { token: vToken, otp } = await createVerificationChallenge(user.id);
 
     try {
       await sendVerificationEmail(user.email, vToken, otp);
@@ -358,20 +367,23 @@ router.post('/google', async (req, res, next) => {
         await db.query(
           `INSERT INTO oauth_accounts (user_id, provider, provider_user_id)
            VALUES ($1, 'google'::oauth_provider, $2)
-           ON CONFLICT (provider_user_id) DO NOTHING`,
+          ON CONFLICT (provider_user_id) DO NOTHING`,
           [userRow.id, sub]
         );
       } else {
         const first = payload.given_name || 'Google';
         const last = payload.family_name || 'User';
-        const mailConfigured = isMailConfigured();
-        const status = mailConfigured ? 'pending' : 'active';
-        const emailVerified = !mailConfigured;
+        if (!isMailConfigured()) {
+          return res.status(503).json({
+            error: 'Email verification is required, but SMTP is not configured on the server.',
+            code: 'MAIL_NOT_CONFIGURED',
+          });
+        }
         const ins = await db.query(
           `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
-           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, $4::user_status, $5)
+           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'pending'::user_status, FALSE)
            RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
-          [email, first, last, status, emailVerified]
+          [email, first, last]
         );
         userRow = ins.rows[0];
         await db.query(
@@ -379,23 +391,15 @@ router.post('/google', async (req, res, next) => {
            VALUES ($1, 'google'::oauth_provider, $2)`,
           [userRow.id, sub]
         );
-
-        // Send verification email for new OAuth signups when SMTP is configured.
-        if (mailConfigured) {
-          const vToken = crypto.randomBytes(32).toString('hex');
-          const otp = generateOtp();
-          const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
-          const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
-          await db.query(
-            `INSERT INTO email_verifications (user_id, token, otp_hash, otp_expires_at, expires_at)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [userRow.id, vToken, hashOtp(otp), otpExpiresAt, expiresAt]
-          );
-          try {
-            await sendVerificationEmail(userRow.email, vToken, otp);
-          } catch (mailErr) {
-            console.error('OAuth verification email failed:', mailErr.message);
-          }
+        const { token: vToken, otp } = await createVerificationChallenge(userRow.id);
+        try {
+          await sendVerificationEmail(userRow.email, vToken, otp);
+        } catch (mailErr) {
+          console.error('OAuth verification email failed:', mailErr.message);
+          return res.status(503).json({
+            error: 'Account was created but the verification email could not be sent.',
+            code: 'MAIL_FAILED',
+          });
         }
       }
     }
@@ -404,6 +408,13 @@ router.post('/google', async (req, res, next) => {
       return res.status(403).json({
         error: 'Please verify your email before signing in.',
         code: 'EMAIL_NOT_VERIFIED',
+        verificationEmail: userRow.email,
+      });
+    }
+    if (userRow.status === 'suspended') {
+      return res.status(403).json({
+        error: 'This account has been suspended. Contact a super admin.',
+        code: 'ACCOUNT_SUSPENDED',
       });
     }
 
@@ -414,7 +425,7 @@ router.post('/google', async (req, res, next) => {
   }
 });
 
-router.post('/forgot-password', async (req, res, next) => {
+router.post('/forgot-password', otpLimiter, async (req, res, next) => {
   const parsed = validateForgotPasswordBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));

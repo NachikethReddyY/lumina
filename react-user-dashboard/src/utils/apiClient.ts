@@ -7,8 +7,62 @@ export type AuthValidationErrorBody = {
   details?: Record<string, string>;
 };
 
+export type ApiUser = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'user' | 'admin' | 'super_admin';
+  status: 'pending' | 'active' | 'suspended';
+  email_is_verified: boolean;
+  avatar_url?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  created_at: string;
+  last_login_at?: string | null;
+};
+
+export type ApiTicket = {
+  id: string;
+  title: string;
+  description: string;
+  type: 'hardware' | 'software' | 'bug';
+  priority: 'P1' | 'P2' | 'P3' | 'P4';
+  status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed' | 'on_hold' | 'pending_routing';
+  created_at: string;
+  replication_steps?: string | null;
+  metadata?: Record<string, unknown>;
+  category_id: string;
+  category_name: string;
+  submitted_by_id: string;
+  submitted_by_email: string;
+  assigned_to_id?: string | null;
+  assigned_to_name?: string | null;
+};
+
+export type ApiCategory = {
+  id: string;
+  name: string;
+  description?: string | null;
+  created_by: string;
+  is_active: boolean;
+};
+
+export type AdminWorkload = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  p1_count: number;
+  p2_count: number;
+  p3_count: number;
+  p4_count: number;
+  total_open: number;
+  load_score: number;
+};
+
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body?: unknown;
 }
@@ -118,6 +172,68 @@ export const authApi = {
       method: 'POST',
       body: { refreshToken: localStorage.getItem('refreshToken') },
     }),
+};
+
+export const usersApi = {
+  me: () => apiRequest('/users/me'),
+  list: (params?: { role?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.role) query.set('role', params.role);
+    if (params?.status) query.set('status', params.status);
+    const suffix = query.toString() ? `?${query}` : '';
+    return apiRequest(`/users${suffix}`);
+  },
+  updateApproval: (id: string, status: 'active' | 'pending' | 'suspended') =>
+    apiRequest(`/users/${id}/approval`, {
+      method: 'PATCH' as RequestOptions['method'],
+      body: { status },
+    }),
+};
+
+export const categoriesApi = {
+  list: () => apiRequest('/categories'),
+};
+
+export const ticketsApi = {
+  list: (params?: { scope?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.scope) query.set('scope', params.scope);
+    if (params?.status) query.set('status', params.status);
+    const suffix = query.toString() ? `?${query}` : '';
+    return apiRequest(`/tickets${suffix}`);
+  },
+  create: (body: {
+    title: string;
+    description: string;
+    categoryId: string;
+    type: 'hardware' | 'software' | 'bug';
+    priority: 'P1' | 'P2' | 'P3' | 'P4';
+    replicationSteps?: string;
+  }) =>
+    apiRequest('/tickets', {
+      method: 'POST',
+      body,
+    }),
+  updateStatus: (ticketId: string, status: ApiTicket['status']) =>
+    apiRequest(`/tickets/${ticketId}/status`, {
+      method: 'PATCH' as RequestOptions['method'],
+      body: { status },
+    }),
+  assign: (ticketId: string, assignedTo: string) =>
+    apiRequest(`/tickets/${ticketId}/assign`, {
+      method: 'POST',
+      body: { assignedTo },
+    }),
+  reroute: (ticketId: string) =>
+    apiRequest(`/tickets/${ticketId}/route`, {
+      method: 'POST',
+    }),
+  rate: (ticketId: string, rating: number, comment?: string) =>
+    apiRequest(`/tickets/${ticketId}/rating`, {
+      method: 'POST',
+      body: { rating, comment },
+    }),
+  workload: () => apiRequest('/tickets/admin/workload'),
 };
 
 export default apiRequest;

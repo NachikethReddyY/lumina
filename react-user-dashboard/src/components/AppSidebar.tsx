@@ -17,30 +17,8 @@ import {
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import Logo from "./Logo"
+import { useCurrentUser } from "../hooks/useCurrentUser"
 import "./Sidebar.css"
-
-const menuItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Ticket History",
-    url: "/tickets",
-    icon: History,
-  },
-  {
-    title: "Admin Matrix",
-    url: "/admin/dashboard",
-    icon: Grid3X3,
-  },
-  {
-    title: "Routing Logs",
-    url: "/routing-logs",
-    icon: ListTree,
-  },
-]
 
 const stats = [
   { label: "Resolved", value: "1,284", icon: CheckCircle2, type: "resolved" },
@@ -95,6 +73,7 @@ const mockNotifications: Notification[] = [
 
 export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const location = useLocation()
+  const { user } = useCurrentUser()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
@@ -102,6 +81,38 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const notificationsRef = useRef<HTMLDivElement>(null)
 
   const unreadCount = notifications.filter((n) => !n.read).length
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin"
+  const isSuperAdmin = user?.role === "super_admin"
+  const menuItems = [
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      title: "Ticket History",
+      url: "/tickets",
+      icon: History,
+    },
+    ...(isAdmin
+      ? [
+          {
+            title: "Admin Matrix",
+            url: isSuperAdmin ? "/super-admin/dashboard" : "/admin/dashboard",
+            icon: Grid3X3,
+          },
+        ]
+      : []),
+    ...(isSuperAdmin
+      ? [
+          {
+            title: "Routing Logs",
+            url: "/routing-logs",
+            icon: ListTree,
+          },
+        ]
+      : []),
+  ]
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -270,8 +281,8 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
         >
           <div className="avatar">NR</div>
           <div className="user-info">
-            <span className="user-name">Nachith Reddy</span>
-            <span className="user-email">nachith@lumina.ai</span>
+            <span className="user-name">{user ? `${user.first_name} ${user.last_name}` : "Lumina User"}</span>
+            <span className="user-email">{user?.email || "not-signed-in"}</span>
           </div>
         </button>
       </div>

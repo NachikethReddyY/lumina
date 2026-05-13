@@ -12,7 +12,7 @@ async function requireAuth(req, res, next) {
     const payload = verifyAccessToken(match[1]);
     const result = await db.query(
       `SELECT id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
-              created_at, last_login_at
+              approved_by, approved_at, created_at, last_login_at
        FROM users
        WHERE id = $1`,
       [payload.sub]
@@ -47,4 +47,3 @@ function requireRole(...roles) {
 }
 
 module.exports = { requireAuth, requireRole };
-

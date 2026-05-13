@@ -36,14 +36,24 @@ export function GoogleAuthButton({ mode, onError }: Props) {
             error?: string;
             accessToken?: string;
             refreshToken?: string;
+            code?: string;
+            verificationEmail?: string;
           };
           if (!res.ok) {
+            if (res.status === 403 && data.code === 'EMAIL_NOT_VERIFIED') {
+              if (data.verificationEmail) {
+                localStorage.setItem('pendingVerificationEmail', data.verificationEmail);
+              }
+              navigate('/verify-email-otp');
+              return;
+            }
             onError?.(data.error || 'Google sign-in failed.');
             return;
           }
           if (data.accessToken) {
             localStorage.setItem('authToken', data.accessToken);
             localStorage.setItem('refreshToken', data.refreshToken || '');
+            localStorage.removeItem('pendingVerificationEmail');
           }
           navigate('/dashboard');
         }}

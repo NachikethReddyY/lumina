@@ -414,6 +414,45 @@
   transition: width 0.4s ease;
 }
 
+.super-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 48px;
+}
+
+.chart-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-bar-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 44px;
+  gap: 12px;
+  align-items: center;
+}
+
+.chart-bar-label,
+.chart-bar-value {
+  font-size: 12px;
+  color: #a0a8b8;
+  text-transform: capitalize;
+}
+
+.chart-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.chart-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
 .queue-section h3 {
   font-size: 20px;
   font-weight: 500;
@@ -577,6 +616,10 @@
   }
 
   .workload-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .super-grid {
     grid-template-columns: 1fr;
   }
 

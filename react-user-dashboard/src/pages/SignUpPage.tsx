@@ -98,6 +98,7 @@ export function SignUpPage() {
         return;
       }
       if (data.requiresEmailVerification) {
+        localStorage.setItem('pendingVerificationEmail', formData.email);
         setPendingEmail(formData.email);
         setPendingMessage(
           data.message || 'Check your email and click the link to activate your account.'
@@ -184,7 +185,7 @@ export function SignUpPage() {
                 After you activate, you can sign in. If you do not see the message, check spam or
                 resend below.
               </p>
-              <Link to={`/verify-email-otp?email=${encodeURIComponent(pendingEmail)}`}>
+              <Link to="/verify-email-otp">
                 <Button variant="secondary" size="lg" type="button">
                   Enter code instead
                 </Button>

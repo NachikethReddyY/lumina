@@ -75,6 +75,7 @@ export function LoginPage() {
       if (!res.ok) {
         const code = (data as { code?: string }).code;
         if (res.status === 403 && code === 'EMAIL_NOT_VERIFIED') {
+          localStorage.setItem('pendingVerificationEmail', formData.email);
           setShowResendVerification(true);
           setErrors({
             form:
@@ -97,6 +98,7 @@ export function LoginPage() {
       if (data.accessToken) {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken || '');
+        localStorage.removeItem('pendingVerificationEmail');
       }
       navigate('/dashboard');
     } catch {
@@ -247,6 +249,13 @@ export function LoginPage() {
                   >
                     Resend verification email
                   </Button>
+                </motion.div>
+                <motion.div variants={itemVariants}>
+                  <Link to="/verify-email-otp">
+                    <Button variant="secondary" size="lg" type="button">
+                      Enter 6-digit code
+                    </Button>
+                  </Link>
                 </motion.div>
               </>
             )}

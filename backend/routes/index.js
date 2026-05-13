@@ -1,4 +1,5 @@
 const express = require('express');
+const auditLogsRoutes = require('./auditLogs');
 const authRoutes = require('./auth');
 const categoriesRoutes = require('./categories');
 const ticketsRoutes = require('./tickets');
@@ -11,6 +12,7 @@ router.get('/health', (req, res) => {
 });
 
 router.use('/auth', authRoutes);
+router.use('/audit-logs', auditLogsRoutes);
 router.use('/categories', categoriesRoutes);
 router.use('/tickets', ticketsRoutes);
 router.use('/users', usersRoutes);
