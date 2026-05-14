@@ -70,6 +70,104 @@ router.get('/admin/workload', requireRole('admin', 'super_admin'), async (_req, 
   }
 });
 
+router.get('/:id/activity', async (req, res, next) => {
+  try {
+    const ticketCheck = await db.query(
+      `SELECT id, submitted_by FROM tickets WHERE id = $1`,
+      [req.params.id]
+    );
+    const ticket = ticketCheck.rows[0];
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    if (req.user.role === 'user' && ticket.submitted_by !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Status-change audit events for this ticket
+    const auditResult = await db.query(
+      `SELECT a.id, a.action, a.metadata, a.created_at,
+              u.id AS actor_id, u.first_name, u.last_name, u.email AS actor_email, u.role AS actor_role, u.avatar_url
+       FROM audit_logs a
+       JOIN users u ON u.id = a.actor_id
+       WHERE a.metadata->>'ticket_id' = $1
+       ORDER BY a.created_at ASC`,
+      [req.params.id]
+    );
+
+    // Satisfaction rating if exists
+    const ratingResult = await db.query(
+      `SELECT sr.rating, sr.comment, sr.ticket_id,
+              u.first_name, u.last_name, u.email, u.avatar_url
+       FROM satisfaction_ratings sr
+       JOIN users u ON u.id = sr.rated_by
+       WHERE sr.ticket_id = $1`,
+      [req.params.id]
+    );
+
+    res.json({
+      events: auditResult.rows,
+      rating: ratingResult.rows[0] || null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/ask', async (req, res, next) => {
+  const question = String(req.body?.question ?? '').trim();
+  if (!question) return res.status(400).json({ error: 'question is required' });
+
+  try {
+    const result = await db.query(
+      `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at,
+              t.replication_steps, t.metadata, c.name AS category_name,
+              submitter.email AS submitted_by_email,
+              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
+       FROM tickets t
+       JOIN categories c ON c.id = t.category_id
+       JOIN users submitter ON submitter.id = t.submitted_by
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       WHERE t.id = $1`,
+      [req.params.id]
+    );
+    const ticket = result.rows[0];
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    if (req.user.role === 'user' && ticket.submitted_by_email !== req.user.email) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    if (!apiKey) return res.status(503).json({ error: 'AI not configured' });
+
+    const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const prompt = [
+      'You are Lumina support AI. Answer the user question about the following support ticket concisely and helpfully.',
+      'Ticket context:',
+      JSON.stringify(ticket, null, 2),
+      '',
+      `User question: ${question}`,
+    ].join('\n');
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.4 },
+        }),
+      }
+    );
+    if (!geminiRes.ok) return res.status(502).json({ error: 'AI request failed' });
+    const data = await geminiRes.json();
+    const answer = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+    res.json({ answer });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const result = await db.query(

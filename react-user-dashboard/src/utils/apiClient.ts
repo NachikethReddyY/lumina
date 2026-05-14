@@ -61,6 +61,66 @@ export type AdminWorkload = {
   load_score: number;
 };
 
+export type ApiComment = {
+  id: string;
+  ticket_id: string;
+  body: string;
+  created_at: string;
+  author_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  avatar_url?: string | null;
+  role: ApiUser['role'];
+};
+
+export type ApiNotification = {
+  id: string;
+  action: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  first_name: string;
+  last_name: string;
+  actor_email: string;
+};
+
+export type ApiActivityEvent = {
+  id: string;
+  action: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  actor_id: string;
+  first_name: string;
+  last_name: string;
+  actor_email: string;
+  actor_role: string;
+  avatar_url?: string | null;
+};
+
+export type ApiRating = {
+  rating: number;
+  comment?: string | null;
+  ticket_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  avatar_url?: string | null;
+};
+
+export type ApiAiDecision = {
+  id: string;
+  title: string;
+  priority: ApiTicket['priority'];
+  type: ApiTicket['type'];
+  created_at: string;
+  routing: {
+    source: string;
+    assigned_admin_id?: string;
+    reasoning?: string;
+  } | null;
+  assigned_to_name?: string | null;
+};
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
@@ -112,70 +172,49 @@ export async function apiRequest(
   return response;
 }
 
+export async function apiUpload(endpoint: string, formData: FormData): Promise<Response> {
+  const url = `${API_BASE_URL}${apiPath(endpoint)}`;
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch(url, { method: 'POST', headers, body: formData });
+}
+
 export const authApi = {
   login: (email: string, password: string) =>
-    apiRequest('/auth/login', {
-      method: 'POST',
-      body: { email, password },
-    }),
+    apiRequest('/auth/login', { method: 'POST', body: { email, password } }),
 
-  signup: (data: {
-    email: string;
-    firstName: string;
-    lastName: string;
-    password: string;
-    role?: string;
-  }) =>
-    apiRequest('/auth/signup', {
-      method: 'POST',
-      body: data,
-    }),
+  signup: (data: { email: string; firstName: string; lastName: string; password: string; role?: string }) =>
+    apiRequest('/auth/signup', { method: 'POST', body: data }),
 
   google: (credential: string) =>
-    apiRequest('/auth/google', {
-      method: 'POST',
-      body: { credential },
-    }),
+    apiRequest('/auth/google', { method: 'POST', body: { credential } }),
 
   forgotPassword: (email: string) =>
-    apiRequest('/auth/forgot-password', {
-      method: 'POST',
-      body: { email },
-    }),
+    apiRequest('/auth/forgot-password', { method: 'POST', body: { email } }),
 
   resetPassword: (token: string, password: string) =>
-    apiRequest('/auth/reset-password', {
-      method: 'POST',
-      body: { token, password },
-    }),
+    apiRequest('/auth/reset-password', { method: 'POST', body: { token, password } }),
 
   verifyEmail: (token: string) =>
-    apiRequest('/auth/verify-email', {
-      method: 'POST',
-      body: { token },
-    }),
+    apiRequest('/auth/verify-email', { method: 'POST', body: { token } }),
 
   verifyEmailOtp: (email: string, otp: string) =>
-    apiRequest('/auth/verify-email-otp', {
-      method: 'POST',
-      body: { email, otp },
-    }),
+    apiRequest('/auth/verify-email-otp', { method: 'POST', body: { email, otp } }),
 
   resendVerification: (email: string) =>
-    apiRequest('/auth/resend-verification', {
-      method: 'POST',
-      body: { email },
-    }),
+    apiRequest('/auth/resend-verification', { method: 'POST', body: { email } }),
 
   refreshToken: () =>
-    apiRequest('/auth/refresh', {
-      method: 'POST',
-      body: { refreshToken: localStorage.getItem('refreshToken') },
-    }),
+    apiRequest('/auth/refresh', { method: 'POST', body: { refreshToken: localStorage.getItem('refreshToken') } }),
 };
 
 export const usersApi = {
   me: () => apiRequest('/users/me'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest('/users/me/password', { method: 'PATCH' as RequestOptions['method'], body: { currentPassword, newPassword } }),
+
   list: (params?: { role?: string; status?: string }) => {
     const query = new URLSearchParams();
     if (params?.role) query.set('role', params.role);
@@ -183,11 +222,18 @@ export const usersApi = {
     const suffix = query.toString() ? `?${query}` : '';
     return apiRequest(`/users${suffix}`);
   },
+
   updateApproval: (id: string, status: 'active' | 'pending' | 'suspended') =>
-    apiRequest(`/users/${id}/approval`, {
-      method: 'PATCH' as RequestOptions['method'],
-      body: { status },
-    }),
+    apiRequest(`/users/${id}/approval`, { method: 'PATCH' as RequestOptions['method'], body: { status } }),
+
+  updateRole: (id: string, role: 'user' | 'admin' | 'super_admin') =>
+    apiRequest(`/users/${id}/role`, { method: 'PATCH' as RequestOptions['method'], body: { role } }),
+
+  delete: (id: string) =>
+    apiRequest(`/users/${id}`, { method: 'DELETE' as RequestOptions['method'] }),
+
+  uploadAvatar: (formData: FormData) =>
+    apiUpload('/users/me/avatar', formData),
 };
 
 export const categoriesApi = {
@@ -202,6 +248,9 @@ export const ticketsApi = {
     const suffix = query.toString() ? `?${query}` : '';
     return apiRequest(`/tickets${suffix}`);
   },
+
+  get: (ticketId: string) => apiRequest(`/tickets/${ticketId}`),
+
   create: (body: {
     title: string;
     description: string;
@@ -209,31 +258,80 @@ export const ticketsApi = {
     type: 'hardware' | 'software' | 'bug';
     priority: 'P1' | 'P2' | 'P3' | 'P4';
     replicationSteps?: string;
-  }) =>
-    apiRequest('/tickets', {
-      method: 'POST',
-      body,
-    }),
+  }) => apiRequest('/tickets', { method: 'POST', body }),
+
   updateStatus: (ticketId: string, status: ApiTicket['status']) =>
-    apiRequest(`/tickets/${ticketId}/status`, {
-      method: 'PATCH' as RequestOptions['method'],
-      body: { status },
-    }),
+    apiRequest(`/tickets/${ticketId}/status`, { method: 'PATCH' as RequestOptions['method'], body: { status } }),
+
   assign: (ticketId: string, assignedTo: string) =>
-    apiRequest(`/tickets/${ticketId}/assign`, {
-      method: 'POST',
-      body: { assignedTo },
-    }),
+    apiRequest(`/tickets/${ticketId}/assign`, { method: 'POST', body: { assignedTo } }),
+
   reroute: (ticketId: string) =>
-    apiRequest(`/tickets/${ticketId}/route`, {
-      method: 'POST',
-    }),
+    apiRequest(`/tickets/${ticketId}/route`, { method: 'POST' }),
+
   rate: (ticketId: string, rating: number, comment?: string) =>
-    apiRequest(`/tickets/${ticketId}/rating`, {
-      method: 'POST',
-      body: { rating, comment },
-    }),
+    apiRequest(`/tickets/${ticketId}/rating`, { method: 'POST', body: { rating, comment } }),
+
   workload: () => apiRequest('/tickets/admin/workload'),
+
+  getComments: (ticketId: string) => apiRequest(`/tickets/${ticketId}/comments`),
+
+  addComment: (ticketId: string, body: string) =>
+    apiRequest(`/tickets/${ticketId}/comments`, { method: 'POST', body: { body } }),
+
+  getActivity: (ticketId: string) => apiRequest(`/tickets/${ticketId}/activity`),
+
+  askAI: (ticketId: string, question: string) =>
+    apiRequest(`/tickets/${ticketId}/ask`, { method: 'POST', body: { question } }),
+};
+
+export type ApiChatConversation = {
+  id: string;
+  status: string;
+  created_at: string;
+  last_message_at: string;
+  // admin list view extras
+  user_id?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  avatar_url?: string | null;
+  last_body?: string | null;
+  last_image?: string | null;
+  unread_count?: number;
+};
+
+export type ApiChatMessage = {
+  id: string;
+  body: string | null;
+  image_url: string | null;
+  is_read: boolean;
+  created_at: string;
+  sender_id: string;
+  first_name: string;
+  last_name: string;
+  role: ApiUser['role'];
+  avatar_url?: string | null;
+};
+
+export const chatApi = {
+  getConversations: () => apiRequest('/chat/conversations'),
+  getMessages: (convId: string) => apiRequest(`/chat/conversations/${convId}/messages`),
+  sendMessage: (convId: string, body: string) =>
+    apiRequest(`/chat/conversations/${convId}/messages`, { method: 'POST', body: { body } }),
+  sendImage: (convId: string, formData: FormData) => {
+    const url = `${API_BASE_URL}${API_PREFIX}/chat/conversations/${convId}/messages/image`;
+    const token = localStorage.getItem('authToken');
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return fetch(url, { method: 'POST', headers, body: formData });
+  },
+  getUnread: () => apiRequest('/chat/unread'),
+};
+
+export const notificationsApi = {
+  list: () => apiRequest('/notifications'),
+  aiDecisions: () => apiRequest('/notifications/ai-decisions'),
 };
 
 export default apiRequest;

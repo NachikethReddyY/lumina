@@ -33,6 +33,11 @@ function hashOtp(otp) {
 }
 
 async function createVerificationChallenge(userId) {
+  // Invalidate all prior unused challenges for this user so old OTPs can't interfere
+  await db.query(
+    `UPDATE email_verifications SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
+    [userId]
+  );
   const vToken = crypto.randomBytes(32).toString('hex');
   const otp = generateOtp();
   const otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
@@ -405,6 +410,15 @@ router.post('/google', async (req, res, next) => {
     }
 
     if (userRow.status === 'pending') {
+      // Always issue a fresh OTP so the user never lands on the OTP page with an expired code
+      if (isMailConfigured()) {
+        try {
+          const { token: vToken, otp } = await createVerificationChallenge(userRow.id);
+          await sendVerificationEmail(userRow.email, vToken, otp);
+        } catch (mailErr) {
+          console.error('OAuth re-verification email failed:', mailErr.message);
+        }
+      }
       return res.status(403).json({
         error: 'Please verify your email before signing in.',
         code: 'EMAIL_NOT_VERIFIED',

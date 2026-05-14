@@ -10,6 +10,10 @@ import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import RoleDashboardPage from './pages/RoleDashboardPage';
+import ProfilePage from './pages/ProfilePage';
+import TicketDetailPage from './pages/TicketDetailPage';
+import AccountSettingsPage from './pages/AccountSettingsPage';
+import TicketHistoryPage from './pages/TicketHistoryPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
@@ -23,13 +27,22 @@ function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/verify-email-otp" element={<VerifyEmailOtpPage />} />
+
+      <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
+      <Route path="/dashboard/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
+      <Route path="/tickets" element={<ProtectedRoute><TicketHistoryPage /></ProtectedRoute>} />
+
+      <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetailPage /></ProtectedRoute>} />
+
+      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/account-settings" element={<ProtectedRoute><AccountSettingsPage /></ProtectedRoute>} />
+
       <Route path="/user/dashboard" element={<ProtectedRoute roles={['user']}><UserDashboard /></ProtectedRoute>} />
       <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin', 'super_admin']}><AdminDashboard /></ProtectedRoute>} />
       <Route path="/super-admin/dashboard" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
-      <Route path="/dashboard/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
-      <Route path="/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
+      <Route path="/super-admin/users" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
       <Route path="/routing-logs" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

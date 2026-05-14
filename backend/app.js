@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
@@ -27,6 +28,7 @@ function createApp() {
   );
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   app.get('/', (req, res) => {
     res.json({

@@ -177,6 +177,29 @@
   text-align: center;
 }
 
+.auth-resend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.auth-resend-btn {
+  background: none;
+  border: none;
+  color: #60a5fa;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+.auth-resend-btn:hover:not(:disabled) { color: #93c5fd; }
+.auth-resend-btn:disabled { color: #4b5563; cursor: not-allowed; text-decoration: none; }
+
 .auth-hint code {
   font-size: 12px;
   color: #d1d5db;

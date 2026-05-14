@@ -561,6 +561,15 @@
   margin: 4px 0;
 }
 
+.user-menu-item-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px 2px;
+  color: rgba(255, 255, 255, 0.15);
+  justify-content: flex-end;
+}
+
 /* Scrollbar */
 .sidebar-content::-webkit-scrollbar {
   width: 4px;
