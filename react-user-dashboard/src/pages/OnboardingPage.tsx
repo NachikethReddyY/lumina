@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Upload, X } from 'lucide-react';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
@@ -27,12 +28,32 @@ const DEPARTMENTS = [
 
 export function OnboardingPage() {
   const navigate = useNavigate();
-  const { user } = useCurrentUser();
+  const { user, refetch } = useCurrentUser();
   const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [jobTitle, setJobTitle] = useState('');
   const [department, setDepartment] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [status, setStatus] = useState<Status>('idle');
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload an image file', 'error');
+      return;
+    }
+
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAvatarPreview(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +64,23 @@ export function OnboardingPage() {
 
     setStatus('loading');
     try {
+      let avatarUrl = user?.avatar_url;
+
+      // Upload avatar if provided
+      if (avatarFile) {
+        const formData = new FormData();
+        formData.append('avatar', avatarFile);
+        const avatarRes = await usersApi.uploadAvatar(formData);
+        const avatarData = (await avatarRes.json().catch(() => ({}))) as { avatarUrl?: string };
+        if (!avatarRes.ok) {
+          setStatus('error');
+          showToast('Failed to upload avatar', 'error');
+          return;
+        }
+        avatarUrl = avatarData.avatarUrl;
+      }
+
+      // Save onboarding info
       const res = await usersApi.saveOnboarding(jobTitle, department);
       const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
 
@@ -53,6 +91,7 @@ export function OnboardingPage() {
       }
 
       setStatus('success');
+      await refetch();
       showToast(data.message || 'Profile updated successfully', 'success');
       navigate('/pending-approval');
     } catch {
@@ -89,9 +128,51 @@ export function OnboardingPage() {
 
           {user && (
             <motion.div className="onboarding-user-info" variants={itemVariants}>
-              {user.avatar_url && (
-                <img src={user.avatar_url} alt={user.first_name} className="onboarding-avatar" />
-              )}
+              <div className="onboarding-avatar-section">
+                <div className="onboarding-avatar-container">
+                  {avatarPreview || user.avatar_url ? (
+                    <>
+                      <img
+                        src={avatarPreview || user.avatar_url}
+                        alt={user.first_name}
+                        className="onboarding-avatar"
+                      />
+                      {avatarFile && (
+                        <button
+                          type="button"
+                          className="onboarding-avatar-remove"
+                          onClick={() => {
+                            setAvatarFile(null);
+                            setAvatarPreview('');
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="onboarding-avatar-placeholder">
+                      <Upload size={32} />
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="onboarding-avatar-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={status === 'loading'}
+                >
+                  {avatarFile ? 'Change Photo' : 'Upload Photo'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  style={{ display: 'none' }}
+                />
+              </div>
               <div>
                 <p className="onboarding-user-name">
                   {user.first_name} {user.last_name}
