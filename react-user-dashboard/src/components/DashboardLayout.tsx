@@ -1,9 +1,13 @@
-import { useState } from "react"
-import { Outlet } from "react-router-dom"
+import { ReactNode, useState } from "react"
 import { AppSidebar } from "./AppSidebar"
+import { SideChat } from "./SideChat"
 import { PanelLeft, PanelLeftClose } from "lucide-react"
 
-export function DashboardLayout() {
+interface DashboardLayoutProps {
+  children: ReactNode
+}
+
+export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const toggleSidebar = () => setIsCollapsed(!isCollapsed)
@@ -34,9 +38,12 @@ export function DashboardLayout() {
 
         {/* Dynamic Page Content */}
         <main className="flex-1 overflow-y-auto">
-          <Outlet />
+          {children}
         </main>
       </div>
+
+      {/* Global side chat — available on every page */}
+      <SideChat />
     </div>
   )
 }

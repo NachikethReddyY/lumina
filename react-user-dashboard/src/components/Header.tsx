@@ -8,10 +8,7 @@ export function Header() {
     <header className="header">
       <div className="header-container">
         <Link to="/dashboard/tickets" className="header-logo-link">
-          <div className="logo-vertical">
-            <Logo size="sm" showText={false} />
-            <span className="logo-text-below">Lumina</span>
-          </div>
+          <Logo size="sm" showText={true} />
         </Link>
 
         <nav className="header-nav">

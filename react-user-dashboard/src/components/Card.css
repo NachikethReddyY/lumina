@@ -1,0 +1,46 @@
+/* Card Component - CSS3 Glass-morphism */
+
+.card {
+  border-radius: 16px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(12px);
+}
+
+/* Glass Card - Default */
+.card--default {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 32px;
+  box-shadow: 0 0 100px rgba(0, 0, 0, 0.5);
+}
+
+.card--default:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Glass Card - Dark */
+.card--dark {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 32px;
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.4);
+}
+
+.card--dark:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* Elevated Card */
+.card--elevated {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 32px;
+  box-shadow: 0 0 120px rgba(0, 0, 0, 0.6);
+}
+
+.card--elevated:hover {
+  box-shadow: 0 0 150px rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.2);
+}

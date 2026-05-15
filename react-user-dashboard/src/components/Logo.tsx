@@ -3,10 +3,11 @@ import './Logo.css';
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
   showText?: boolean;
+  vertical?: boolean;
 }
 
 // TODO: When auth is implemented, wrap Logo in Link to /dashboard/tickets if logged in
-export function Logo({ size = 'md', showText = true }: LogoProps) {
+export function Logo({ size = 'md', showText = true, vertical = false }: LogoProps) {
   const sizeMap = {
     sm: 20,
     md: 32,
@@ -15,8 +16,8 @@ export function Logo({ size = 'md', showText = true }: LogoProps) {
 
   const iconSize = sizeMap[size];
 
-  return (
-    <div className={`logo logo--${size}`}>
+   return (
+    <div className={`logo logo--${size}${vertical ? ' logo--vertical' : ''}`}>
       {/* Lumina Gradient Logo - Gold to Purple to Blue */}
       <svg
         width={iconSize}

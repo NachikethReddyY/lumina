@@ -5,6 +5,7 @@ import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Container from '../components/Container';
+import { authApi, type AuthValidationErrorBody } from '../utils/apiClient';
 import './AuthPage.css';
 
 export function ForgotPasswordPage() {
@@ -12,6 +13,8 @@ export function ForgotPasswordPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [devResetLink, setDevResetLink] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +31,23 @@ export function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      // TODO: Call backend API to send password reset email
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const res = await authApi.forgotPassword(email);
+      const data = (await res.json().catch(() => ({}))) as AuthValidationErrorBody & {
+        devResetLink?: string;
+        emailSent?: boolean;
+      };
+      if (!res.ok) {
+        setError(
+          data.details?.email ||
+            data.error ||
+            'Failed to send reset email. Please try again.'
+        );
+        return;
+      }
+      setDevResetLink(data.devResetLink || null);
+      setEmailSent(Boolean(data.emailSent));
       setSubmitted(true);
-    } catch (_err) {
+    } catch {
       setError('Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
@@ -61,7 +77,7 @@ export function ForgotPasswordPage() {
           {/* Logo */}
           <motion.div className="auth-logo" variants={itemVariants}>
             <Link to="/">
-              <Logo size="md" showText={true} />
+              <Logo size="md" showText={true} vertical={true} />
             </Link>
           </motion.div>
 
@@ -85,12 +101,26 @@ export function ForgotPasswordPage() {
             >
               <div className="success-icon">✓</div>
               <p className="success-text">
-                We've sent a password reset link to <strong>{email}</strong>
+                If an account exists for <strong>{email}</strong>, password reset instructions were
+                sent when email delivery is configured.
               </p>
               <p className="success-subtext">
-                Check your email (including spam folder) and follow the instructions to reset your
-                password.
+                Check your inbox and spam folder. If nothing arrives, confirm SMTP settings in
+                backend <code className="auth-inline-code">.env</code> (Gmail app password).
               </p>
+              {emailSent && (
+                <p className="auth-notice auth-notice--info">
+                  A reset link was emailed from your server (when SMTP succeeded).
+                </p>
+              )}
+              {devResetLink && (
+                <p className="auth-dev-link">
+                  <span className="auth-dev-label">Development only:</span>{' '}
+                  <a href={devResetLink} className="auth-link">
+                    Open reset password page
+                  </a>
+                </p>
+              )}
               <Link to="/login">
                 <Button variant="primary" size="lg">
                   Back to Sign In

@@ -1,0 +1,173 @@
+.pending-approval-page {
+  min-height: 100vh;
+  background: #0b0c0e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pending-approval-decoration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 20% 50%, rgba(251, 191, 36, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.pending-approval-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(20, 22, 26, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 450px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.pending-approval-logo {
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.pending-approval-header {
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+.pending-approval-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: #f7f8f8;
+  margin: 0 0 12px 0;
+  letter-spacing: -0.5px;
+}
+
+.pending-approval-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #9ca3af;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.pending-approval-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 32px 24px;
+  background: rgba(251, 191, 36, 0.05);
+  border-radius: 12px;
+  margin-bottom: 32px;
+}
+
+.pending-approval-icon-wrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pending-approval-icon {
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pending-approval-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fbbf24;
+  border-radius: 50%;
+  bottom: 8px;
+  right: 8px;
+}
+
+.pending-approval-info {
+  text-align: center;
+}
+
+.pending-approval-info-label {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.pending-approval-info-value {
+  margin: 8px 0 0 0;
+  font-size: 18px;
+  color: #fbbf24;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+}
+
+.pending-approval-actions {
+  margin-bottom: 24px;
+}
+
+.pending-approval-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pending-approval-last-checked {
+  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(251, 191, 36, 0.1);
+  margin-bottom: 16px;
+}
+
+.pending-approval-last-checked p {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.pending-approval-footer {
+  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(251, 191, 36, 0.1);
+}
+
+.pending-approval-step-counter {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .pending-approval-card {
+    padding: 24px;
+  }
+
+  .pending-approval-title {
+    font-size: 24px;
+  }
+
+  .pending-approval-subtitle {
+    font-size: 13px;
+  }
+}

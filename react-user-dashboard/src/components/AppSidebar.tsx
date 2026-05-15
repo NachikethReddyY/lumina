@@ -1,109 +1,129 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import {
   LayoutDashboard,
   History,
   Grid3X3,
   ListTree,
   Settings,
-  HelpCircle,
   LogOut,
   CheckCircle2,
-  Smile,
-  Users2,
   Bell,
   User,
   AlertCircle,
   Clock,
+  Cpu,
+  TicketIcon,
+  ChevronRight,
 } from "lucide-react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import Logo from "./Logo"
+import { useCurrentUser } from "../hooks/useCurrentUser"
+import { notificationsApi, type ApiNotification } from "../utils/apiClient"
 import "./Sidebar.css"
 
-const menuItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Ticket History",
-    url: "/tickets",
-    icon: History,
-  },
-  {
-    title: "Admin Matrix",
-    url: "/admin/dashboard",
-    icon: Grid3X3,
-  },
-  {
-    title: "Routing Logs",
-    url: "/routing-logs",
-    icon: ListTree,
-  },
-]
+const ACTION_LABELS: Record<string, string> = {
+  ticket_created: "New ticket created",
+  ticket_assigned: "Ticket assigned",
+  ticket_status_changed: "Status updated",
+  ticket_rerouted: "Ticket re-routed",
+  ticket_rated: "Ticket rated",
+  ticket_comment_added: "Comment added",
+  user_role_changed: "Role changed",
+  user_deleted: "User removed",
+  seed_users_loaded: "System seeded",
+  seed_tickets_loaded: "Tickets seeded",
+  seed_assignment_reviewed: "Assignment reviewed",
+}
 
-const stats = [
-  { label: "Resolved", value: "1,284", icon: CheckCircle2, type: "resolved" },
-  { label: "Satisfied", value: "98.2%", icon: Smile, type: "satisfied" },
-  { label: "Customers", value: "850", icon: Users2, type: "customers" },
-]
+function actionIcon(action: string) {
+  if (action.includes("created") || action.includes("loaded")) return TicketIcon
+  if (action.includes("resolved") || action.includes("rated")) return CheckCircle2
+  if (action.includes("status") || action.includes("rerouted")) return Clock
+  if (action.includes("role") || action.includes("deleted")) return AlertCircle
+  return Bell
+}
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  icon: typeof AlertCircle;
-  type: "alert" | "info" | "success" | "update";
-  timestamp: string;
-  read: boolean;
+function timeAgo(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 interface AppSidebarProps {
-  isCollapsed: boolean;
-  onToggle: () => void;
+  isCollapsed: boolean
+  onToggle: () => void
 }
-
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "Critical Ticket",
-    message: "TKT-003: App Crashes on Launch",
-    icon: AlertCircle,
-    type: "alert",
-    timestamp: "2 mins ago",
-    read: false,
-  },
-  {
-    id: "2",
-    title: "Ticket Resolved",
-    message: "TKT-002: Password Reset issue fixed",
-    icon: CheckCircle2,
-    type: "success",
-    timestamp: "1 hour ago",
-    read: true,
-  },
-  {
-    id: "3",
-    title: "Status Update",
-    message: "TKT-001 moved to In Progress",
-    icon: Clock,
-    type: "info",
-    timestamp: "3 hours ago",
-    read: true,
-  },
-]
 
 export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user } = useCurrentUser()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
+  const [notifications, setNotifications] = useState<ApiNotification[]>([])
+  const [readIds, setReadIds] = useState<Set<string>>(new Set())
+  const [notifLoading, setNotifLoading] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin"
+  const isSuperAdmin = user?.role === "super_admin"
 
-  // Close menus when clicking outside
+  const fetchNotifications = useCallback(async () => {
+    setNotifLoading(true)
+    try {
+      const res = await notificationsApi.list()
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(Array.isArray(data) ? data : [])
+      }
+    } finally {
+      setNotifLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user) fetchNotifications()
+  }, [user, fetchNotifications])
+
+  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length
+
+  const markAllRead = () => {
+    setReadIds(new Set(notifications.map((n) => n.id)))
+  }
+
+  const menuItems = [
+    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+    { title: "Ticket History", url: "/tickets", icon: History },
+    ...(isAdmin
+      ? [
+          {
+            title: "Admin Dashboard",
+            url: isSuperAdmin ? "/super-admin/dashboard" : "/admin/dashboard",
+            icon: Grid3X3,
+          },
+        ]
+      : []),
+    ...(isSuperAdmin
+      ? [
+          {
+            title: "AI Routing Logs",
+            url: "/routing-logs",
+            icon: Cpu,
+          },
+          {
+            title: "User Directory",
+            url: "/super-admin/users",
+            icon: ListTree,
+          },
+        ]
+      : []),
+  ]
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -117,7 +137,6 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Handle keyboard shortcut Cmd+. or Ctrl+.
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key === ".") {
@@ -129,19 +148,33 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     return () => document.removeEventListener("keydown", handleKeydown)
   }, [onToggle])
 
+  const handleSignOut = () => {
+    localStorage.removeItem("authToken")
+    localStorage.removeItem("refreshToken")
+    navigate("/login")
+  }
+
+  const getInitials = () => {
+    if (!user) return "?"
+    return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase()
+  }
+
   return (
     <aside className={`sidebar-container ${isCollapsed ? "collapsed" : ""}`}>
       <div className="sidebar-header">
-        <Link to="/dashboard/tickets" className="flex items-center gap-2 no-underline">
+        <Link to="/dashboard" className="flex items-center gap-2 no-underline">
           <Logo size="sm" showText={false} />
           <span className="sidebar-logo-text">Lumina</span>
         </Link>
-        {/* Notification Bell Button */}
+
         <div className="relative" ref={notificationsRef}>
           <button
             className="notification-btn"
-            onClick={() => setShowNotifications(!showNotifications)}
-            title={`${unreadCount} unread notifications`}
+            onClick={() => {
+              setShowNotifications(!showNotifications)
+              if (!showNotifications) fetchNotifications()
+            }}
+            title={`${unreadCount} unread`}
           >
             <Bell size={18} />
             {unreadCount > 0 && (
@@ -151,43 +184,48 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
             )}
           </button>
 
-          {/* Notifications Dropdown */}
           {showNotifications && (
             <div className="notifications-dropdown">
               <div className="notifications-header">
                 <h3>Notifications</h3>
                 {unreadCount > 0 && (
-                  <button
-                    className="mark-as-read-btn"
-                    onClick={() =>
-                      setNotifications(notifications.map((n) => ({ ...n, read: true })))
-                    }
-                  >
-                    Mark all as read
+                  <button className="mark-as-read-btn" onClick={markAllRead}>
+                    Mark all read
                   </button>
                 )}
               </div>
-
               <div className="notifications-list">
-                {notifications.length > 0 ? (
-                  notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`notification-item ${notification.read ? "read" : "unread"}`}
-                    >
-                      <div className="notification-icon-wrapper">
-                        <notification.icon size={16} />
+                {notifLoading ? (
+                  <div className="notifications-empty">Loading…</div>
+                ) : notifications.length > 0 ? (
+                  notifications.map((n) => {
+                    const Icon = actionIcon(n.action)
+                    const isUnread = !readIds.has(n.id)
+                    return (
+                      <div
+                        key={n.id}
+                        className={`notification-item ${isUnread ? "unread" : "read"}`}
+                        onClick={() => setReadIds((prev) => new Set([...prev, n.id]))}
+                      >
+                        <div className="notification-icon-wrapper">
+                          <Icon size={16} />
+                        </div>
+                        <div className="notification-content">
+                          <div className="notification-title">
+                            {ACTION_LABELS[n.action] || n.action.replace(/_/g, " ")}
+                          </div>
+                          <div className="notification-message">
+                            {n.first_name} {n.last_name}
+                            {(n.metadata as Record<string, string>)?.ticket_id
+                              ? ` · #${String((n.metadata as Record<string, string>).ticket_id).slice(0, 8)}`
+                              : ""}
+                          </div>
+                          <div className="notification-time">{timeAgo(n.created_at)}</div>
+                        </div>
+                        {isUnread && <div className="notification-dot" />}
                       </div>
-                      <div className="notification-content">
-                        <div className="notification-title">{notification.title}</div>
-                        <div className="notification-message">{notification.message}</div>
-                        <div className="notification-time">{notification.timestamp}</div>
-                      </div>
-                      {!notification.read && (
-                        <div className="notification-dot" />
-                      )}
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="notifications-empty">No notifications</div>
                 )}
@@ -198,7 +236,6 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
       </div>
 
       <div className="sidebar-content">
-        {/* Main Navigation */}
         <div className="sidebar-group">
           <div className="sidebar-group-label">Navigation</div>
           <nav className="sidebar-menu">
@@ -206,9 +243,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
               <Link
                 key={item.title}
                 to={item.url}
-                className={`sidebar-menu-item ${
-                  location.pathname === item.url ? "active" : ""
-                }`}
+                className={`sidebar-menu-item ${location.pathname === item.url ? "active" : ""}`}
                 title={isCollapsed ? item.title : ""}
               >
                 <item.icon />
@@ -217,61 +252,45 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
             ))}
           </nav>
         </div>
-
-        {/* Statistics Section */}
-        <div className="sidebar-group">
-          <div className="sidebar-group-label">Live Statistics</div>
-          <div className="sidebar-stats">
-            {stats.map((stat) => (
-              <div 
-                key={stat.label} 
-                className={`stat-widget ${stat.type}`}
-                title={isCollapsed ? `${stat.label}: ${stat.value}` : ""}
-              >
-                <div className="stat-widget-header">
-                  <span className="stat-widget-label">{stat.label}</span>
-                  <stat.icon className="stat-widget-icon" />
-                </div>
-                <div className="stat-widget-value">{stat.value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       <div className="sidebar-footer" ref={userMenuRef}>
-        {/* User Menu Dropdown */}
         {showUserMenu && (
           <div className="user-menu-dropdown">
-            <button className="user-menu-item">
+            <Link to="/profile" className="user-menu-item no-underline" onClick={() => setShowUserMenu(false)}>
               <User size={16} />
               <span>View Profile</span>
-            </button>
-            <button className="user-menu-item">
+            </Link>
+            <Link to="/account-settings" className="user-menu-item no-underline" onClick={() => setShowUserMenu(false)}>
               <Settings size={16} />
               <span>Account Settings</span>
-            </button>
-            <button className="user-menu-item">
-              <HelpCircle size={16} />
-              <span>Support Help</span>
-            </button>
+            </Link>
             <div className="user-menu-divider" />
-            <Link to="/login" className="user-menu-item logout no-underline">
+            <button className="user-menu-item logout" onClick={handleSignOut}>
               <LogOut size={16} />
               <span>Sign Out</span>
-            </Link>
+            </button>
+            <div className="user-menu-item-hint">
+              <ChevronRight size={12} />
+              <span style={{ fontSize: "10px", opacity: 0.4 }}>⌘ + .</span>
+            </div>
           </div>
         )}
 
-        {/* User Profile Button */}
-        <button 
-          className="user-profile-btn"
-          onClick={() => setShowUserMenu(!showUserMenu)}
-        >
-          <div className="avatar">NR</div>
+        <button className="user-profile-btn" onClick={() => setShowUserMenu(!showUserMenu)}>
+          {user?.avatar_url ? (
+            <img
+              src={`${import.meta.env.VITE_API_URL || "http://localhost:5000"}${user.avatar_url}`}
+              alt="avatar"
+              className="avatar"
+              style={{ objectFit: "cover" }}
+            />
+          ) : (
+            <div className="avatar">{getInitials()}</div>
+          )}
           <div className="user-info">
-            <span className="user-name">Nachith Reddy</span>
-            <span className="user-email">nachith@lumina.ai</span>
+            <span className="user-name">{user ? `${user.first_name} ${user.last_name}` : "Lumina User"}</span>
+            <span className="user-email">{user?.email || "not-signed-in"}</span>
           </div>
         </button>
       </div>

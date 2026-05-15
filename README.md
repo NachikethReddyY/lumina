@@ -1,23 +1,191 @@
-# React Node.js Dashboard Project
+# Lumina
 
-This project is a full-stack application featuring a React-based user dashboard and a Node.js backend.
+Lumina is a full-stack helpdesk and issue-tracking app with:
 
-## External stuff used
+- an Express + PostgreSQL backend
+- a Vite + React frontend
+- email/password auth with OTP verification
+- Google OAuth account linking
+- role-based access for `user`, `admin`, and `super_admin`
+- AI-assisted ticket routing with a Gemini fallback to rules-based routing
 
-### code-review-graph
-I have installed **code-review-graph** to provide AI agents with a powerful, graphical way to understand and interact with the codebase.
+## Project structure
 
-*   **What it is:** A semantic knowledge graph that maps the entire project's structure, including functions, classes, imports, and their relationships.
-*   **How it affects AI agents:** It significantly reduces the number of tokens required for an AI to "understand" the code. Instead of reading full files or performing broad text searches, the agent can query the graph for specific structural information.
-*   **What it does:**
-    *   **Structural Context:** Instantly identifies callers, dependents, and dependencies of any code element.
-    *   **Impact Analysis:** Allows agents to calculate the "impact radius" or "blast radius" of a change before it's made.
-    *   **Efficiency:** Provides token-efficient source snippets and context for code reviews.
-    *   **Architecture Mapping:** Offers high-level overviews of the system's architecture and identifies communities within the code.
-    *   **Automatic Updates:** The graph stays in sync with the codebase as changes are made.
+- `/Users/nr/Developer/dbs-restart/backend` — API, auth, database, routing
+- `/Users/nr/Developer/dbs-restart/react-user-dashboard` — frontend app
+- `/Users/nr/Developer/dbs-restart/backend/db/init.sql` — schema + seed data
+- `/Users/nr/Developer/dbs-restart/docs/test-users.md` — seeded demo credentials
+- `/Users/nr/Developer/dbs-restart/production.md` — free deployment guidance
 
-### Axios
-The project uses **Axios** (v1.15.2+) as the primary HTTP client for the frontend.
+## One-time setup
 
-*   **What it is:** A promise-based HTTP client for the browser and Node.js.
-*   **What it does:** It handles all communication between the React dashboard and the backend API. It is used to perform asynchronous requests to fetch, create, update, and delete user data, while providing a clean and consistent API for handling request/response headers, interceptors, and error management.
+1. Copy the root environment file:
+
+```bash
+cp .env.example .env
+```
+
+2. Fill in at least:
+
+```dotenv
+DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DB
+PORT=5000
+JWT_SECRET=change-me
+JWT_ACCESS_EXPIRES_IN=7d
+FRONTEND_URL=http://localhost:5173
+VITE_API_URL=http://localhost:5000
+```
+
+3. Optional but recommended:
+
+```dotenv
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM_EMAIL=your-email@gmail.com
+
+GOOGLE_CLIENT_ID=your-google-web-client-id
+VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
+
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+The backend always reads the repo-root `.env`. The frontend reads the same file for `VITE_*` variables.
+
+## Install dependencies
+
+### npm
+
+```bash
+npm install
+npm run install:all
+```
+
+### Bun
+
+```bash
+bun install
+bun run install:bun
+```
+
+After that, Bun can use the same root run commands as npm.
+
+## Initialize the database
+
+Make sure PostgreSQL is running and `DATABASE_URL` is valid, then run:
+
+```bash
+npm run db:init
+```
+
+If the npm script fails (shell quoting issue), use the direct command:
+
+```bash
+psql "$DATABASE_URL" -f backend/db/init.sql
+```
+
+This creates the schema and seeds:
+
+- one super admin
+- several active admins and users
+- several pending approval accounts
+- categories, tickets, assignments, ratings, and audit logs
+
+## Run the whole app from the repo root
+
+### Development with npm
+
+```bash
+npm run dev
+```
+
+### Development with Bun
+
+```bash
+bun run dev
+```
+
+This starts:
+
+- backend on `http://localhost:5000`
+- frontend on `http://localhost:5173`
+
+## Other useful root commands
+
+```bash
+npm run build
+npm run start
+npm run lint:frontend
+```
+
+Or with Bun:
+
+```bash
+bun run build
+```
+
+## Authentication flow
+
+### Email sign-up
+
+- New accounts are created as unverified and pending
+- A 6-digit OTP is emailed to the user
+- The frontend stores the pending email in local storage
+- The OTP page asks only for the code, not the email again
+- Once verified, the backend marks the user as verified in PostgreSQL
+
+### Google OAuth
+
+- OAuth accounts are linked through `oauth_accounts`
+- New OAuth users still go through the app's OTP verification flow
+- Verified status and account approval are enforced server-side
+
+## Roles
+
+- `user` — can create and view their own tickets
+- `admin` — can manage assigned tickets
+- `super_admin` — can approve accounts, review workload, and oversee the system
+
+## Seeded test accounts
+
+See:
+
+- `/Users/nr/Developer/dbs-restart/docs/test-users.md`
+
+That file contains the demo credentials in plain text for testing and classroom/demo use only.
+
+## Email setup
+
+The project currently uses Nodemailer with SMTP only.
+
+For Gmail SMTP:
+
+1. Turn on 2-step verification
+2. Create a Google App Password
+3. Put that app password into `SMTP_PASSWORD`
+
+If SMTP is not configured, signup verification emails will not send correctly.
+
+## AI routing
+
+If `GEMINI_API_KEY` is set, Lumina uses Gemini to help classify and route tickets.
+
+If Gemini is unavailable, the backend falls back to rules-based routing so ticket assignment still works.
+
+## Security notes
+
+- JWT expiry is controlled by `JWT_ACCESS_EXPIRES_IN`
+- SQL queries use parameterized statements
+- OTP verification is enforced server-side
+- auth endpoints are rate-limited
+- role checks are enforced in backend middleware
+
+## Deployment
+
+See:
+
+- `/Users/nr/Developer/dbs-restart/production.md`
+
+That file explains the realistic free deployment options for Vercel, Bun, PostgreSQL, and SMTP.
