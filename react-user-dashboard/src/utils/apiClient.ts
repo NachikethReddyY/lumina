@@ -20,6 +20,9 @@ export type ApiUser = {
   approved_at?: string | null;
   created_at: string;
   last_login_at?: string | null;
+  job_title?: string | null;
+  department?: string | null;
+  onboarding_completed: boolean;
 };
 
 export type ApiTicket = {
@@ -214,6 +217,9 @@ export const usersApi = {
 
   changePassword: (currentPassword: string, newPassword: string) =>
     apiRequest('/users/me/password', { method: 'PATCH' as RequestOptions['method'], body: { currentPassword, newPassword } }),
+
+  saveOnboarding: (jobTitle: string, department: string) =>
+    apiRequest('/users/me/onboarding', { method: 'PATCH' as RequestOptions['method'], body: { jobTitle, department } }),
 
   list: (params?: { role?: string; status?: string }) => {
     const query = new URLSearchParams();

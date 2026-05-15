@@ -2,7 +2,7 @@ const path = require('path');
 const express = require('express');
 const multer = require('multer');
 const db = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireAuthAny, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
 
 const router = express.Router();
@@ -25,8 +25,38 @@ const avatarUpload = multer({
   },
 });
 
-router.get('/me', requireAuth, async (req, res) => {
+router.get('/me', requireAuthAny, async (req, res) => {
   res.json(req.user);
+});
+
+router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
+  const jobTitle = String(req.body?.jobTitle ?? '').trim();
+  const department = String(req.body?.department ?? '').trim();
+
+  const details = {};
+  if (!jobTitle) details.jobTitle = 'Job title is required';
+  if (!department) details.department = 'Department is required';
+  if (Object.keys(details).length) {
+    return res.status(400).json(validationError(details));
+  }
+
+  try {
+    const result = await db.query(
+      `UPDATE users
+       SET job_title = $2, department = $3, onboarding_completed = TRUE
+       WHERE id = $1
+       RETURNING id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
+                 approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed`,
+      [req.user.id, jobTitle, department]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user, message: 'Profile updated successfully' });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.patch('/me/password', requireAuth, async (req, res, next) => {

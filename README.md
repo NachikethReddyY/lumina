@@ -80,6 +80,12 @@ Make sure PostgreSQL is running and `DATABASE_URL` is valid, then run:
 npm run db:init
 ```
 
+If the npm script fails (shell quoting issue), use the direct command:
+
+```bash
+psql "$DATABASE_URL" -f backend/db/init.sql
+```
+
 This creates the schema and seeds:
 
 - one super admin

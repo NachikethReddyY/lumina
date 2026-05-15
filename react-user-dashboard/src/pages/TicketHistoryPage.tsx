@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, LayoutGrid, List, ChevronLeft, ChevronRight,
+  Search, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, Circle, Sparkles, X, Send,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
@@ -130,7 +130,6 @@ export function TicketHistoryPage() {
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -272,15 +271,6 @@ export function TicketHistoryPage() {
               <option value="all">All Categories</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-
-            <div className="th-view-toggle">
-              <button className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')} title="Grid view">
-                <LayoutGrid size={14} />
-              </button>
-              <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')} title="List view">
-                <List size={14} />
-              </button>
-            </div>
           </div>
 
           {/* Results count */}
@@ -303,23 +293,6 @@ export function TicketHistoryPage() {
               <h3>No tickets found</h3>
               <p>Try adjusting your filters</p>
             </div>
-          ) : view === 'grid' ? (
-            <motion.div className="th-grid" layout>
-              <AnimatePresence mode="popLayout">
-                {paginated.map((t) => (
-                  <motion.div
-                    key={t.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <TicketCard ticket={t} onClick={() => navigate(`/tickets/${t.id}`)} />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
           ) : (
             <div className="ticket-table-wrap">
               <table className="ticket-table">

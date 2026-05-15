@@ -19,6 +19,18 @@ export function ProtectedRoute({ children, roles }: Props) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
+  if (!user.email_is_verified && location.pathname !== '/verify-email-otp') {
+    return <Navigate to="/verify-email-otp" replace />;
+  }
+
+  if (!user.onboarding_completed && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (user.status !== 'active' && location.pathname !== '/pending-approval') {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
   if (roles && !roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }

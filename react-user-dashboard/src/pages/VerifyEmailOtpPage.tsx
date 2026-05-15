@@ -6,6 +6,7 @@ import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
+import { useToast } from '../context/ToastContext';
 import { authApi } from '../utils/apiClient';
 import './AuthPage.css';
 
@@ -14,6 +15,7 @@ type Status = 'idle' | 'loading' | 'success' | 'error';
 export function VerifyEmailOtpPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const emailFromQuery = searchParams.get('email') || '';
   const storedEmail =
     typeof window !== 'undefined' ? localStorage.getItem('pendingVerificationEmail') || '' : '';
@@ -63,7 +65,7 @@ export function VerifyEmailOtpPage() {
       };
       if (!res.ok) {
         setStatus('error');
-        setMessage(data.error || 'Invalid or expired code. Try resending a fresh code.');
+        showToast(data.error || 'Invalid or expired code. Try resending a fresh code.', 'error');
         setOtp('');
         return;
       }
@@ -73,11 +75,11 @@ export function VerifyEmailOtpPage() {
       }
       localStorage.removeItem('pendingVerificationEmail');
       setStatus('success');
-      setMessage(data.message || 'Your account is active.');
-      navigate('/dashboard');
+      showToast(data.message || 'Email verified! Let\'s complete your profile.', 'success');
+      navigate('/onboarding');
     } catch {
       setStatus('error');
-      setMessage('Network error. Please try again.');
+      showToast('Network error. Please try again.', 'error');
     }
   };
 
@@ -99,15 +101,18 @@ export function VerifyEmailOtpPage() {
       if (res.ok) {
         setOtp('');
         setStatus('idle');
-        setMessage(data.message || 'A fresh code has been sent to your email.');
+        showToast(data.message || 'A fresh code has been sent to your email.', 'success', 4000, {
+          text: 'Open Gmail',
+          href: 'https://mail.google.com',
+        });
         setResendCooldown(60);
       } else {
         setStatus('error');
-        setMessage(data.error || 'Could not resend. Try again in a moment.');
+        showToast(data.error || 'Could not resend. Try again in a moment.', 'error');
       }
     } catch {
       setStatus('error');
-      setMessage('Network error. Please try again.');
+      showToast('Network error. Please try again.', 'error');
     } finally {
       setResendBusy(false);
     }

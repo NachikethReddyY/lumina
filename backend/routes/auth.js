@@ -98,7 +98,7 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    if (user.status === 'pending') {
+    if (user.status === 'pending' && !user.email_is_verified) {
       return res.status(403).json({
         error: 'Please verify your email before signing in.',
         code: 'EMAIL_NOT_VERIFIED',
@@ -409,7 +409,7 @@ router.post('/google', async (req, res, next) => {
       }
     }
 
-    if (userRow.status === 'pending') {
+    if (userRow.status === 'pending' && !userRow.email_is_verified) {
       // Always issue a fresh OTP so the user never lands on the OTP page with an expired code
       if (isMailConfigured()) {
         try {
