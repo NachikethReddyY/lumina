@@ -11,48 +11,41 @@ Lumina is a full-stack helpdesk and issue-tracking app with:
 
 ## Project structure
 
-- `/Users/nr/Developer/dbs-restart/backend` — API, auth, database, routing
-- `/Users/nr/Developer/dbs-restart/react-user-dashboard` — frontend app
-- `/Users/nr/Developer/dbs-restart/backend/db/init.sql` — schema + seed data
-- `/Users/nr/Developer/dbs-restart/docs/test-users.md` — seeded demo credentials
-- `/Users/nr/Developer/dbs-restart/production.md` — free deployment guidance
+- `backend/` — API, auth, database, routing
+- `src/`, `index.html`, `public/` — Vite + React frontend (repo root)
+- `backend/db/init.sql` — schema + seed data
+- `docs/test-users.md` — seeded demo credentials
+- `docs/production.md` — free deployment guidance
+- `decide/` — non-runtime artifacts and drafts (triage; not part of the app build)
 
-## One-time setup
+## One-time setup (environment)
 
-1. Copy the root environment file:
+Use **two files** so you can switch local vs hosting without editing one giant `.env`:
+
+| File | Purpose |
+|------|---------|
+| `.env.development` | Local machine (Postgres on localhost, `VITE_API_URL=http://localhost:5000`, etc.) |
+| `.env.hosting` | Hosting / production-style (deployed `FRONTEND_URL`, `VITE_API_URL=/api/v1` on Vercel, managed `DATABASE_URL`, etc.) |
+
+1. Create both from the examples:
 
 ```bash
-cp .env.example .env
+cp .env.development.example .env.development
+cp .env.hosting.example .env.hosting
 ```
 
-2. Fill in at least:
+2. Fill in at least **`.env.development`** for day-to-day coding (`DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`, `VITE_API_URL`, and optional SMTP / Google / Gemini — see the example files).
 
-```dotenv
-DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DB
-PORT=5000
-JWT_SECRET=change-me
-JWT_ACCESS_EXPIRES_IN=7d
-FRONTEND_URL=http://localhost:5173
-VITE_API_URL=http://localhost:5000
-```
+3. Fill in **`.env.hosting`** when you want to run the stack against hosting-like settings (or copy values from your Vercel / Neon dashboards).
 
-3. Optional but recommended:
+**How switching works**
 
-```dotenv
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-SMTP_FROM_EMAIL=your-email@gmail.com
+- **`npm run dev`** — loads **`.env.development`** for the API (`LUMINA_PROFILE=development`) and runs Vite in **`development`** mode (same file + optional `.env.development.local`).
+- **`npm run dev:hosting`** — loads **`.env.hosting`** (`LUMINA_PROFILE=hosting`) and Vite **`hosting`** mode (same + optional `.env.hosting.local`).
+- **`npm run build`** — bakes **`VITE_*`** from **hosting** mode (`.env.hosting`), matching a typical production deploy.
+- **Legacy:** if you still have a single **`.env`** and no profile files, the API uses that file when `LUMINA_PROFILE` is unset.
 
-GOOGLE_CLIENT_ID=your-google-web-client-id
-VITE_GOOGLE_CLIENT_ID=your-google-web-client-id
-
-GEMINI_API_KEY=your-gemini-key
-GEMINI_MODEL=gemini-2.0-flash
-```
-
-The backend always reads the repo-root `.env`. The frontend reads the same file for `VITE_*` variables.
+**Advanced:** set **`LUMINA_ENV_FILE`** to any path to load one specific file for the API (see `backend/lib/loadRootEnv.js`).
 
 ## Install dependencies
 
@@ -101,20 +94,25 @@ This creates the schema and seeds:
 npm run dev
 ```
 
+Loads **`.env.development`** for the API and Vite **development** mode. Starts backend on `http://localhost:5000` (default) and frontend on `http://localhost:5173`.
+
 ### Development with Bun
 
 ```bash
 bun run dev
 ```
 
-This starts:
+### Hosting profile on your machine
 
-- backend on `http://localhost:5000`
-- frontend on `http://localhost:5173`
+Same scripts work with Bun (`bun run dev:hosting`). Use this when you want **`.env.hosting`** and Vite **`hosting`** mode (e.g. prod `DATABASE_URL`, `VITE_API_URL=/api/v1`) while servers still run on your laptop:
+
+```bash
+npm run dev:hosting
+```
 
 ### If port 5000 is already in use (`EADDRINUSE`)
 
-Something else is listening on the same port as `PORT` (default **5000**). Free it or pick another port in `.env` (`PORT` and `VITE_API_URL` must stay aligned).
+Something else is listening on the same port as `PORT` (default **5000**). Free it or pick another port in the **active** env file (`.env.development` or `.env.hosting`); keep `PORT` and `VITE_API_URL` aligned.
 
 **macOS and Linux — find and stop the process**
 
@@ -140,7 +138,7 @@ If you use `npm run dev` / `bun run dev`, stop that terminal with **Ctrl+C** fir
 
 **macOS — AirPlay Receiver**
 
-Apple’s **AirPlay Receiver** sometimes uses port 5000. If `lsof` shows `ControlCenter` or similar on `5000`, turn off **AirPlay Receiver** under **System Settings → General → AirDrop & Handoff** (wording varies by macOS version), or set `PORT` / `VITE_API_URL` to another free port (for example `5001`) in `.env`.
+Apple’s **AirPlay Receiver** sometimes uses port 5000. If `lsof` shows `ControlCenter` or similar on `5000`, turn off **AirPlay Receiver** under **System Settings → General → AirDrop & Handoff** (wording varies by macOS version), or set `PORT` / `VITE_API_URL` to another free port (for example `5001`) in `.env.development` (or your legacy `.env`).
 
 **Windows (PowerShell or CMD)**
 
@@ -194,7 +192,7 @@ bun run build
 
 See:
 
-- `/Users/nr/Developer/dbs-restart/docs/test-users.md`
+- `docs/test-users.md`
 
 That file contains the demo credentials in plain text for testing and classroom/demo use only.
 
@@ -228,6 +226,6 @@ If Gemini is unavailable, the backend falls back to rules-based routing so ticke
 
 See:
 
-- `/Users/nr/Developer/dbs-restart/production.md`
+- `docs/production.md`
 
 That file explains the realistic free deployment options for Vercel, Bun, PostgreSQL, and SMTP.

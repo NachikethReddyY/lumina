@@ -1,24 +1,59 @@
 const fs = require('fs');
 const path = require('path');
 
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+
 /**
- * Load `.env` from **outside** `backend/`: the repository root (`../../.env` from this file).
+ * Resolve which env file to load at the repo root.
  *
- * Optional override: set `LUMINA_ENV_FILE` to an absolute or relative path (resolved from cwd)
- * before starting Node, e.g. `LUMINA_ENV_FILE=/path/to/.env.local npm run dev`.
+ * Priority:
+ * 1. `LUMINA_ENV_FILE` — absolute path, or relative to `process.cwd()`
+ * 2. Profile-based file from `LUMINA_PROFILE`:
+ *    - `development` | `local` → `.env.development`
+ *    - `hosting` | `production` → `.env.hosting`
+ *    If that file is missing, fall back to legacy `.env` when present.
+ * 3. If `LUMINA_PROFILE` is unset: prefer `.env` if it exists, else `.env.development`.
+ *
+ * On platforms like Vercel, secrets are often injected without a file; if the resolved
+ * file is missing, we warn and skip `dotenv` (existing `process.env` values still apply).
  */
-function loadRootEnv() {
+function resolveEnvPath() {
   const override = process.env.LUMINA_ENV_FILE;
-  const pathToUse = override
-    ? path.isAbsolute(override)
+  if (override) {
+    return path.isAbsolute(override)
       ? override
-      : path.resolve(process.cwd(), override)
-    : path.resolve(__dirname, '..', '..', '.env');
+      : path.resolve(process.cwd(), override);
+  }
+
+  const legacy = path.join(REPO_ROOT, '.env');
+  const development = path.join(REPO_ROOT, '.env.development');
+  const hosting = path.join(REPO_ROOT, '.env.hosting');
+
+  const rawProfile = process.env.LUMINA_PROFILE;
+  if (rawProfile) {
+    const p = String(rawProfile).toLowerCase();
+    const isHosting = p === 'hosting' || p === 'production';
+    const named = isHosting ? hosting : development;
+    if (fs.existsSync(named)) return named;
+    if (fs.existsSync(legacy)) return legacy;
+    return named;
+  }
+
+  if (fs.existsSync(legacy)) return legacy;
+  if (fs.existsSync(development)) return development;
+  if (fs.existsSync(hosting)) return hosting;
+  return development;
+}
+
+function loadRootEnv() {
+  const pathToUse = resolveEnvPath();
 
   if (!fs.existsSync(pathToUse)) {
-    console.warn(
-      `[env] No file at ${pathToUse}. Create a .env at the repo root (see .env.example) or set LUMINA_ENV_FILE.`
-    );
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(
+        `[env] No file at ${pathToUse}. Set variables in the host environment, or create this file (see .env.development.example / .env.hosting.example), or use LUMINA_ENV_FILE.`
+      );
+    }
     return null;
   }
 
@@ -29,4 +64,4 @@ function loadRootEnv() {
   return pathToUse;
 }
 
-module.exports = { loadRootEnv };
+module.exports = { loadRootEnv, resolveEnvPath };

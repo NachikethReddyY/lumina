@@ -229,12 +229,12 @@ curl -sS -X POST "$API/auth/refresh" \
 ## Server setup (once)
 
 - Postgres + `backend/db/init.sql`.
-- **Repo root `.env`**: required for the API (`backend/lib/loadRootEnv.js` loads only this path, not `backend/.env`). Copy from `.env.example`. Vite uses the same file via `envDir`. Override path with `LUMINA_ENV_FILE` if needed.
+- **Repo root env files**: API loads via `backend/lib/loadRootEnv.js` (not `backend/.env`). Use **`.env.development`** for local (`npm run dev`) and **`.env.hosting`** for hosting-style runs (`npm run dev:hosting`); copy from `.env.development.example` / `.env.hosting.example`. Legacy single **`.env`** still works. Override path with `LUMINA_ENV_FILE` if needed. Vite reads the matching mode file (`--mode development` vs `--mode hosting`) from the repo root.
 - **CORS / links in emails:** `FRONTEND_URL` — use your Vite URL first, e.g. `http://localhost:5173` (comma-separated for multiple origins).
 - **Gmail SMTP (optional but recommended):** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (app password; spaces are stripped), `SMTP_FROM_EMAIL`.
 - Run: `cd backend && npm install && npm run dev`.
 
 ## Testing with the React app
 
-- Put `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`, etc. in the **repo root** `.env` (same file as the API). A `react-user-dashboard/.env` still overrides Vite if you create one.
-- Run `npm run dev` in `react-user-dashboard`, then use **Sign up**, **Log in**, **Forgot password**, and the **activation / reset links** from email (or dev fallback links).
+- Put `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`, etc. in the same profile file as the API (`.env.development` or `.env.hosting`). Optional Vite overrides: `.env.development.local` / `.env.hosting.local` (gitignored by `*.local`).
+- Run `npm run dev` (local profile) or `npm run dev:hosting` (hosting profile) from the **repository root**, then use **Sign up**, **Log in**, **Forgot password**, and the **activation / reset links** from email (or dev fallback links).
