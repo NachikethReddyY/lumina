@@ -44,7 +44,9 @@ router.get('/', async (req, res, next) => {
       `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.replication_steps,
               t.metadata, c.id AS category_id, c.name AS category_name,
               submitter.id AS submitted_by_id, submitter.email AS submitted_by_email,
+              submitter.avatar_url AS submitted_by_avatar_url,
               assignee.id AS assigned_to_id,
+              assignee.avatar_url AS assigned_to_avatar_url,
               CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
@@ -117,20 +119,40 @@ router.post('/:id/ask', async (req, res, next) => {
   if (!question) return res.status(400).json({ error: 'question is required' });
 
   try {
-    const result = await db.query(
-      `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at,
-              t.replication_steps, t.metadata, c.name AS category_name,
-              submitter.email AS submitted_by_email,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
-       FROM tickets t
-       JOIN categories c ON c.id = t.category_id
-       JOIN users submitter ON submitter.id = t.submitted_by
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
-       WHERE t.id = $1`,
-      [req.params.id]
-    );
-    const ticket = result.rows[0];
+    const [ticketResult, commentsResult, activityResult] = await Promise.all([
+      db.query(
+        `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at,
+                t.replication_steps, t.metadata, c.name AS category_name,
+                submitter.email AS submitted_by_email,
+                CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
+         FROM tickets t
+         JOIN categories c ON c.id = t.category_id
+         JOIN users submitter ON submitter.id = t.submitted_by
+         LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+         LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+         WHERE t.id = $1`,
+        [req.params.id]
+      ),
+      db.query(
+        `SELECT c.body, c.created_at, u.first_name, u.last_name, u.role
+         FROM ticket_comments c
+         JOIN users u ON u.id = c.author_id
+         WHERE c.ticket_id = $1
+         ORDER BY c.created_at DESC
+         LIMIT 5`,
+        [req.params.id]
+      ),
+      db.query(
+        `SELECT a.action, a.metadata, a.created_at, u.first_name, u.last_name, u.role
+         FROM audit_logs a
+         JOIN users u ON u.id = a.actor_id
+         WHERE a.metadata->>'ticket_id' = $1
+         ORDER BY a.created_at DESC
+         LIMIT 8`,
+        [req.params.id]
+      ),
+    ]);
+    const ticket = ticketResult.rows[0];
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
     if (req.user.role === 'user' && ticket.submitted_by_email !== req.user.email) {
       return res.status(403).json({ error: 'Access denied' });
@@ -142,8 +164,11 @@ router.post('/:id/ask', async (req, res, next) => {
     const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const prompt = [
       'You are Lumina support AI. Answer the user question about the following support ticket concisely and helpfully.',
+      'Use the ticket details, recent comments, and recent activity for context.',
+      'Return plain text only, no markdown headings unless helpful.',
+      '',
       'Ticket context:',
-      JSON.stringify(ticket, null, 2),
+      JSON.stringify({ ticket, comments: commentsResult.rows, activity: activityResult.rows }, null, 2),
       '',
       `User question: ${question}`,
     ].join('\n');
@@ -174,7 +199,9 @@ router.get('/:id', async (req, res, next) => {
       `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.replication_steps,
               t.metadata, c.id AS category_id, c.name AS category_name,
               submitter.id AS submitted_by_id, submitter.email AS submitted_by_email,
+              submitter.avatar_url AS submitted_by_avatar_url,
               assignee.id AS assigned_to_id,
+              assignee.avatar_url AS assigned_to_avatar_url,
               CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
        FROM tickets t
        JOIN categories c ON c.id = t.category_id

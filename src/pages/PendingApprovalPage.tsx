@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Clock, RotateCcw } from 'lucide-react';
+
+// Polling interval in ms
+const POLL_MS = 5000;
+
+import { motion, type Variants } from 'framer-motion';
+import { CheckCircle2 } from 'lucide-react';
 import Logo from '../components/Logo';
-import Button from '../components/Button';
 import Container from '../components/Container';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import './PendingApprovalPage.css';
@@ -11,34 +14,36 @@ import './PendingApprovalPage.css';
 export function PendingApprovalPage() {
   const navigate = useNavigate();
   const { user, refetch } = useCurrentUser();
-  const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
 
+  // Poll user status every 5s and auto-redirect if approved
   useEffect(() => {
     if (user?.status === 'active') {
       navigate('/dashboard', { replace: true });
+      return;
     }
-  }, [user?.status, navigate]);
+    const interval = setInterval(() => {
+      refetch();
+    }, POLL_MS);
+    return () => clearInterval(interval);
+  }, [user?.status, navigate, refetch]);
 
-  const handleManualCheck = async () => {
-    setIsChecking(true);
-    try {
-      await refetch();
-      setLastChecked(new Date());
-    } catch {
-      // Error during refetch, continue
-    } finally {
-      setIsChecking(false);
-    }
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 10 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+  };
+
+  const checkmarkVariants: Variants = {
+    hidden: { scale: 0, opacity: 0 },
+    visible: {
+      scale: 1,
+      opacity: 1,
+      transition: {
+        type: 'spring',
+        stiffness: 100,
+        damping: 15,
+        delay: 0.2,
+      },
+    },
   };
 
   return (
@@ -55,55 +60,26 @@ export function PendingApprovalPage() {
             <Logo size="md" showText={true} vertical={true} />
           </motion.div>
 
-          <motion.div className="pending-approval-header" variants={itemVariants}>
-            <h1 className="pending-approval-title">Application Processed</h1>
-            <p className="pending-approval-subtitle">
-              Please wait for the administrator to give you access to Lumina.
+          <motion.div className="pending-approval-content" variants={itemVariants}>
+            <motion.div className="pending-approval-checkmark" variants={checkmarkVariants}>
+              <CheckCircle2 size={80} />
+            </motion.div>
+
+            <h1 className="pending-approval-title">Application Submitted</h1>
+
+            <p className="pending-approval-message">
+              Pending Approval. Please wait.
+            </p>
+
+            <p className="pending-approval-description">
+              Your application has been successfully submitted. An administrator will review your profile and approve your access soon.
             </p>
           </motion.div>
 
-          <motion.div className="pending-approval-status" variants={itemVariants}>
-            <div className="pending-approval-icon-wrapper">
-              <motion.div
-                className="pending-approval-icon"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-              >
-                <Clock size={48} />
-              </motion.div>
-              <motion.div
-                className="pending-approval-dot"
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-              />
-            </div>
-
-            <div className="pending-approval-info">
-              <p className="pending-approval-info-label">Status</p>
-              <p className="pending-approval-info-value">Pending Review</p>
-            </div>
-          </motion.div>
-
-          <div className="pending-approval-actions">
-            <Button
-              onClick={handleManualCheck}
-              disabled={isChecking}
-              loading={isChecking}
-              style={{ width: '100%' }}
-            >
-              {isChecking ? 'Checking…' : 'Check Status Now'}
-              <RotateCcw size={16} style={{ marginLeft: '8px' }} />
-            </Button>
-          </div>
-
-          {lastChecked && (
-            <motion.div className="pending-approval-last-checked" variants={itemVariants}>
-              <p>Last checked: {formatTime(lastChecked)}</p>
-            </motion.div>
-          )}
-
           <motion.div className="pending-approval-footer" variants={itemVariants}>
-            <p className="pending-approval-step-counter">Step 3 of 3</p>
+            <p className="pending-approval-note">
+              You will be notified once your account is approved.
+            </p>
           </motion.div>
         </motion.div>
       </Container>

@@ -31,12 +31,11 @@ export function VerifyEmailOtpPage() {
   useEffect(() => {
     if (!pendingEmail) {
       setMessage(
-        'We could not find the email waiting for verification. Please sign up again or use the resend option from the login page.'
+        'We could not find the email waiting for verification. Please sign up again.'
       );
     }
   }, [pendingEmail]);
 
-  // Countdown timer for resend cooldown
   useEffect(() => {
     if (resendCooldown > 0) {
       cooldownRef.current = setInterval(() => {
@@ -65,7 +64,7 @@ export function VerifyEmailOtpPage() {
       };
       if (!res.ok) {
         setStatus('error');
-        showToast(data.error || 'Invalid or expired code. Try resending a fresh code.', 'error');
+        showToast(data.error || 'Invalid code.', 'error');
         setOtp('');
         return;
       }
@@ -75,15 +74,14 @@ export function VerifyEmailOtpPage() {
       }
       localStorage.removeItem('pendingVerificationEmail');
       setStatus('success');
-      showToast(data.message || 'Email verified! Let\'s complete your profile.', 'success');
+      showToast(data.message || 'Email verified!', 'success');
       navigate('/onboarding');
     } catch {
       setStatus('error');
-      showToast('Network error. Please try again.', 'error');
+      showToast('Network error.', 'error');
     }
   };
 
-  // Auto-submit when all 6 digits are entered
   const handleOtpChange = (value: string) => {
     setOtp(value);
     if (value.length === 6 && status !== 'loading') {
@@ -101,18 +99,15 @@ export function VerifyEmailOtpPage() {
       if (res.ok) {
         setOtp('');
         setStatus('idle');
-        showToast(data.message || 'A fresh code has been sent to your email.', 'success', 4000, {
-          text: 'Open Gmail',
-          href: 'https://mail.google.com',
-        });
+        showToast(data.message || 'Code sent!', 'success');
         setResendCooldown(60);
       } else {
         setStatus('error');
-        showToast(data.error || 'Could not resend. Try again in a moment.', 'error');
+        showToast(data.error || 'Could not resend.', 'error');
       }
     } catch {
       setStatus('error');
-      showToast('Network error. Please try again.', 'error');
+      showToast('Network error.', 'error');
     } finally {
       setResendBusy(false);
     }
@@ -140,37 +135,24 @@ export function VerifyEmailOtpPage() {
           </motion.div>
 
           <motion.div className="auth-header" variants={itemVariants}>
-            <h1 className="auth-title">Enter verification code</h1>
+            <h1 className="auth-title">Verify your email</h1>
             <p className="auth-subtitle">
-              Check your email for a 6-digit code. It expires in 10 minutes.
+              Enter the 6-digit code sent to your email.
             </p>
           </motion.div>
 
           {status === 'error' && message && (
             <p className="auth-notice auth-notice--error">{message}</p>
           )}
-          {status === 'success' && message && (
-            <p className="auth-notice auth-notice--success">{message}</p>
-          )}
-          {status === 'idle' && message && (
-            <p className="auth-notice auth-notice--success">{message}</p>
-          )}
 
-          <form
-            className="auth-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitOtp(otp);
-            }}
-          >
+          <div className="auth-form">
             {pendingEmail && (
-              <p className="auth-notice auth-notice--info">
+              <p className="auth-notice auth-notice--info" style={{ marginBottom: '24px' }}>
                 Verifying <strong>{pendingEmail}</strong>
               </p>
             )}
 
-            <div className="form-group">
-              <label>6-digit code</label>
+            <div className="form-group" style={{ alignItems: 'center', marginBottom: '32px' }}>
               <InputOTP
                 maxLength={6}
                 pattern={REGEXP_ONLY_DIGITS}
@@ -178,7 +160,7 @@ export function VerifyEmailOtpPage() {
                 onChange={handleOtpChange}
                 containerClassName="justify-center"
               >
-                <InputOTPGroup>
+                <InputOTPGroup style={{ gap: '8px' }}>
                   <InputOTPSlot index={0} />
                   <InputOTPSlot index={1} />
                   <InputOTPSlot index={2} />
@@ -190,30 +172,29 @@ export function VerifyEmailOtpPage() {
             </div>
 
             <Button
-              type="submit"
+              onClick={() => submitOtp(otp)}
               size="lg"
               loading={status === 'loading'}
               disabled={!pendingEmail || otp.length !== 6 || status === 'loading'}
             >
               Verify Account
             </Button>
-          </form>
 
-          {/* Resend section */}
-          <div className="auth-resend-row">
-            <span className="auth-hint">Didn't receive a code?</span>
-            <button
-              className="auth-link auth-resend-btn"
-              type="button"
-              onClick={handleResend}
-              disabled={resendBusy || resendCooldown > 0 || !pendingEmail}
-            >
-              {resendBusy
-                ? 'Sending…'
-                : resendCooldown > 0
-                ? `Resend in ${resendCooldown}s`
-                : 'Resend code'}
-            </button>
+            <div className="auth-resend-row" style={{ marginTop: '24px' }}>
+              <span className="auth-hint">Didn't receive a code?</span>
+              <button
+                className="auth-link auth-resend-btn"
+                type="button"
+                onClick={handleResend}
+                disabled={resendBusy || resendCooldown > 0 || !pendingEmail}
+              >
+                {resendBusy
+                  ? 'Sending…'
+                  : resendCooldown > 0
+                  ? `Resend in ${resendCooldown}s`
+                  : 'Resend code'}
+              </button>
+            </div>
           </div>
 
           <motion.div className="auth-footer" variants={itemVariants}>

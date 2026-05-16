@@ -4,9 +4,9 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background-color: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
+  background-color: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
+  backdrop-filter: none;
 }
 
 .header-container {
@@ -42,7 +42,7 @@
 .logo-text-below {
   font-size: 20px;
   font-family: 'Inter', sans-serif;
-  color: #f7f8f8;
+  color: var(--color-ink);
   font-weight: 500;
   letter-spacing: -0.01em;
 }
@@ -58,7 +58,7 @@
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: #a0a8b8;
+  color: var(--color-body);
   text-decoration: none;
   letter-spacing: 0px;
   transition: color 0.2s ease;
@@ -69,7 +69,7 @@
 }
 
 .nav-link:hover {
-  color: #f7f8f8;
+  color: var(--color-ink);
 }
 
 .header-actions {

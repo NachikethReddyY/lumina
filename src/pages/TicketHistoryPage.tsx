@@ -20,6 +20,29 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const PAGE_SIZE = 12;
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+type SortKey = 'priority' | 'title' | 'status' | 'category' | 'assignee' | 'created';
+type SortDir = 'asc' | 'desc';
+
+function assigneeLabel(ticket: ApiTicket) {
+  if (ticket.assigned_to_name) return ticket.assigned_to_name;
+  const routing = ticket.metadata?.routing as { assigned_admin_id?: string; source?: string } | undefined;
+  return ticket.status === 'pending_routing' || routing ? 'Lumina AI' : 'Pending routing';
+}
+
+function AssigneeCell({ ticket }: { ticket: ApiTicket }) {
+  const name = assigneeLabel(ticket);
+  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <div className="th-person-cell">
+      <span className="th-person-avatar">
+        {ticket.assigned_to_avatar_url ? <img src={`${API_BASE}${ticket.assigned_to_avatar_url}`} alt="" /> : initials}
+      </span>
+      <span>{name}</span>
+    </div>
+  );
+}
 
 // AI Ask panel
 function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
@@ -95,6 +118,8 @@ export function TicketHistoryPage() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [page, setPage] = useState(1);
   const [showAI, setShowAI] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('created');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   useEffect(() => {
     let cancelled = false;
@@ -118,13 +143,45 @@ export function TicketHistoryPage() {
       if (filterStatus !== 'all' && t.status !== filterStatus) return false;
       if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
       if (filterCategory !== 'all' && t.category_id !== filterCategory) return false;
-      if (q && !t.title.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q)) return false;
+      if (q && !`${t.title} ${t.description} ${t.category_name} ${t.status} ${t.priority} ${assigneeLabel(t)}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [tickets, filterStatus, filterPriority, filterCategory, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sorted = useMemo(() => {
+    const priorityRank: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
+    const getValue = (t: ApiTicket) => {
+      switch (sortKey) {
+        case 'priority': return priorityRank[t.priority] || 99;
+        case 'title': return t.title.toLowerCase();
+        case 'status': return t.status;
+        case 'category': return t.category_name.toLowerCase();
+        case 'assignee': return assigneeLabel(t).toLowerCase();
+        case 'created': return new Date(t.created_at).getTime();
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const av = getValue(a);
+      const bv = getValue(b);
+      const result = av > bv ? 1 : av < bv ? -1 : 0;
+      return sortDir === 'asc' ? result : -result;
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const setSort = (key: SortKey) => {
+    setSortDir((dir) => (sortKey === key ? (dir === 'asc' ? 'desc' : 'asc') : key === 'created' ? 'desc' : 'asc'));
+    setSortKey(key);
+    resetPage();
+  };
+
+  const SortHeader = ({ label, k }: { label: string; k: SortKey }) => (
+    <button className={`th-sort-header ${sortKey === k ? 'active' : ''}`} onClick={() => setSort(k)}>
+      {label} {sortKey === k ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+    </button>
+  );
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const resetPage = useCallback(() => setPage(1), []);
 
@@ -234,8 +291,8 @@ export function TicketHistoryPage() {
 
           {/* Results count */}
           <div className="th-results-info">
-            {filtered.length !== tickets.length
-              ? `${filtered.length} of ${tickets.length} tickets`
+            {sorted.length !== tickets.length
+              ? `${sorted.length} of ${tickets.length} tickets`
               : `${tickets.length} tickets`}
           </div>
 
@@ -257,12 +314,12 @@ export function TicketHistoryPage() {
               <table className="ticket-table">
                 <thead>
                   <tr>
-                    <th>Priority</th>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Category</th>
-                    <th>Assignee</th>
-                    <th>Created</th>
+                    <th><SortHeader label="Priority" k="priority" /></th>
+                    <th><SortHeader label="Title" k="title" /></th>
+                    <th><SortHeader label="Status" k="status" /></th>
+                    <th><SortHeader label="Category" k="category" /></th>
+                    <th><SortHeader label="Assignee" k="assignee" /></th>
+                    <th><SortHeader label="Created" k="created" /></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,7 +338,7 @@ export function TicketHistoryPage() {
                         </span>
                       </td>
                       <td className="tbl-muted">{t.category_name}</td>
-                      <td className="tbl-muted">{t.assigned_to_name || '—'}</td>
+                      <td className="tbl-muted"><AssigneeCell ticket={t} /></td>
                       <td className="tbl-muted tbl-mono">{new Date(t.created_at).toLocaleDateString()}</td>
                     </tr>
                   ))}
@@ -293,7 +350,7 @@ export function TicketHistoryPage() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="ticket-pagination">
-              <span className="pagination-info">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+              <span className="pagination-info">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}</span>
               <div className="pagination-controls">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
                   <ChevronLeft size={14} />

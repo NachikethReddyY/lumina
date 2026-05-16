@@ -1,6 +1,6 @@
 .error-page {
   min-height: 100vh;
-  background: #0b0c0e;
+  background: var(--color-canvas);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -30,7 +30,7 @@
   font-family: 'Playfair Display', serif;
   font-size: 120px;
   font-weight: 700;
-  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -51,7 +51,7 @@
   position: absolute;
   width: 100%;
   height: 2px;
-  background: #3b82f6;
+  background: var(--color-primary);
   bottom: 30px;
   left: 0;
   animation: glitch-404 0.8s infinite;
@@ -125,7 +125,7 @@
   font-family: 'Playfair Display', serif;
   font-size: 36px;
   font-weight: 700;
-  color: #f7f8f8;
+  color: var(--color-ink);
   margin: 0 0 16px 0;
   letter-spacing: -0.5px;
 }

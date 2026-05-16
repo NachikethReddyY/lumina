@@ -8,7 +8,7 @@ export function RoleDashboardPage() {
   const { user, loading } = useCurrentUser();
 
   if (loading) {
-    return <div style={{ minHeight: '100vh', background: '#0b0c0e' }} />;
+    return <div style={{ minHeight: '100vh', background: 'var(--color-canvas)' }} />;
   }
 
   if (!user) {

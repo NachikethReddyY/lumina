@@ -1,220 +1,263 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { type Variants, motion } from 'framer-motion';
+import { LayoutDashboard, Inbox, History, Settings, Bell } from 'lucide-react';
 import Header from '../components/Header';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import './HomePage.css';
 
+const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+const stagger: Variants = {
+  visible: { transition: { staggerChildren: 0.09 } },
+};
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 22 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: easeOut } },
+};
+const fadeSlow: Variants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: easeOut } },
+};
+
+function IdeMockup() {
+  return (
+    <div className="hp-ide-card">
+      <div className="hp-ide-topbar" aria-hidden="true">
+        <div className="hp-ide-dots">
+          <span className="hp-dot hp-dot--red" />
+          <span className="hp-dot hp-dot--yellow" />
+          <span className="hp-dot hp-dot--green" />
+        </div>
+        <div className="hp-ide-search-box">
+          <span className="hp-ide-topbar-title">lumina / ticket-queue</span>
+        </div>
+      </div>
+      <div className="hp-ide-body">
+        {/* App sidebar — mirrors the real AppSidebar collapsed */}
+        <div className="hp-ide-nav" aria-hidden="true">
+          <div className="hp-ide-nav-logo">
+            <Logo size="sm" showText={false} />
+          </div>
+          <div className="hp-ide-nav-items">
+            <div className="hp-ide-nav-item"><LayoutDashboard size={16} /></div>
+            <div className="hp-ide-nav-item hp-ide-nav-item--active"><Inbox size={16} /></div>
+            <div className="hp-ide-nav-item"><History size={16} /></div>
+            <div className="hp-ide-nav-item"><Bell size={16} /></div>
+          </div>
+          <div className="hp-ide-nav-bottom">
+            <div className="hp-ide-nav-item"><Settings size={16} /></div>
+            <div className="hp-ide-nav-avatar">NR</div>
+          </div>
+        </div>
+
+        {/* Left: ticket list */}
+        <div className="hp-ide-sidebar">
+          <div className="hp-ide-sidebar-header">
+            <span className="hp-ide-sidebar-label">Open · 4</span>
+          </div>
+          {[
+            { id: 'LM-084', title: 'Login page 500 on SSO', priority: 'P1', status: 'routing', active: true },
+            { id: 'LM-083', title: 'Export CSV timeout', priority: 'P2', status: 'assigned' },
+            { id: 'LM-082', title: 'Avatar upload fails', priority: 'P3', status: 'open' },
+            { id: 'LM-081', title: 'Dark mode flicker', priority: 'P3', status: 'open' },
+            { id: 'LM-080', title: 'Billing page 403', priority: 'P2', status: 'in progress' },
+          ].map((t) => (
+            <div key={t.id} className={`hp-ticket-row${t.active ? ' hp-ticket-row--active' : ''}`}>
+              <div className="hp-ticket-row-top">
+                <span className={`hp-priority hp-priority--${t.priority.toLowerCase()}`}>{t.priority}</span>
+                <span className="hp-ticket-id">{t.id}</span>
+              </div>
+              <div className="hp-ticket-title">{t.title}</div>
+              <span className={`hp-status hp-status--${t.status.replace(' ', '-')}`}>{t.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Center: ticket detail */}
+        <div className="hp-ide-main">
+          <div className="hp-detail-header">
+            <div className="hp-detail-meta">
+              <span className="hp-priority hp-priority--p1">P1</span>
+              <span className="hp-detail-id">LM-084</span>
+              <span className="hp-pill-status hp-pill-status--routing">pending routing</span>
+            </div>
+            <h3 className="hp-detail-title">Login page 500 on SSO</h3>
+            <p className="hp-detail-body">
+              Users report a 500 error when attempting SSO login via Google OAuth.
+              Reproducible on all browsers. First reported 12 minutes ago.
+            </p>
+          </div>
+          <div className="hp-detail-meta-grid">
+            <div className="hp-meta-item">
+              <span className="hp-meta-label">Type</span>
+              <span className="hp-meta-value">Bug</span>
+            </div>
+            <div className="hp-meta-item">
+              <span className="hp-meta-label">Category</span>
+              <span className="hp-meta-value">Authentication</span>
+            </div>
+            <div className="hp-meta-item">
+              <span className="hp-meta-label">Created</span>
+              <span className="hp-meta-value">12m ago</span>
+            </div>
+            <div className="hp-meta-item">
+              <span className="hp-meta-label">Assigned to</span>
+              <span className="hp-meta-value hp-meta-value--empty">—</span>
+            </div>
+          </div>
+          <div className="hp-repro">
+            <span className="hp-repro-label">Replication steps</span>
+            <pre className="hp-repro-code">{`1. Navigate to /login\n2. Click "Continue with Google"\n3. Observe 500 Internal Server Error`}</pre>
+          </div>
+        </div>
+
+        {/* Right: AI routing panel */}
+        <div className="hp-ide-ai">
+          <div className="hp-ai-header">
+            <span className="hp-ai-label">AI Routing</span>
+            <span className="hp-ai-live">● live</span>
+          </div>
+          <div className="hp-ai-timeline">
+            <div className="hp-ai-step">
+              <span className="hp-pill hp-pill--thinking">Thinking</span>
+              <p>Analyzing ticket type, severity, and affected surface. Checking auth subsystem ownership.</p>
+            </div>
+            <div className="hp-ai-step">
+              <span className="hp-pill hp-pill--grep">Grep</span>
+              <p>Found 3 prior P1 bugs in Auth module — last resolved by Maya Chen in 4h avg.</p>
+            </div>
+            <div className="hp-ai-step">
+              <span className="hp-pill hp-pill--read">Read</span>
+              <p>Maya's current load: 2 open tickets (P3). Available bandwidth confirmed.</p>
+            </div>
+            <div className="hp-ai-step">
+              <span className="hp-pill hp-pill--edit">Edit</span>
+              <p>Drafting assignment rationale and expected SLA window.</p>
+            </div>
+            <div className="hp-ai-step">
+              <span className="hp-pill hp-pill--done">Done</span>
+              <p>Assigned to Maya Chen — Auth specialist, lowest load, fastest prior resolution time.</p>
+            </div>
+          </div>
+          <div className="hp-ai-result">
+            <span className="hp-ai-result-label">Assigned to</span>
+            <div className="hp-ai-assignee">
+              <div className="hp-assignee-avatar">MC</div>
+              <div>
+                <div className="hp-assignee-name">Maya Chen</div>
+                <div className="hp-assignee-meta">Auth · 2 open</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.15,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.6 },
-    },
-  };
-
   return (
     <div className="homepage">
       <Header />
 
-      {/* Hero Section */}
-      <section className="hero-section">
+      {/* ── Hero ── */}
+      <section className="hp-hero">
         <Container maxWidth="xl">
           <motion.div
-            className="hero-content"
-            variants={containerVariants}
+            className="hp-hero-inner"
             initial="hidden"
             animate="visible"
+            variants={stagger}
           >
-            {/* Badge */}
-            <motion.div className="hero-badge" variants={itemVariants}>
-              <span>New: Lumina v1.0</span>
-            </motion.div>
-
-            {/* Title */}
-            <motion.h1 className="hero-title" variants={itemVariants}>
-              Intelligent routing for{' '}
-              <span className="text-gradient">higher velocity support.</span>
-            </motion.h1>
-
-            {/* Subtitle */}
-            <motion.p className="hero-subtitle" variants={itemVariants}>
-              Lumina uses agentic AI to evaluate priority, admin load, and complexity, routing
-              tickets to the right person, instantly.
+            <motion.p className="hp-kicker" variants={fadeUp}>
+              Support operations platform
             </motion.p>
 
-            {/* CTAs */}
-            <motion.div className="hero-ctas" variants={itemVariants}>
-              <Link to="/signup">
-                <Button variant="primary" size="lg">
-                  Get Started
-                </Button>
+            <motion.h1 className="hp-title" variants={fadeUp}>
+              Tickets routed with<br />intention, not chance.
+            </motion.h1>
+
+            <motion.p className="hp-subtitle" variants={fadeUp}>
+              Lumina routes every support ticket to the right person — based on load,
+              expertise, and priority. No manual triage. No guesswork.
+            </motion.p>
+
+            <motion.div className="hp-ctas" variants={fadeUp}>
+              <Link to="/signup" className="hp-cta-link">
+                <Button variant="secondary-dark" size="lg">Get started</Button>
               </Link>
-              <Link to="/login">
-                <Button variant="secondary" size="lg">
-                  Read Documentation
-                </Button>
+              <Link to="/login" className="hp-cta-link">
+                <Button variant="text-link" size="lg">Sign in →</Button>
               </Link>
+            </motion.div>
+
+            <motion.div variants={fadeSlow} className="hp-mockup-wrap">
+              <IdeMockup />
             </motion.div>
           </motion.div>
         </Container>
       </section>
 
-      {/* Terminal Showcase Section */}
-      <section className="showcase-section">
-        <Container maxWidth="lg">
-          <motion.div
-            className="glass-card terminal-card"
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-          >
-            {/* Terminal Header */}
-            <div className="terminal-header">
-              <div className="terminal-dots">
-                <span />
-                <span />
-                <span />
-              </div>
-              <span className="terminal-title">lumina-v1.0-orchestrator</span>
-            </div>
-
-            {/* Terminal Content */}
-            <div className="terminal-content">
-              {/* Left Sidebar */}
-              <aside className="terminal-sidebar">
-                <div className="sidebar-section">
-                  <h3 className="sidebar-title">Active Queue</h3>
-                  <ul className="queue-list">
-                    <li>
-                      <span className="status-dot open" />
-                      Ticket #1025
-                    </li>
-                    <li className="active">
-                      <span className="status-dot active" />
-                      Ticket #1026
-                    </li>
-                    <li>
-                      <span className="status-dot pending" />
-                      Ticket #1027
-                    </li>
-                    <li>
-                      <span className="status-dot resolved" />
-                      Ticket #1028
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="sidebar-section">
-                  <h3 className="sidebar-title">Neural Confidence</h3>
-                  <div className="confidence-metric">99.42%</div>
-                  <div className="confidence-bar">
-                    <div className="confidence-fill" />
-                  </div>
-                </div>
-              </aside>
-
-              {/* Right Terminal Output */}
-              <section className="terminal-output">
-                <p className="command">&gt; lumina --evaluate-load</p>
-
-                <div className="output-lines">
-                  <p>
-                    Analyzing Administrator <span className="highlight-user">"Sarah Miller"</span> ...
-                  </p>
-                  <p className="meta">
-                    Current Workload Matrix: [P1: 2/5] [P2: 4/10] [P3: 6/15]
-                  </p>
-                  <div className="divider" />
-                  <p className="result">
-                    Routing Ticket #1029 to Sarah.Miller@lumina.ai
-                  </p>
-                  <p className="optimal">
-                    Optimal Path Found: Lowest latency coefficient (0.84) detected.
-                  </p>
-                </div>
-
-                {/* Metrics Grid */}
-                <div className="metrics-grid">
-                  <motion.div
-                    className="metric-card"
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <h4>P1 SLA Response</h4>
-                    <div className="metric-value">2.4h</div>
-                    <p className="metric-detail">↑ 14.2% Efficiency</p>
-                  </motion.div>
-                  <motion.div
-                    className="metric-card"
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <h4>Routing Precision</h4>
-                    <div className="metric-value blue">98.2%</div>
-                    <p className="metric-detail">Verified across 12k nodes</p>
-                  </motion.div>
-                </div>
-              </section>
-            </div>
-          </motion.div>
-        </Container>
-      </section>
-
-      {/* CTA Section */}
-      <section className="cta-section">
-        <Container maxWidth="md">
-          <motion.div
-            className="cta-card"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="cta-content">
-              <h2>Ready to Transform Your Support?</h2>
-              <p>
-                Join teams using Lumina's intelligent ticketing system to streamline support.
-              </p>
-              <Link to="/signup">
-                <Button variant="primary" size="lg">
-                  Get Started
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        </Container>
-      </section>
-
-      {/* Footer */}
-      <footer className="footer">
+      {/* ── Feature cards ── */}
+      <section className="hp-section">
         <Container maxWidth="xl">
-          <div className="footer-content">
-            <div className="footer-brand">
-              <Logo size="sm" />
+          <p className="hp-section-label">Why Lumina</p>
+          <div className="hp-section-head">
+            <h2 className="hp-section-title">Built for teams that move fast.</h2>
+            <p className="hp-section-sub">
+              Stop routing tickets by hand. Lumina knows who's best suited, right now.
+            </p>
+          </div>
+          <div className="hp-grid">
+            <div className="hp-card">
+              <p className="hp-card-kicker">Routing</p>
+              <h3 className="hp-card-title">Assign with intent.</h3>
+              <p className="hp-card-body">
+                Load, expertise, and priority are all weighed before an assignment lands.
+                No more piling onto the same two admins.
+              </p>
             </div>
-            <div className="footer-copyright">
-              <span>&copy; 2026 NACHITH REDDY. ALL RIGHTS RESERVED.</span>
+            <div className="hp-card">
+              <p className="hp-card-kicker">Audit</p>
+              <h3 className="hp-card-title">Every decision explained.</h3>
+              <p className="hp-card-body">
+                Each assignment carries a reasoning trace — so you can review, challenge,
+                or learn from how Lumina thinks.
+              </p>
             </div>
+            <div className="hp-card">
+              <p className="hp-card-kicker">Velocity</p>
+              <h3 className="hp-card-title">Fast when it matters.</h3>
+              <p className="hp-card-body">
+                P1 tickets don't wait in a queue. Lumina escalates, routes, and notifies
+                in seconds.
+              </p>
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      {/* ── CTA card ── */}
+      <section className="hp-cta-band">
+        <Container maxWidth="xl">
+          <div className="hp-cta-card">
+            <h2 className="hp-cta-title">Start using Lumina today.</h2>
+            <p className="hp-cta-body">Free to try. No credit card required.</p>
+            <Link to="/signup" className="hp-cta-link">
+              <Button variant="secondary-dark" size="lg">Get started</Button>
+            </Link>
+          </div>
+        </Container>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer className="hp-footer">
+        <Container maxWidth="xl">
+          <div className="hp-footer-inner">
+            <Logo size="sm" showText={true} />
+            <span className="hp-footer-copy">© 2026 Nachiketh Reddy. All rights reserved.</span>
           </div>
         </Container>
       </footer>

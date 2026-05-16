@@ -63,7 +63,7 @@ function PasswordStrength({ password }: { password: string }) {
           <div
             key={i}
             className="as-strength-bar"
-            style={{ background: i < score ? colors[score - 1] : 'rgba(255,255,255,0.08)' }}
+            style={{ background: i < score ? colors[score - 1] : 'var(--color-hairline)' }}
           />
         ))}
       </div>

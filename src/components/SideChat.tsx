@@ -393,6 +393,7 @@ export function SideChat() {
                   </div>
                 )
               )}
+              <div className="spacer" style={{ height: '100px' }} />
             </div>
           </motion.div>
         )}

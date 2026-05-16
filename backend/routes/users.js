@@ -98,7 +98,7 @@ router.patch('/me/password', requireAuth, async (req, res, next) => {
   }
 });
 
-router.post('/me/avatar', requireAuth, avatarUpload.single('avatar'), async (req, res, next) => {
+router.post('/me/avatar', requireAuthAny, avatarUpload.single('avatar'), async (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -110,6 +110,37 @@ router.post('/me/avatar', requireAuth, avatarUpload.single('avatar'), async (req
       [req.user.id, avatarUrl]
     );
     res.json({ avatarUrl: result.rows[0].avatar_url });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /me/name — update first_name and last_name (used by NamePrompt after OAuth)
+router.patch('/me', requireAuthAny, async (req, res, next) => {
+  const firstName = String(req.body?.firstName ?? '').trim();
+  const lastName  = String(req.body?.lastName  ?? '').trim();
+
+  if (!firstName || !lastName) {
+    return res.status(400).json(validationError({
+      firstName: firstName ? undefined : 'First name is required',
+      lastName:  lastName  ? undefined : 'Last name is required',
+    }));
+  }
+
+  try {
+    const result = await db.query(
+      `UPDATE users
+       SET first_name = $2, last_name = $3
+       WHERE id = $1
+       RETURNING id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
+                 approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed`,
+      [req.user.id, firstName, lastName]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user, message: 'Name updated successfully' });
   } catch (err) {
     next(err);
   }

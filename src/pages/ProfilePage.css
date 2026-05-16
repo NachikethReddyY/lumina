@@ -13,7 +13,7 @@
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 20px;
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
 }
 
 @media (max-width: 640px) {
@@ -49,8 +49,8 @@
 }
 
 .profile-avatar-placeholder {
-  background: linear-gradient(135deg, #3b82f6 0%, #c084fc 100%);
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #c084fc 100%);
+  box-shadow: none;
 }
 
 .profile-avatar-edit-btn {
@@ -60,8 +60,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #3b82f6;
-  border: 2px solid #0b0c0e;
+  background: var(--color-primary);
+  border: 2px solid var(--color-canvas);
   color: #fff;
   display: flex;
   align-items: center;
@@ -71,7 +71,7 @@
 }
 
 .profile-avatar-edit-btn:hover {
-  background: #60a5fa;
+  background: var(--color-primary-hover);
 }
 
 .profile-hero-info {
@@ -84,7 +84,7 @@
 .profile-name {
   font-size: 36px;
   font-weight: 400;
-  color: #f7f8f8;
+  color: var(--color-ink);
   margin: 0;
   font-family: 'Playfair Display', serif;
 }
@@ -109,7 +109,7 @@
 
 .badge-admin {
   background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
+  color: var(--color-primary-hover);
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
@@ -137,19 +137,19 @@
 .profile-section-title {
   font-size: 20px;
   font-weight: 500;
-  color: #f7f8f8;
+  color: var(--color-ink);
   margin: 0 0 24px 0;
 }
 
 .profile-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 16px;
 }
 
 .profile-stat-card {
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(17, 124, 253, 0.2);
   border-radius: 16px;
   padding: 24px 20px;
   display: flex;
@@ -159,7 +159,7 @@
 }
 
 .profile-stat-card:hover {
-  border-color: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.6);
   background: rgba(255, 255, 255, 0.03);
 }
 
@@ -167,17 +167,17 @@
   opacity: 0.8;
 }
 
-.psc-icon.blue { color: #60a5fa; }
+.psc-icon.blue { color: var(--color-primary-hover); }
 .psc-icon.green { color: #34c759; }
 .psc-icon.orange { color: #fbbf24; }
 .psc-icon.red { color: #ff6b6b; }
 .psc-icon.purple { color: #c084fc; }
-.psc-icon.muted { color: #6b7280; }
+.psc-icon.muted { color: var(--color-muted); }
 
 .psc-value {
   font-size: 36px;
   font-weight: 300;
-  color: #f7f8f8;
+  color: var(--color-ink);
   font-family: 'Courier New', monospace;
   letter-spacing: -0.02em;
 }
@@ -187,7 +187,7 @@
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: #6b7280;
+  color: var(--color-muted);
 }
 
 /* Recent Activity */
@@ -217,10 +217,10 @@
   flex-shrink: 0;
 }
 
-.profile-priority-dot.pp1 { background: #ff3b30; box-shadow: 0 0 6px rgba(255,59,48,0.5); }
-.profile-priority-dot.pp2 { background: #ff9500; box-shadow: 0 0 6px rgba(255,149,0,0.5); }
-.profile-priority-dot.pp3 { background: #34c759; box-shadow: 0 0 6px rgba(52,199,89,0.4); }
-.profile-priority-dot.pp4 { background: #6b7280; }
+.profile-priority-dot.pp1 { background: #ff3b30; box-shadow: none; }
+.profile-priority-dot.pp2 { background: #ff9500; box-shadow: none; }
+.profile-priority-dot.pp3 { background: #34c759; box-shadow: none; }
+.profile-priority-dot.pp4 { background: var(--color-muted); }
 
 .pri-info {
   flex: 1;
@@ -237,13 +237,13 @@
 
 .pri-meta {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--color-muted);
   text-transform: capitalize;
 }
 
 .pri-date {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--color-muted);
   font-family: 'Courier New', monospace;
   white-space: nowrap;
 }
@@ -257,11 +257,11 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
+  backdrop-filter: none;
 }
 
 .crop-modal {
-  background: #16171a;
+  background: var(--color-surface-card);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 32px;
@@ -275,7 +275,7 @@
 .crop-modal h3 {
   font-size: 20px;
   font-weight: 500;
-  color: #f7f8f8;
+  color: var(--color-ink);
   margin: 0;
 }
 
@@ -310,7 +310,7 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #a0a8b8;
+  color: var(--color-body);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
@@ -318,13 +318,13 @@
 
 .crop-btn-cancel:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #f7f8f8;
+  color: var(--color-ink);
 }
 
 .crop-btn-save {
   padding: 10px 24px;
   border-radius: 8px;
-  background: #3b82f6;
+  background: var(--color-primary);
   border: none;
   color: #fff;
   font-size: 14px;
@@ -334,7 +334,7 @@
 }
 
 .crop-btn-save:hover:not(:disabled) {
-  background: #60a5fa;
+  background: var(--color-primary-hover);
 }
 
 .crop-btn-save:disabled {
@@ -344,11 +344,11 @@
 
 /* Danger Zone */
 .profile-danger-zone {
-  margin-top: 48px;
+  margin: 48px;
   padding: 24px;
-  border: 1px solid rgba(239, 68, 68, 0.15);
+  border: 1px solid rgb(255, 0, 0);
   border-radius: 12px;
-  background: rgba(20, 22, 26, 0.5);
+  background: rgba(245, 146, 146, 0.239);
 }
 
 .danger-zone-header {

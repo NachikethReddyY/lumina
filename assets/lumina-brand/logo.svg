@@ -1,30 +1,26 @@
 <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Ultra-Vibrant Gradient: Pure Gold to Sapphire Blue -->
     <linearGradient id="lumina-ultra-grad" x1="64" y1="0" x2="64" y2="128" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFF700">
-        <animate attributeName="stop-color" values="#FFF700;#FFFFFF;#FFF700" dur="2s" repeatCount="indefinite" />
-      </stop>
-      <stop offset="50%" stop-color="#C084FC" /> <!-- Vibrant Purple/Violet bridge -->
-      <stop offset="100%" stop-color="#3B82F6" />
+      <stop offset="0%" stop-color="#FF8A5B" />
+      <stop offset="34%" stop-color="#FF7AAE" />
+      <stop offset="68%" stop-color="#C084FC" />
+      <stop offset="100%" stop-color="#A78BFA" />
     </linearGradient>
-    
-    <!-- Intense Glow Filter for "Fully Bright" appearance -->
-    <filter id="lumina-glow" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="10" result="blur1" />
-      <feGaussianBlur stdDeviation="3" result="blur2" />
-      <feFlood flood-color="#FFF700" flood-opacity="0.4" result="color" />
-      <feComposite in="color" in2="blur1" operator="in" result="glow1" />
+    <filter id="lumina-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feFlood flood-color="#FF8A5B" flood-opacity="0.22" result="warm" />
+      <feFlood flood-color="#C084FC" flood-opacity="0.18" result="cool" />
+      <feComposite in="warm" in2="blur" operator="in" result="warmGlow" />
+      <feComposite in="cool" in2="blur" operator="in" result="coolGlow" />
       <feMerge>
-        <feMergeNode in="glow1" />
-        <feMergeNode in="blur2" />
+        <feMergeNode in="warmGlow" />
+        <feMergeNode in="coolGlow" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
   </defs>
 
-  <!-- Sharp, Symmetric 4-pointed Sparkle (Perfect 1:1) -->
-  <path d="M64 0Q64 64 128 64Q64 64 64 128Q64 64 0 64Q64 64 64 0Z" 
-        fill="url(#lumina-ultra-grad)" 
+  <path d="M64 0Q64 64 128 64Q64 64 64 128Q64 64 0 64Q64 64 64 0Z"
+        fill="url(#lumina-ultra-grad)"
         filter="url(#lumina-glow)" />
 </svg>
