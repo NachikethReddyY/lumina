@@ -12,6 +12,7 @@ import './AuthPage.css';
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [step, setStep] = useState<'email' | 'password'>('email');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -31,21 +32,17 @@ export function LoginPage() {
     }
   }, [location, navigate]);
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
+  const handleNextStep = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email address';
+      setErrors({ email: 'Email is required' });
+      return;
     }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setErrors({ email: 'Invalid email address' });
+      return;
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setStep('password');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,7 +60,10 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    if (!formData.password) {
+      setErrors({ password: 'Password is required' });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -108,17 +108,6 @@ export function LoginPage() {
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
   const itemVariants = {
     hidden: { opacity: 0, y: 10 },
     visible: {
@@ -153,51 +142,83 @@ export function LoginPage() {
             <p className="auth-subtitle">Sign in to your Lumina account</p>
           </motion.div>
 
+          {/* Google Sign-In - Always prominent */}
+          <motion.div variants={itemVariants}>
+            <GoogleAuthButton
+              mode="signin"
+              onError={(msg) => setErrors((prev) => ({ ...prev, form: msg }))}
+            />
+          </motion.div>
+
+          <motion.div className="auth-divider" variants={itemVariants}>
+            <span>or</span>
+          </motion.div>
+
           {/* Form */}
           <motion.form
             className="auth-form"
-            onSubmit={handleSubmit}
-            variants={containerVariants}
+            onSubmit={step === 'email' ? handleNextStep : handleSubmit}
             initial="hidden"
             animate="visible"
           >
-            {/* Email Input */}
-            <motion.div variants={itemVariants}>
-              <Input
-                id="email"
-                label="Email Address"
-                type="email"
-                name="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                error={errors.email}
-                required
-              />
-            </motion.div>
-
-            {/* Password Input */}
-            <motion.div variants={itemVariants}>
-              <div className="password-header">
-                <label htmlFor="password" className="input-label">
-                  Password
-                </label>
-                <Link to="/forgot-password" className="auth-link-small">
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                label=""
-                type="password"
-                name="password"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-                error={errors.password}
-                required
-              />
-            </motion.div>
+            {step === 'email' ? (
+              <motion.div variants={itemVariants} key="email-step">
+                <Input
+                  id="email"
+                  label="Email Address"
+                  type="email"
+                  name="email"
+                  placeholder="you@example.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                  error={errors.email}
+                  required
+                />
+                <div style={{ marginTop: '20px' }}>
+                  <Button variant="secondary" size="lg" type="submit">
+                    Continue
+                  </Button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div variants={itemVariants} key="password-step">
+                <p className="auth-notice auth-notice--info">
+                  Logging in as <strong>{formData.email}</strong> — <button 
+                    type="button" 
+                    className="auth-link-small" 
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => setStep('email')}
+                  >
+                    Change
+                  </button>
+                </p>
+                <div className="password-header">
+                  <label htmlFor="password" className="input-label">
+                    Password
+                  </label>
+                  <Link to="/forgot-password" className="auth-link-small">
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  label=""
+                  type="password"
+                  name="password"
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  error={errors.password}
+                  autoFocus
+                  required
+                />
+                <div style={{ marginTop: '20px' }}>
+                  <Button variant="primary" size="lg" type="submit" loading={loading}>
+                    Sign In
+                  </Button>
+                </div>
+              </motion.div>
+            )}
 
             {/* Form Error */}
             {errors.form && (
@@ -207,7 +228,7 @@ export function LoginPage() {
             )}
 
             {showResendVerification && (
-              <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
                 {resendNote ? (
                   <motion.div className="auth-notice auth-notice--info" variants={itemVariants}>
                     {resendNote}
@@ -220,10 +241,6 @@ export function LoginPage() {
                     type="button"
                     loading={resendBusy}
                     onClick={async () => {
-                      if (!formData.email) {
-                        setResendNote('Enter your email above first.');
-                        return;
-                      }
                       setResendBusy(true);
                       setResendNote('');
                       try {
@@ -235,10 +252,7 @@ export function LoginPage() {
                         if (!r.ok) {
                           setResendNote(body.error || 'Could not resend.');
                         } else {
-                          setResendNote(
-                            body.message ||
-                              'If the account is pending, a new verification email was sent.'
-                          );
+                          setResendNote(body.message || 'Verification email sent.');
                         }
                       } catch {
                         setResendNote('Network error. Try again.');
@@ -247,7 +261,7 @@ export function LoginPage() {
                       }
                     }}
                   >
-                    Resend verification email
+                    Resend email
                   </Button>
                 </motion.div>
                 <motion.div variants={itemVariants}>
@@ -257,29 +271,9 @@ export function LoginPage() {
                     </Button>
                   </Link>
                 </motion.div>
-              </>
+              </div>
             )}
-
-            {/* Submit Button */}
-            <motion.div variants={itemVariants}>
-              <Button variant="primary" size="lg" type="submit" loading={loading}>
-                {loading ? 'Signing in...' : 'Sign In'}
-              </Button>
-            </motion.div>
           </motion.form>
-
-          {/* Divider */}
-          <motion.div className="auth-divider" variants={itemVariants}>
-            <span>or</span>
-          </motion.div>
-
-          {/* Google Sign-In */}
-          <motion.div variants={itemVariants}>
-            <GoogleAuthButton
-              mode="signin"
-              onError={(msg) => setErrors((prev) => ({ ...prev, form: msg }))}
-            />
-          </motion.div>
 
           {/* Sign Up Link */}
           <motion.div className="auth-footer" variants={itemVariants}>

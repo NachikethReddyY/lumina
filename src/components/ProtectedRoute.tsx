@@ -1,6 +1,17 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 
+function needsNameCompletion(user: { first_name: string; last_name: string } | null | undefined): boolean {
+  if (!user) return false;
+  const first = user.first_name.trim().toLowerCase();
+  const last = user.last_name.trim().toLowerCase();
+  return (
+    !first ||
+    !last ||
+    (last === 'user' && (first === 'new' || first === 'google'))
+  );
+}
+
 type Props = {
   children: React.ReactNode;
   roles?: Array<'user' | 'admin' | 'super_admin'>;
@@ -20,12 +31,23 @@ export function ProtectedRoute({ children, roles }: Props) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  // Step 2: Check email verification (required for all users)
+  const onCompleteProfilePage = location.pathname === '/complete-profile';
+
+  // Step 2: If this is a Google placeholder account, collect the real name first.
+  // Allow the complete-profile page itself to render so the user can fix the name.
+  if (needsNameCompletion(user)) {
+    if (!onCompleteProfilePage) {
+      return <Navigate to="/complete-profile" replace />;
+    }
+    return <>{children}</>;
+  }
+
+  // Step 3: Check email verification (required for all users)
   if (!user.email_is_verified && location.pathname !== '/verify-email-otp') {
     return <Navigate to="/verify-email-otp" replace />;
   }
 
-  // Step 3: Check onboarding completion (skip for super_admin)
+  // Step 4: Check onboarding completion (skip for super_admin)
   if (!user.onboarding_completed && user.role !== 'super_admin') {
     if (location.pathname !== '/onboarding') {
       return <Navigate to="/onboarding" replace />;
@@ -34,7 +56,7 @@ export function ProtectedRoute({ children, roles }: Props) {
     return <>{children}</>;
   }
 
-  // Step 4: Check approval status (after onboarding is complete)
+  // Step 5: Check approval status (after onboarding is complete)
   if (user.status !== 'active') {
     if (location.pathname !== '/pending-approval') {
       return <Navigate to="/pending-approval" replace />;

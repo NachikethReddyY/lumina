@@ -9,16 +9,19 @@ import {
   CheckCircle2,
   Bell,
   User,
+  UserCheck,
   AlertCircle,
   Clock,
   Cpu,
   TicketIcon,
   ChevronRight,
+  Inbox,
+  Check,
 } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import Logo from "./Logo"
 import { useCurrentUser } from "../hooks/useCurrentUser"
-import { notificationsApi, type ApiNotification } from "../utils/apiClient"
+import { notificationsApi, usersApi, type ApiNotification, type ApiUser } from "../utils/apiClient"
 import "./Sidebar.css"
 
 const ACTION_LABELS: Record<string, string> = {
@@ -65,8 +68,9 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState<ApiNotification[]>([])
-  const [readIds, setReadIds] = useState<Set<string>>(new Set())
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const [notifLoading, setNotifLoading] = useState(false)
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
@@ -90,35 +94,61 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     if (user) fetchNotifications()
   }, [user, fetchNotifications])
 
-  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length
+  useEffect(() => {
+    if (!isSuperAdmin) return
+    let cancelled = false
+    ;(async () => {
+      const res = await usersApi.list()
+      if (!res.ok) return
+      const data = await res.json()
+      if (!cancelled) {
+        setPendingApprovalCount(Array.isArray(data) ? data.filter((u: ApiUser) => u.status === "pending").length : 0)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [isSuperAdmin])
+
+  const visibleNotifications = notifications.filter((n) => !hiddenIds.has(n.id))
+  const unreadCount = visibleNotifications.length
 
   const markAllRead = () => {
-    setReadIds(new Set(notifications.map((n) => n.id)))
+    setHiddenIds(new Set(notifications.map((n) => n.id)))
   }
 
   const menuItems = [
-    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-    { title: "Ticket History", url: "/tickets", icon: History },
+    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, color: "#2563eb" },
+    { title: "Ticket Queue", url: "/tickets", icon: Inbox, color: "#1f8a65" },
+    { title: "Ticket History", url: "/tickets/history", icon: History, color: "#8b5cf6" },
     ...(isAdmin
       ? [
           {
             title: "Admin Dashboard",
             url: isSuperAdmin ? "/super-admin/dashboard" : "/admin/dashboard",
             icon: Grid3X3,
+            color: "#0ea5e9",
           },
         ]
       : []),
     ...(isSuperAdmin
       ? [
           {
+            title: "Approval Queue",
+            url: "/super-admin/approvals",
+            icon: UserCheck,
+            color: "#d97706",
+            badge: pendingApprovalCount,
+          },
+          {
             title: "AI Routing Logs",
             url: "/routing-logs",
             icon: Cpu,
+            color: "#c08532",
           },
           {
             title: "User Directory",
             url: "/super-admin/users",
             icon: ListTree,
+            color: "#64748b",
           },
         ]
       : []),
@@ -162,21 +192,22 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   return (
     <aside className={`sidebar-container ${isCollapsed ? "collapsed" : ""}`}>
       <div className="sidebar-header">
-        <Link to="/dashboard" className="flex items-center gap-2 no-underline">
-          <Logo size="sm" showText={false} />
-          <span className="sidebar-logo-text">Lumina</span>
-        </Link>
+        <div className="sidebar-top-row">
+          <Link to="/dashboard" className="sidebar-brand-link" style={{ textDecoration: 'none' }}>
+            <Logo size="sm" showText={false} />
+            {!isCollapsed && <span className="sidebar-logo-text">Lumina</span>}
+          </Link>
 
-        <div className="relative" ref={notificationsRef}>
+          <div className="notification-shell" ref={notificationsRef}>
           <button
             className="notification-btn"
             onClick={() => {
               setShowNotifications(!showNotifications)
               if (!showNotifications) fetchNotifications()
             }}
-            title={`${unreadCount} unread`}
+            title={`${unreadCount} unread notifications`}
           >
-            <Bell size={18} />
+            <Bell size={18} className="notification-bell-icon" />
             {unreadCount > 0 && (
               <span className="notification-badge">
                 {unreadCount > 9 ? "9+" : unreadCount}
@@ -197,15 +228,13 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
               <div className="notifications-list">
                 {notifLoading ? (
                   <div className="notifications-empty">Loading…</div>
-                ) : notifications.length > 0 ? (
-                  notifications.map((n) => {
+                ) : visibleNotifications.length > 0 ? (
+                  visibleNotifications.map((n) => {
                     const Icon = actionIcon(n.action)
-                    const isUnread = !readIds.has(n.id)
                     return (
                       <div
                         key={n.id}
-                        className={`notification-item ${isUnread ? "unread" : "read"}`}
-                        onClick={() => setReadIds((prev) => new Set([...prev, n.id]))}
+                        className="notification-item unread"
                       >
                         <div className="notification-icon-wrapper">
                           <Icon size={16} />
@@ -222,7 +251,17 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
                           </div>
                           <div className="notification-time">{timeAgo(n.created_at)}</div>
                         </div>
-                        {isUnread && <div className="notification-dot" />}
+                        <div className="notification-dot" />
+                        <button
+                          className="notification-mark-read-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setHiddenIds((prev) => new Set([...prev, n.id]))
+                          }}
+                          title="Mark as read"
+                        >
+                          <Check size={16} />
+                        </button>
                       </div>
                     )
                   })
@@ -232,6 +271,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -243,11 +283,14 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
               <Link
                 key={item.title}
                 to={item.url}
-                className={`sidebar-menu-item ${location.pathname === item.url ? "active" : ""}`}
+                className={`sidebar-menu-item ${location.pathname === item.url || (item.url === "/dashboard" && location.pathname === "/dashboard/tickets") ? "active" : ""}`}
                 title={isCollapsed ? item.title : ""}
               >
-                <item.icon />
+                <item.icon style={{ color: item.color }} />
                 <span>{item.title}</span>
+                {'badge' in item && Boolean(item.badge) && (
+                  <span className="sidebar-nav-badge">{(item.badge ?? 0) > 9 ? '9+' : item.badge}</span>
+                )}
               </Link>
             ))}
           </nav>

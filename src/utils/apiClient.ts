@@ -39,7 +39,9 @@ export type ApiTicket = {
   category_name: string;
   submitted_by_id: string;
   submitted_by_email: string;
+  submitted_by_avatar_url?: string | null;
   assigned_to_id?: string | null;
+  assigned_to_avatar_url?: string | null;
   assigned_to_name?: string | null;
 };
 
@@ -190,8 +192,8 @@ export const authApi = {
   signup: (data: { email: string; firstName: string; lastName: string; password: string; role?: string }) =>
     apiRequest('/auth/signup', { method: 'POST', body: data }),
 
-  google: (credential: string) =>
-    apiRequest('/auth/google', { method: 'POST', body: { credential } }),
+  google: (data: { credential?: string; accessToken?: string }) =>
+    apiRequest('/auth/google', { method: 'POST', body: data }),
 
   forgotPassword: (email: string) =>
     apiRequest('/auth/forgot-password', { method: 'POST', body: { email } }),
@@ -240,6 +242,9 @@ export const usersApi = {
 
   uploadAvatar: (formData: FormData) =>
     apiUpload('/users/me/avatar', formData),
+
+  updateName: (firstName: string, lastName: string) =>
+    apiRequest('/users/me', { method: 'PATCH', body: { firstName, lastName } }),
 };
 
 export const categoriesApi = {

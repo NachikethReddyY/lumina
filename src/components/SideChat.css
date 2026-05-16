@@ -1,12 +1,13 @@
 /* ── Floating trigger button ─────────────────────────────────────────────── */
 .sc-trigger {
-  position: fixed;
+
+    position: fixed;
   bottom: 28px;
   right: 28px;
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #2663EB;
   border: none;
   color: #fff;
   display: flex;
@@ -14,11 +15,11 @@
   justify-content: center;
   cursor: pointer;
   z-index: 300;
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+  box-shadow: none;
   transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
 }
-.sc-trigger:hover { background: #60a5fa; transform: scale(1.06); }
-.sc-trigger.active { background: #374151; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+.sc-trigger:hover { background: var(--color-primary-hover); transform: scale(1.06); }
+.sc-trigger.active { background: #374151; box-shadow: none; }
 
 .sc-trigger-badge {
   position: absolute;
@@ -35,7 +36,7 @@
   align-items: center;
   justify-content: center;
   padding: 0 4px;
-  border: 2px solid #0b0c0e;
+  border: 2px solid var(--color-canvas);
 }
 
 /* ── Panel ───────────────────────────────────────────────────────────────── */
@@ -50,7 +51,7 @@
   display: flex;
   flex-direction: column;
   z-index: 250;
-  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
 }
 
 @media (max-width: 480px) {
@@ -72,10 +73,10 @@
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #f7f8f8;
+  color: var(--color-ink);
 }
 
-.sc-panel-title svg { color: #60a5fa; }
+.sc-panel-title svg { color: var(--color-primary-hover); }
 
 .sc-panel-close {
   width: 28px;
@@ -83,14 +84,14 @@
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.04);
   border: none;
-  color: #6b7280;
+  color: var(--color-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s;
 }
-.sc-panel-close:hover { background: rgba(255,255,255,0.08); color: #a0a8b8; }
+.sc-panel-close:hover { background: rgba(255,255,255,0.08); color: var(--color-body); }
 
 .sc-panel-body {
   flex: 1;
@@ -133,7 +134,7 @@
 .sc-conv-row-name {
   font-size: 13px;
   font-weight: 600;
-  color: #f7f8f8;
+  color: var(--color-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -141,7 +142,7 @@
 
 .sc-conv-row-time {
   font-size: 10px;
-  color: #4b5563;
+  color: var(--color-muted-soft);
   white-space: nowrap;
   margin-left: 8px;
 }
@@ -155,7 +156,7 @@
 
 .sc-conv-row-preview > span:first-child {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--color-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -166,7 +167,7 @@
   min-width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: #3b82f6;
+  background: var(--color-primary);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -188,7 +189,7 @@
   padding: 40px 20px;
   text-align: center;
 }
-.sc-list-empty p { font-size: 13px; color: #4b5563; margin: 0; }
+.sc-list-empty p { font-size: 13px; color: var(--color-muted-soft); margin: 0; }
 
 /* ── Conversation view ───────────────────────────────────────────────────── */
 .sc-conv-view {
@@ -213,7 +214,7 @@
   border-radius: 7px;
   background: rgba(255,255,255,0.04);
   border: none;
-  color: #6b7280;
+  color: var(--color-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,12 +222,12 @@
   transition: all 0.15s;
   flex-shrink: 0;
 }
-.sc-back-btn:hover { background: rgba(255,255,255,0.08); color: #a0a8b8; }
+.sc-back-btn:hover { background: rgba(255,255,255,0.08); color: var(--color-body); }
 
 .sc-conv-title {
   font-size: 13px;
   font-weight: 600;
-  color: #f7f8f8;
+  color: var(--color-ink);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -267,7 +268,7 @@
   text-align: center;
   padding: 20px;
 }
-.sc-empty-thread p { font-size: 12px; color: #4b5563; margin: 0; max-width: 220px; line-height: 1.5; }
+.sc-empty-thread p { font-size: 12px; color: var(--color-muted-soft); margin: 0; max-width: 220px; line-height: 1.5; }
 
 .sc-msg-row {
   display: flex;
@@ -287,7 +288,7 @@
 
 .sc-bubble.mine .sc-bubble-img,
 .sc-bubble.mine p {
-  background: #3b82f6;
+  background: var(--color-primary);
   color: #fff;
   border-radius: 16px 16px 4px 16px;
 }
@@ -358,7 +359,7 @@
   border-radius: 8px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.07);
-  color: #6b7280;
+  color: var(--color-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,7 +367,7 @@
   transition: all 0.15s;
   flex-shrink: 0;
 }
-.sc-img-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #a0a8b8; }
+.sc-img-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: var(--color-body); }
 .sc-img-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .sc-input {
@@ -376,7 +377,7 @@
   border-radius: 10px;
   padding: 9px 12px;
   font-size: 13px;
-  color: #f7f8f8;
+  color: var(--color-ink);
   font-family: inherit;
   resize: none;
   max-height: 100px;
@@ -391,7 +392,7 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: #3b82f6;
+  background: var(--color-primary);
   border: none;
   color: #fff;
   display: flex;
@@ -401,20 +402,24 @@
   transition: background 0.2s;
   flex-shrink: 0;
 }
-.sc-send-btn:hover:not(:disabled) { background: #60a5fa; }
+.sc-send-btn:hover:not(:disabled) { background: var(--color-primary-hover); }
 .sc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Avatar ──────────────────────────────────────────────────────────────── */
 .sc-avatar {
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6 0%, #c084fc 100%);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #c084fc 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 800;
   color: #fff;
   flex-shrink: 0;
   overflow: hidden;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
 }
 .sc-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -423,7 +428,7 @@
   width: 24px;
   height: 24px;
   border: 2px solid rgba(255,255,255,0.1);
-  border-top-color: #3b82f6;
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: sc-spin 0.7s linear infinite;
 }

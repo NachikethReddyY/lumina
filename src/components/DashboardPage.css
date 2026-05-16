@@ -2,7 +2,7 @@
 
 .dashboard-page {
   min-height: 100vh;
-  background-color: #141413;
+  background-color: var(--color-canvas);
   display: flex;
   flex-direction: column;
 }
@@ -27,15 +27,14 @@
 .placeholder-icon {
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #34c759 0%, #2da74a 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #14532d 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 40px;
   font-weight: 600;
-  color: #ffffff;
-  box-shadow: 0 8px 24px rgba(52, 199, 89, 0.2);
+  color: var(--color-on-primary);
 }
 
 .placeholder-title {
@@ -44,19 +43,19 @@
   font-weight: 400;
   letter-spacing: -0.5px;
   margin: 0;
-  color: #f7f8f8;
+  color: var(--color-ink);
 }
 
 .placeholder-subtitle {
   font-size: 17px;
-  color: #d0d6e0;
+  color: var(--color-body);
   margin: 0;
   line-height: 1.47;
 }
 
 .placeholder-text {
   font-size: 16px;
-  color: #8a8f98;
+  color: var(--color-muted);
   margin: 16px 0 0 0;
   font-weight: 500;
 }
@@ -74,7 +73,7 @@
 
 .placeholder-features li {
   font-size: 15px;
-  color: #d0d6e0;
+  color: var(--color-body);
   padding-left: 28px;
   position: relative;
 }
@@ -83,7 +82,7 @@
   content: '→';
   position: absolute;
   left: 0;
-  color: #3b82f6;
+  color: var(--color-primary);
   font-weight: 600;
 }
 

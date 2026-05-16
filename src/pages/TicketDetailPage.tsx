@@ -154,30 +154,57 @@ function StarRating({
 }
 
 // AI Ask panel
-function AskAIPanel({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
+function AskAIPanel({ ticket, onClose }: { ticket: ApiTicket; onClose: () => void }) {
   const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
   const ask = async () => {
-    if (!question.trim()) return;
+    const trimmed = question.trim();
+    if (!trimmed || loading) return;
     setLoading(true);
-    setAnswer('');
+    setQuestion('');
+    setMessages((prev) => [...prev, { role: 'user', text: trimmed }]);
     try {
-      const res = await ticketsApi.askAI(ticketId, question.trim());
+      const res = await ticketsApi.askAI(ticket.id, trimmed);
       const data = await res.json();
-      setAnswer(data.answer || data.error || 'No response');
+      setMessages((prev) => [...prev, { role: 'assistant', text: data.answer || data.error || 'No response' }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="td-ai-panel">
+    <div className="td-ai-panel td-ai-panel--floating">
       <div className="td-ai-header">
         <Sparkles size={16} className="td-ai-icon" />
-        <span>Ask AI about this ticket</span>
+        <div className="td-ai-header-copy">
+          <span>Ask AI</span>
+          <small>{ticket.title}</small>
+        </div>
         <button className="td-ai-close" onClick={onClose}><X size={14} /></button>
+      </div>
+      <div className="td-ai-context">
+        <span className="td-ai-context-pill">{ticket.priority}</span>
+        <span className="td-ai-context-pill">{ticket.status.replace(/_/g, ' ')}</span>
+        <span className="td-ai-context-pill">{ticket.category_name}</span>
+      </div>
+      <div className="td-ai-thread">
+        {messages.length === 0 && (
+          <div className="td-ai-empty">Ask about the ticket, routing, next steps, or resolution details.</div>
+        )}
+        {messages.map((msg, idx) => (
+          <div key={`${msg.role}-${idx}`} className={`td-ai-bubble ${msg.role}`}>
+            {msg.text}
+          </div>
+        ))}
+        {loading && <div className="td-ai-bubble assistant">Thinking…</div>}
+        <div ref={chatEndRef} />
       </div>
       <div className="td-ai-input-row">
         <input
@@ -192,17 +219,6 @@ function AskAIPanel({ ticketId, onClose }: { ticketId: string; onClose: () => vo
           <Send size={14} />
         </button>
       </div>
-      {loading && (
-        <div className="td-ai-thinking">
-          <span className="td-ai-dot" /><span className="td-ai-dot" /><span className="td-ai-dot" />
-        </div>
-      )}
-      {answer && (
-        <div className="td-ai-answer">
-          <div className="td-ai-answer-label">LUMINA AI</div>
-          <p>{answer}</p>
-        </div>
-      )}
     </div>
   );
 }
@@ -339,12 +355,12 @@ export function TicketDetailPage() {
         <AnimatePresence>
           {showAI && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              style={{ overflow: 'hidden', marginBottom: 24 }}
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
             >
-              <AskAIPanel ticketId={ticket.id} onClose={() => setShowAI(false)} />
+              <AskAIPanel ticket={ticket} onClose={() => setShowAI(false)} />
             </motion.div>
           )}
         </AnimatePresence>

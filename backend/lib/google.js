@@ -25,4 +25,21 @@ async function verifyGoogleIdToken(idToken) {
   return ticket.getPayload();
 }
 
-module.exports = { verifyGoogleIdToken, isGoogleConfigured: () => Boolean(process.env.GOOGLE_CLIENT_ID) };
+async function verifyGoogleAccessToken(accessToken) {
+  const c = getClient();
+  if (!c) {
+    throw Object.assign(new Error('Google sign-in is not configured'), { status: 503 });
+  }
+  // This verifies the token and returns info including email/sub
+  const info = await c.getTokenInfo(accessToken);
+  if (info.aud !== process.env.GOOGLE_CLIENT_ID) {
+    throw Object.assign(new Error('Invalid token audience'), { status: 401 });
+  }
+  return info;
+}
+
+module.exports = { 
+  verifyGoogleIdToken, 
+  verifyGoogleAccessToken,
+  isGoogleConfigured: () => Boolean(process.env.GOOGLE_CLIENT_ID) 
+};

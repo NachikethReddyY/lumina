@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const express = require('express');
 const db = require('../db');
 const { signAccessToken } = require('../lib/jwt');
-const { verifyGoogleIdToken } = require('../lib/google');
+const { verifyGoogleIdToken, verifyGoogleAccessToken } = require('../lib/google');
 const {
   validationError,
   validateSignupBody,
@@ -131,6 +131,24 @@ router.post('/signup', async (req, res, next) => {
     return res.status(400).json(validationError(parsed.details));
   }
   const { email, password, firstName, lastName } = parsed;
+
+  // Clean up expired pending users (older than verification TTL)
+  const verificationTTL = VERIFY_TTL_MS;
+  try {
+    const cleanupResult = await db.query(
+      `DELETE FROM users 
+       WHERE email = $1 AND status = 'pending' 
+       AND created_at < NOW() - INTERVAL '1 millisecond' * $2
+       RETURNING id`,
+      [email.toLowerCase(), verificationTTL]
+    );
+    if (cleanupResult.rowCount > 0) {
+      console.log(`Cleaned up expired pending user: ${email}`);
+    }
+  } catch (cleanupErr) {
+    console.error('Failed to cleanup expired user:', cleanupErr.message);
+  }
+
   const mailConfigured = isMailConfigured();
   if (!mailConfigured) {
     return res.status(503).json({
@@ -325,14 +343,18 @@ router.post('/resend-verification', otpLimiter, async (req, res, next) => {
 });
 
 router.post('/google', async (req, res, next) => {
-  const credential = req.body.credential;
-  if (!credential) {
-    return res.status(400).json({ error: 'Missing Google credential' });
+  const { credential, accessToken } = req.body;
+  if (!credential && !accessToken) {
+    return res.status(400).json({ error: 'Missing Google credential or access token' });
   }
 
   let payload;
   try {
-    payload = await verifyGoogleIdToken(credential);
+    if (credential) {
+      payload = await verifyGoogleIdToken(credential);
+    } else {
+      payload = await verifyGoogleAccessToken(accessToken);
+    }
   } catch (err) {
     const status = err.status || 401;
     return res.status(status).json({ error: err.message || 'Invalid Google token' });
@@ -372,8 +394,8 @@ router.post('/google', async (req, res, next) => {
           [userRow.id, sub]
         );
       } else {
-        const first = payload.given_name || 'Google';
-        const last = payload.family_name || 'User';
+        const first = payload.given_name || (payload.name ? payload.name.split(' ')[0] : 'New');
+        const last  = payload.family_name || (payload.name ? payload.name.split(' ').slice(1).join(' ') : 'User');
         if (!isMailConfigured()) {
           return res.status(503).json({
             error: 'Email verification is required, but SMTP is not configured on the server.',

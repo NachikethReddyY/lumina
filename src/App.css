@@ -8,12 +8,24 @@
 }
 
 /* Utility */
+.dashboard-collapse-btn {
+  margin-left: 20px !important;
+  padding: 8px !important;
+  border-radius: 8px !important;
+  border: none !important;
+}
+
+.dashboard-collapse-icon {
+  width: 22px !important;
+  height: 22px !important;
+}
+
 .skip-to-content {
   position: absolute;
   top: -40px;
   left: 0;
-  background: #3b82f6;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   padding: 8px;
   text-decoration: none;
   z-index: 100;
