@@ -21,14 +21,18 @@ const STATUS_COLOR: Record<string, string> = {
 
 const PAGE_SIZE = 12;
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const QUEUE_STATUSES = new Set<ApiTicket['status']>(['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing']);
 
 type SortKey = 'priority' | 'title' | 'status' | 'category' | 'assignee' | 'created';
 type SortDir = 'asc' | 'desc';
+type TicketHistoryMode = 'queue' | 'history';
 
 function assigneeLabel(ticket: ApiTicket) {
   if (ticket.assigned_to_name) return ticket.assigned_to_name;
   const routing = ticket.metadata?.routing as { assigned_admin_id?: string; source?: string } | undefined;
-  return ticket.status === 'pending_routing' || routing ? 'Lumina AI' : 'Pending routing';
+  if (ticket.status === 'pending_routing') return 'Pending routing';
+  if (routing?.assigned_admin_id) return 'Assignment missing';
+  return 'Unassigned';
 }
 
 function AssigneeCell({ ticket }: { ticket: ApiTicket }) {
@@ -52,7 +56,9 @@ function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
   const [selectedTicketId, setSelectedTicketId] = useState(tickets[0]?.id || '');
 
   useEffect(() => {
-    if (tickets.length && !selectedTicketId) setSelectedTicketId(tickets[0].id);
+    const hasSelectedTicket = tickets.some((ticket) => ticket.id === selectedTicketId);
+    if (tickets.length && !hasSelectedTicket) setSelectedTicketId(tickets[0].id);
+    if (!tickets.length && selectedTicketId) setSelectedTicketId('');
   }, [tickets, selectedTicketId]);
 
   const ask = async () => {
@@ -61,8 +67,14 @@ function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
     setAnswer('');
     try {
       const res = await ticketsApi.askAI(selectedTicketId, question.trim());
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as { answer?: string; error?: string };
+      if (!res.ok) {
+        setAnswer(data.error || 'Lumina AI could not answer right now. Try again in a moment.');
+        return;
+      }
       setAnswer(data.answer || data.error || 'No response');
+    } catch {
+      setAnswer('Lumina AI could not answer right now. Try again in a moment.');
     } finally {
       setLoading(false);
     }
@@ -106,7 +118,7 @@ function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
   );
 }
 
-export function TicketHistoryPage() {
+export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMode }) {
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
@@ -120,6 +132,7 @@ export function TicketHistoryPage() {
   const [showAI, setShowAI] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('created');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const isQueueMode = mode === 'queue';
 
   useEffect(() => {
     let cancelled = false;
@@ -137,16 +150,21 @@ export function TicketHistoryPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const visibleTickets = useMemo(
+    () => isQueueMode ? tickets.filter((ticket) => QUEUE_STATUSES.has(ticket.status)) : tickets,
+    [tickets, isQueueMode]
+  );
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return tickets.filter((t) => {
+    return visibleTickets.filter((t) => {
       if (filterStatus !== 'all' && t.status !== filterStatus) return false;
       if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
       if (filterCategory !== 'all' && t.category_id !== filterCategory) return false;
       if (q && !`${t.title} ${t.description} ${t.category_name} ${t.status} ${t.priority} ${assigneeLabel(t)}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tickets, filterStatus, filterPriority, filterCategory, search]);
+  }, [visibleTickets, filterStatus, filterPriority, filterCategory, search]);
 
   const sorted = useMemo(() => {
     const priorityRank: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
@@ -186,10 +204,19 @@ export function TicketHistoryPage() {
   const resetPage = useCallback(() => setPage(1), []);
 
   const counts = useMemo(() => ({
-    open: tickets.filter((t) => t.status === 'open').length,
-    inProgress: tickets.filter((t) => t.status === 'in_progress').length,
-    resolved: tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
-  }), [tickets]);
+    open: visibleTickets.filter((t) => t.status === 'open').length,
+    inProgress: visibleTickets.filter((t) => t.status === 'in_progress').length,
+    resolved: visibleTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
+  }), [visibleTickets]);
+
+  const pageTitle = isQueueMode ? 'Ticket Queue' : 'Ticket History';
+  const pageSubtitle = isQueueMode
+    ? user?.role === 'user'
+      ? 'Your active support tickets'
+      : 'Active tickets that still need attention'
+    : user?.role === 'user'
+      ? 'All your submitted support tickets'
+      : 'All tickets across the system';
 
   return (
     <DashboardLayout>
@@ -198,10 +225,8 @@ export function TicketHistoryPage() {
           {/* Header */}
           <motion.div className="th-header" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <div>
-              <h1 className="th-title">Ticket History</h1>
-              <p className="th-subtitle">
-                {user?.role === 'user' ? 'All your submitted support tickets' : 'All tickets across the system'}
-              </p>
+              <h1 className="th-title">{pageTitle}</h1>
+              <p className="th-subtitle">{pageSubtitle}</p>
             </div>
             <div className="th-header-actions">
               <button
@@ -216,14 +241,14 @@ export function TicketHistoryPage() {
 
           {/* AI Panel */}
           <AnimatePresence>
-            {showAI && tickets.length > 0 && (
+            {showAI && visibleTickets.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 style={{ overflow: 'hidden' }}
               >
-                <AskAIPanel tickets={tickets} />
+                <AskAIPanel tickets={visibleTickets} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -244,7 +269,7 @@ export function TicketHistoryPage() {
             </div>
             <div className="th-stat-pill">
               <span className="th-stat-dot" style={{ background: '#6b7280' }} />
-              <span>{tickets.length} Total</span>
+              <span>{visibleTickets.length} Total</span>
             </div>
           </div>
 
@@ -291,9 +316,9 @@ export function TicketHistoryPage() {
 
           {/* Results count */}
           <div className="th-results-info">
-            {sorted.length !== tickets.length
-              ? `${sorted.length} of ${tickets.length} tickets`
-              : `${tickets.length} tickets`}
+            {sorted.length !== visibleTickets.length
+              ? `${sorted.length} of ${visibleTickets.length} tickets`
+              : `${visibleTickets.length} tickets`}
           </div>
 
           {/* Content */}

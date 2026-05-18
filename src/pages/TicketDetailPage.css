@@ -539,7 +539,7 @@
   cursor: pointer;
   transition: background 0.2s, transform 0.15s;
 }
-.td-comment-submit:hover:not(:disabled) {
+.td-comment-submit:hover:not(:disabled) {   
   transform: translateY(-1px);
 }
 .td-comment-submit:disabled { opacity: 0.4; cursor: not-allowed; }

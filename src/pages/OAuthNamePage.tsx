@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import Logo from '../components/Logo';
 import Container from '../components/Container';
-import Button from '../components/Button';
 import Input from '../components/Input';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usersApi } from '../utils/apiClient';

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, type CSSProperties } from "react"
 import {
   LayoutDashboard,
   History,
@@ -279,20 +279,25 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
         <div className="sidebar-group">
           <div className="sidebar-group-label">Navigation</div>
           <nav className="sidebar-menu">
-            {menuItems.map((item) => (
-              <Link
-                key={item.title}
-                to={item.url}
-                className={`sidebar-menu-item ${location.pathname === item.url || (item.url === "/dashboard" && location.pathname === "/dashboard/tickets") ? "active" : ""}`}
-                title={isCollapsed ? item.title : ""}
-              >
-                <item.icon style={{ color: item.color }} />
-                <span>{item.title}</span>
-                {'badge' in item && Boolean(item.badge) && (
-                  <span className="sidebar-nav-badge">{(item.badge ?? 0) > 9 ? '9+' : item.badge}</span>
-                )}
-              </Link>
-            ))}
+            {menuItems.map((item) => {
+              const iconStyle = { "--sidebar-icon-color": item.color } as CSSProperties;
+              return (
+                <Link
+                  key={item.title}
+                  to={item.url}
+                  className={`sidebar-menu-item ${location.pathname === item.url || (item.url === "/dashboard" && location.pathname === "/dashboard/tickets") ? "active" : ""}`}
+                  title={isCollapsed ? item.title : ""}
+                >
+                  <span className="sidebar-menu-icon" style={iconStyle}>
+                    <item.icon size={16} />
+                  </span>
+                  <span>{item.title}</span>
+                  {'badge' in item && Boolean(item.badge) && (
+                    <span className="sidebar-nav-badge">{(item.badge ?? 0) > 9 ? '9+' : item.badge}</span>
+                  )}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>

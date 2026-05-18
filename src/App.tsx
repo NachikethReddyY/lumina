@@ -41,8 +41,8 @@ function App() {
 
         <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
-        <Route path="/tickets" element={<ProtectedRoute><TicketHistoryPage /></ProtectedRoute>} />
-        <Route path="/tickets/history" element={<ProtectedRoute><TicketHistoryPage /></ProtectedRoute>} />
+        <Route path="/tickets" element={<ProtectedRoute><TicketHistoryPage mode="queue" /></ProtectedRoute>} />
+        <Route path="/tickets/history" element={<ProtectedRoute><TicketHistoryPage mode="history" /></ProtectedRoute>} />
 
         <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetailPage /></ProtectedRoute>} />
 
