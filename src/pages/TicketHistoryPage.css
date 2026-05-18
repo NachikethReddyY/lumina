@@ -2923,28 +2923,6 @@
   letter-spacing: -0.02em;
 }
 
-.th-queue-panel-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 9px;
-  border: 1px solid rgba(31, 138, 101, 0.12);
-  border-radius: 999px;
-  background: rgba(31, 138, 101, 0.07);
-  color: var(--th-success);
-  font-size: 10px;
-  font-weight: 760;
-  text-transform: uppercase;
-}
-
-.th-queue-panel-live span {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--th-success);
-  box-shadow: 0 0 0 4px rgba(31, 138, 101, 0.1);
-}
-
 .th-ticket-rail {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(247, 247, 244, 0.72)),

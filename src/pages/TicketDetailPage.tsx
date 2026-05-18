@@ -793,7 +793,6 @@ export function TicketDetailPage() {
               <div className="td-rail-heading">
                 <div>
                   <h2>AI Routing Engine</h2>
-                  <span className="td-route-live"><span /> live</span>
                 </div>
                 <strong className="td-routing-phase-label">{routingPhase}</strong>
                 <button

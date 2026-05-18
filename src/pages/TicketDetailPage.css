@@ -632,25 +632,10 @@
   min-width: 0;
 }
 
-.td-rail-subtitle,
-.td-route-live {
+.td-rail-subtitle {
   color: var(--color-semantic-success);
   font-size: 12px;
   font-weight: 800;
-}
-
-.td-route-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-transform: lowercase;
-}
-
-.td-route-live span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-semantic-success);
 }
 
 .td-rail-icon-btn {
@@ -1594,13 +1579,11 @@
 }
 
 .td-routing-json-wrap > span,
-.td-route-live,
 .td-routing-result > span,
 .td-section-heading svg {
   color: var(--td-primary);
 }
 
-.td-route-live span,
 .td-timeline-dot {
   background: var(--td-success);
 }

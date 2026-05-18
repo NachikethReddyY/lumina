@@ -863,7 +863,6 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                 <span className="th-eyebrow">Tickets Queue</span>
                 <strong>{sorted.length} visible</strong>
               </div>
-              <span className="th-queue-panel-live"><span /> live</span>
             </div>
 
             <div className="th-search-wrap th-queue-search-wrap">
