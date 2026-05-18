@@ -2973,7 +2973,14 @@
 }
 
 .th-ticket-rail .th-list-item.active::after {
-  opacity: 1;
+  display: none;
+  content: none;
+  opacity: 0;
+}
+
+.th-ticket-rail .th-list-item.active,
+.th-ticket-rail .th-list-item.active:hover {
+  border-color: rgba(38, 37, 30, 0.12);
 }
 
 .th-side-ai-decision-log .th-routing-intel {
