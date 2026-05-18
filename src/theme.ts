@@ -1,94 +1,97 @@
 // Lumina Design System - Complete Theme Tokens
 export const theme = {
   colors: {
-    // Canvas & Surfaces
-    canvas: '#141413',
-    surfaceCard: '#1a1a1a',
-    surfaceDark: '#1e1e1e',
-    surfaceDarkElevated: '#252525',
+    // Cursor-like editorial theme (docs/newdesign.md)
+    canvas: '#f7f7f4',
+    canvasSoft: '#fafaf7',
+    surfaceCard: '#ffffff',
+    surfaceStrong: '#e6e5e0',
 
-    // Brand - Dual Blue System
-    primary: '#3b82f6', // Lumina Blue
-    primaryHover: '#60a5fa',
-    primaryFocus: '#2563eb',
-    primaryActive: '#1d4ed8',
-    secondaryBlue: '#0066cc', // System Action Blue
+    // Brand (primary is intentionally sparse)
+    primary: '#007aff',
+    primaryHover: '#0a84ff',
+    primaryActive: '#0062cc',
 
-    // Semantic Colors
-    success: '#34c759',
-    warning: '#ff9500',
-    error: '#ff3b30',
+    // Hairlines
+    hairline: '#e6e5e0',
+    hairlineSoft: '#efeee8',
+    hairlineStrong: '#cfcdc4',
 
-    // Text Colors
-    ink: '#f7f8f8', // Headlines
-    bodyStrong: '#e0e0e0',
-    body: '#d0d6e0',
-    muted: '#8a8f98',
-    mutedSoft: '#6c6c6c',
+    // Text
+    ink: '#26251e',
+    body: '#000000',
+    muted: '#3a3832',
+    mutedSoft: '#5f5c54',
     onPrimary: '#ffffff',
-    onDark: '#f7f8f8',
 
-    // Borders & UI
-    hairline: '#2a2a2a',
-    hairlineSoft: '#333333',
+    // Timeline (product-only signature)
+    timelineThinking: '#dfa88f',
+    timelineGrep: '#9fc9a2',
+    timelineRead: '#9fbbe0',
+    timelineEdit: '#c0a8dd',
+    timelineDone: '#c08532',
+
+    // Semantic
+    success: '#1f8a65',
+    error: '#cf2d56',
   },
 
   typography: {
     fontFamily: {
-      display: '"Newsreader", "EB Garamond", serif',
-      body: '-apple-system, "Inter", system-ui, sans-serif',
-      mono: '"Fira Code", "JetBrains Mono", monospace',
+      display: '"Inter Variable", system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif',
+      body: '"Inter Variable", system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif',
+      mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     },
 
     // Display Styles
     displayXl: {
-      fontSize: '64px',
-      fontWeight: 400,
-      lineHeight: 1.05,
-      letterSpacing: '-1.5px',
-      fontFamily: '"Newsreader", "EB Garamond", serif',
-    },
-    displayLg: {
-      fontSize: '48px',
+      fontSize: '72px',
       fontWeight: 400,
       lineHeight: 1.1,
-      letterSpacing: '-1px',
-      fontFamily: '"Newsreader", "EB Garamond", serif',
+      letterSpacing: '-2.16px',
+      fontFamily: '"Inter Variable", system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif',
     },
-    displayMd: {
+    displayLg: {
       fontSize: '36px',
       fontWeight: 400,
-      lineHeight: 1.15,
-      letterSpacing: '-0.5px',
-      fontFamily: '"Newsreader", "EB Garamond", serif',
+      lineHeight: 1.2,
+      letterSpacing: '-0.72px',
+      fontFamily: '"Inter Variable", system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif',
+    },
+    displayMd: {
+      fontSize: '26px',
+      fontWeight: 400,
+      lineHeight: 1.25,
+      letterSpacing: '-0.325px',
+      fontFamily: '"Inter Variable", system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif',
     },
 
     // Title Styles
     titleLg: {
       fontSize: '22px',
-      fontWeight: 500,
+      fontWeight: 600,
       lineHeight: 1.3,
       letterSpacing: '0',
     },
     titleMd: {
       fontSize: '18px',
-      fontWeight: 500,
+      fontWeight: 600,
       lineHeight: 1.4,
       letterSpacing: '0',
     },
     titleSm: {
       fontSize: '16px',
-      fontWeight: 500,
+      fontWeight: 600,
       lineHeight: 1.4,
       letterSpacing: '0',
     },
 
     // Body Text
     bodyMd: {
-      fontSize: '17px',
+      fontSize: '16px',
       fontWeight: 400,
-      lineHeight: 1.47,
-      letterSpacing: '-0.374px',
+      lineHeight: 1.5,
+      letterSpacing: '0',
     },
     bodySm: {
       fontSize: '14px',
@@ -119,10 +122,10 @@ export const theme = {
       letterSpacing: '0',
     },
     captionUppercase: {
-      fontSize: '12px',
-      fontWeight: 500,
+      fontSize: '11px',
+      fontWeight: 600,
       lineHeight: 1.4,
-      letterSpacing: '1.5px',
+      letterSpacing: '0.88px',
     },
   },
 
@@ -149,8 +152,7 @@ export const theme = {
   },
 
   shadows: {
-    // Single product shadow - ONLY for product imagery
-    product: '0 3px 30px rgba(0,0,0,0.22)',
+    product: 'none',
   },
 };
 

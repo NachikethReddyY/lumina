@@ -1,231 +1,452 @@
 # Lumina
 
-Lumina is a full-stack helpdesk and issue-tracking app with:
+**Lumina** is a full-stack AI-powered helpdesk and issue-tracking platform built with an Express + PostgreSQL backend and a Vite + React frontend.
 
-- an Express + PostgreSQL backend
-- a Vite + React frontend
-- email/password auth with OTP verification
-- Google OAuth account linking
-- role-based access for `user`, `admin`, and `super_admin`
-- AI-assisted ticket routing with a Gemini fallback to rules-based routing
+It combines intelligent ticket routing, role-based access control, and real-time notifications in a modern editorial-quality interface.
 
-## Project structure
+---
 
-- `backend/` — API, auth, database, routing
-- `src/`, `index.html`, `public/` — Vite + React frontend (repo root)
-- `backend/db/init.sql` — schema + seed data
-- `docs/test-users.md` — seeded demo credentials
-- `docs/production.md` — free deployment guidance
-- `decide/` — non-runtime artifacts and drafts (triage; not part of the app build)
+## Features
 
-## One-time setup (environment)
+| Capability | Details |
+|------------|---------|
+| **Ticket lifecycle** | Create, view, assign, route, resolve, and rate tickets end-to-end |
+| **Auth & accounts** | Email/password with OTP verification · Google OAuth linking · server-side approval flow |
+| **Roles** | `user`, `admin`, `super_admin` — enforced in UI and middleware |
+| **AI routing** | Google Gemini classifies and routes tickets; falls back to rules-based assignment |
+| **Notifications** | Real-time event stream for status changes, comments, and ratings |
+| **Dashboard analytics** | Workload distribution, priority counts, queue health metrics |
 
-Use **two files** so you can switch local vs hosting without editing one giant `.env`:
+---
 
-| File | Purpose |
-|------|---------|
-| `.env.development` | Local machine (Postgres on localhost, `VITE_API_URL=http://localhost:5000`, etc.) |
-| `.env.hosting` | Hosting / production-style (deployed `FRONTEND_URL`, `VITE_API_URL=/api/v1` on Vercel, managed `DATABASE_URL`, etc.) |
+## Project overview and workflow
 
-1. Create both from the examples:
+Lumina operates in the **IT helpdesk and internal issue-tracking** domain. It supports organisations that need:
+
+- **Ticket intake and lifecycle** — users raise issues; staff triage, assign, and resolve them.
+- **Identity and trust** — email/password accounts with **OTP verification**, optional **Google OAuth** linking, and server-enforced approval for new accounts.
+- **Governance** — **role-based access** for end users, administrators, and super administrators (account approval, workload oversight, system-wide controls).
+
+The product is aimed at scenarios such as **classroom demos**, **small teams**, or **prototypes** where a credible helpdesk experience is required without building everything from scratch.
+
+### Technical overview
+
+| Layer | Location | Stack |
+|-------|----------|-------|
+| API & data | `backend/` | Node/Express, PostgreSQL, JWT auth, parameterised SQL, rate-limited auth endpoints |
+| Client | repo root (`src/`, Vite) | Vite, React, TypeScript |
+| Database schema & seeds | `backend/db/init.sql` | Schema plus demo users, tickets, categories, assignments, ratings, audit data |
+
+When configured, the backend can use **Google Gemini** to help classify and route tickets; if the AI path is unavailable, **rules-based routing** keeps assignment working.
+
+---
+
+## Quick start
 
 ```bash
+# 1. Install (pnpm workspace — root + backend)
+pnpm install
+
+# 2. Set environment variables (see "Environment setup" below)
 cp .env.development.example .env.development
 cp .env.hosting.example .env.hosting
+# edit both files with your DATABASE_URL, JWT_SECRET, SMTP creds, etc.
+
+# 3. Initialise the database
+pnpm db:init          # or: psql "$DATABASE_URL" -f backend/db/init.sql
+
+# 4. Start everything
+pnpm dev              # backend on :5000, frontend on :5173
 ```
 
-2. Fill in at least **`.env.development`** for day-to-day coding (`DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`, `VITE_API_URL`, and optional SMTP / Google / Gemini — see the example files).
+---
 
-3. Fill in **`.env.hosting`** when you want to run the stack against hosting-like settings (or copy values from your Vercel / Neon dashboards).
+## Prerequisites
 
-**How switching works**
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Node.js | ≥ 18 | Runtime (frontend and backend) |
+| pnpm | ≥ 9 | Package manager (monorepo workspace) |
+| PostgreSQL | ≥ 14 | Database |
+| Git | any | Source control |
 
-- **`npm run dev`** — loads **`.env.development`** for the API (`LUMINA_PROFILE=development`) and runs Vite in **`development`** mode (same file + optional `.env.development.local`).
-- **`npm run dev:hosting`** — loads **`.env.hosting`** (`LUMINA_PROFILE=hosting`) and Vite **`hosting`** mode (same + optional `.env.hosting.local`).
-- **`npm run build`** — bakes **`VITE_*`** from **hosting** mode (`.env.hosting`), matching a typical production deploy.
-- **Legacy:** if you still have a single **`.env`** and no profile files, the API uses that file when `LUMINA_PROFILE` is unset.
+Install Node + pnpm via [Homebrew](https://brew.sh/) on macOS:
 
-**Advanced:** set **`LUMINA_ENV_FILE`** to any path to load one specific file for the API (see `backend/lib/loadRootEnv.js`).
+```bash
+brew install node pnpm
+```
+
+---
+
+## Environment setup
+
+Lumina uses **profile-switched env files** so you can keep local and hosting settings side by side without editing `.env` on every switch.
+
+| File | When to use |
+|------|-------------|
+| `.env.development` | Day-to-day coding (`PORT=5000`, `DATABASE_URL=localhost`, `VITE_API_URL=http://localhost:5000`) |
+| `.env.hosting` | Staging/production simulation (`PORT=5000`, `VITE_API_URL=/api/v1`, managed `DATABASE_URL`) |
+
+Each file needs these core variables (see the `.example` versions for full detail):
+
+```
+# API server
+PORT=5000
+DATABASE_URL=postgresql://USER:PASS@localhost:5432/lumina
+JWT_SECRET=your-random-secret
+JWT_REFRESH_SECRET=your-random-secret
+JWT_ACCESS_EXPIRES_IN=7d
+FRONTEND_URL=http://localhost:5173
+
+# Frontend (VITE_* only — exposed to browser by Vite)
+VITE_API_URL=http://localhost:5000
+VITE_API_PREFIX=/api/v1
+VITE_GOOGLE_CLIENT_ID=       # optional — for Google OAuth
+
+# Optional
+SMTP_HOST=smtp.gmail.com         # SMTP server
+SMTP_USER=your-email@gmail.com   # Gmail address
+SMTP_PASSWORD=your-app-password  # Google App Password
+GEMINI_API_KEY=                  # optional — AI routing tier
+```
+
+### How profiles work
+
+| Profile | Env file loaded by API | Vite mode |
+|---------|----------------------|-----------|
+| `pnpm dev` | `.env.development` | `development` |
+| `pnpm dev:hosting` | `.env.hosting` | `hosting` |
+| `pnpm build` | `.env.hosting` | `hosting` |
+
+**Legacy fallback:** if no profile file exists, the API silently falls back to `.env` at the repo root. Set `LUMINA_ENV_FILE=<path>` to point to any file explicitly.
+
+---
 
 ## Install dependencies
 
-### npm
-
 ```bash
-npm install
-npm run install:all
+pnpm install
 ```
 
-### Bun
+This installs both the **root workspace package** (frontend) and the **`backend/` workspace package** in one pass thanks to the pnpm workspace configuration (`pnpm-workspace.yaml`).
+
+To install backend-only deps:
 
 ```bash
-bun install
-bun run install:bun
+pnpm --dir backend install
 ```
 
-After that, Bun can use the same root run commands as npm.
+---
 
-## Initialize the database
+## Database setup
 
-Make sure PostgreSQL is running and `DATABASE_URL` is valid, then run:
+### Automated (recommended)
 
 ```bash
-npm run db:init
+pnpm db:init
 ```
 
-If the npm script fails (shell quoting issue), use the direct command:
+Runs `psql "$DATABASE_URL" -f backend/db/init.sql` — creates schema, seeds demo users, categories, tickets, assignments, and ratings.
+
+### Manual / fresh reset
 
 ```bash
+# Create the DB first if it doesn't exist
+createdb lumina
+
+# Apply schema + seeds
 psql "$DATABASE_URL" -f backend/db/init.sql
 ```
 
-This creates the schema and seeds:
+`backend/db/DDL.sql` holds the raw schema in one file; `backend/db/index.js` wraps it if you prefer programmatic control.
 
-- one super admin
-- several active admins and users
-- several pending approval accounts
-- categories, tickets, assignments, ratings, and audit logs
+---
 
-## Run the whole app from the repo root
+## Run locally
 
-### Development with npm
+### Full stack — development profile
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
-Loads **`.env.development`** for the API and Vite **development** mode. Starts backend on `http://localhost:5000` (default) and frontend on `http://localhost:5173`.
+- API on **http://localhost:5000** (or whatever `PORT` is set to in `.env.development`)
+- Frontend on **http://localhost:5173**
 
-### Development with Bun
+Only the frontend (hot-reload dev server):
 
 ```bash
-bun run dev
+pnpm run dev:frontend
 ```
 
-### Hosting profile on your machine
+### Hosting profile locally
 
-Same scripts work with Bun (`bun run dev:hosting`). Use this when you want **`.env.hosting`** and Vite **`hosting`** mode (e.g. prod `DATABASE_URL`, `VITE_API_URL=/api/v1`) while servers still run on your laptop:
+Use `.env.hosting` settings (e.g. prod `DATABASE_URL`, `VITE_API_URL=/api/v1`) without redeploying:
 
 ```bash
-npm run dev:hosting
+pnpm run dev:hosting
 ```
 
-### If port 5000 is already in use (`EADDRINUSE`)
-
-Something else is listening on the same port as `PORT` (default **5000**). Free it or pick another port in the **active** env file (`.env.development` or `.env.hosting`); keep `PORT` and `VITE_API_URL` aligned.
-
-**macOS and Linux — find and stop the process**
-
-1. See which process holds the port:
+### Production build
 
 ```bash
-lsof -nP -iTCP:5000 -sTCP:LISTEN
+pnpm run build
 ```
 
-2. Stop it using the `PID` from that output (replace `PID` with the number):
+Outputs to `dist/`. Preview it locally before pushing:
 
 ```bash
-kill PID
+pnpm run start
 ```
 
-If it does not exit, force kill (only when you are sure it is safe):
+### Port 5000 already in use?
 
-```bash
-kill -9 PID
+macOS — AirPlay Receiver commonly steals port 5000. Either turn it off in **System Settings → General → AirDrop & Handoff** or change `PORT` and `VITE_API_URL` in `.env.development` (e.g. to `5001`).
+
+---
+
+## How the backend connects to the frontend
+
+The **only runtime link** between the two is the `VITE_API_URL` environment variable.
+
+```
+Browser → Vite dev server (5173) → VITE_API_URL (http://localhost:5000) → Express API → PostgreSQL
 ```
 
-If you use `npm run dev` / `bun run dev`, stop that terminal with **Ctrl+C** first; a stray `node` or `bun` process may still be bound until you `kill` it.
+In production the same pattern applies: browser → static build → `VITE_API_URL=/api/v1` → Vercel rewrites → Express handlers on Vercel Functions / a hosted server.
 
-**macOS — AirPlay Receiver**
+### The API client
 
-Apple’s **AirPlay Receiver** sometimes uses port 5000. If `lsof` shows `ControlCenter` or similar on `5000`, turn off **AirPlay Receiver** under **System Settings → General → AirDrop & Handoff** (wording varies by macOS version), or set `PORT` / `VITE_API_URL` to another free port (for example `5001`) in `.env.development` (or your legacy `.env`).
+All frontend HTTP calls go through a thin wrapper at `src/utils/apiClient.ts`. The raw client is intentionally generic (a `request()` helper built on `fetch`), and each domain surface has its own typed wrapper imported from there:
 
-**Windows (PowerShell or CMD)**
-
-```text
-netstat -ano | findstr :5000
+```
+src/utils/apiClient.ts          ← raw request() helper + typed types
+  ├─ ticketsApi  (get, getComments, getActivity, rate, updateStatus, reroute, askAI, addComment)
+  ├─ usersApi    (list, get, update, delete, approve)
+  ├─ commentsApi
+  ├─ authApi     (signup, login, verifyOTP, forgotPassword, resetPassword, linkGoogle)
+  ├─ categoriesApi
+  ├─ notificationsApi
+  └─ auditLogsApi
 ```
 
-Note the PID in the last column, then:
+The helpers handle `Authorization: Bearer <token>` header injection, error surfacing, and JSON parsing consistently so no individual page has to repeat that logic.
 
-```text
-taskkill /PID <PID> /F
-```
+### Profile switching in the browser
 
-## Other useful root commands
+The build process inlines whatever `VITE_*` variables are in the **active** `.env` file. You don't need restart old servers when switching — Vite reload handles hot module replacement during development.
 
-```bash
-npm run build
-npm run start
-npm run lint:frontend
-```
+For deployment, `VITE_API_URL=/api/v1` combined with `vercel.json` rewrites keeps the frontend code calling a relative URL that works on every environment.
 
-Or with Bun:
+---
 
-```bash
-bun run build
-```
+## Libraries and components used
+
+### Frontend
+
+| Library | Purpose |
+|---------|---------|
+| **React 19** | UI framework |
+| **TypeScript** | Type safety throughout (strict mode) |
+| **Vite 6** | Build tool and dev server |
+| **Tailwind CSS v4** | Utility-first styling (shadcn-compatible utilities) |
+| **shadcn/ui** | Pre-built accessible component primitives (Dialog, Dropdown Menu, Tooltip, OTP Input, etc.) |
+| **Framer Motion 12** | Page transitions, shared layout animations, staggered list reveals |
+| **React Router 7** | SPA routing with role-protected routes |
+| **Lucide React** | Icon set (consistent, lean SVG) |
+| **@/react-oauth/google** | Google OAuth sign-in / account linking |
+| **React Hook Form + Zod** | Validation schema on auth / ticket forms |
+| **Recharts** | Charts on the admin dashboard |
+| **Radix UI** | Headless primitives (Tooltip, Dropdown Menu, Separator) |
+| **clsx + tailwind-merge** | Conditional class name composition |
+| **PostCSS + Autoprefixer** | Tailwind processing pipeline |
+
+### Backend
+
+| Library | Purpose |
+|---------|---------|
+| **Express 4** | HTTP server and routing |
+| **pg (node-postgres)** | PostgreSQL client (parameterised queries) |
+| **jsonwebtoken** | Access and refresh tokens |
+| **bcryptjs** | Password hashing before persistence |
+| **nodemailer** | SMTP delivery for OTP email verification |
+| **@google-gemini** | AI ticket classification and routing |
+| **uuid** | Request / database identifiers |
+| **dotenv** | Environment variable loading |
+
+### Design tokens
+
+All brand colours, spacing, radii, and typography live in `src/index.css` (CSS custom properties, mapped to Tailwind in `tailwind.config.js` + `src/theme.ts`) so the entire product can be rethemed from one file.
+
+---
 
 ## Authentication flow
 
-### Email sign-up
+### Email / password sign-up
 
-- New accounts are created as unverified and pending
-- A 6-digit OTP is emailed to the user
-- The frontend stores the pending email in local storage
-- The OTP page asks only for the code, not the email again
-- Once verified, the backend marks the user as verified in PostgreSQL
+1. User submits email + password on the sign-up page.
+2. Backend creates a `pending` account (status `pending`) and emails a **6-digit OTP**.
+3. Frontend stores the email in `localStorage` and navigates to the OTP entry screen.
+4. Backend verifies the code; on success the account moves to `approved` + `verified`.
 
 ### Google OAuth
 
-- OAuth accounts are linked through `oauth_accounts`
-- New OAuth users still go through the app's OTP verification flow
-- Verified status and account approval are enforced server-side
+1. Frontend calls `authApi.linkGoogle(credential)`.
+2. Backend looks up or creates an `oauth_accounts` row, links it to an existing or new user record.
+3. New OAuth-only users still pass through the OTP verify page before using the app.
+
+Both flows enforce server-side role checks before issuing JWT tokens so the client role cannot be spoofed.
+
+### Protected routes
+
+`src/components/ProtectedRoute.tsx` short-circuits unauthenticated users to login and uses `useCurrentUser()` to gate role-specific routes on the frontend. The backend **also** checks roles in every protected endpoint handler.
+
+---
 
 ## Roles
 
-- `user` — can create and view their own tickets
-- `admin` — can manage assigned tickets
-- `super_admin` — can approve accounts, review workload, and oversee the system
+| Role | Capabilities |
+|------|-------------|
+| `user` | Create tickets, view own tickets, comment on own tickets, rate resolutions |
+| `admin` | View all assigned tickets, change statuses, re-route, comment, reassign |
+| `super_admin` | Everything above + approve accounts, access approval queue, AI routing logs, user directory |
 
-## Seeded test accounts
+Seeded demo accounts in `docs/test-users.md`.
 
-See:
-
-- `docs/test-users.md`
-
-That file contains the demo credentials in plain text for testing and classroom/demo use only.
-
-## Email setup
-
-The project currently uses Nodemailer with SMTP only.
-
-For Gmail SMTP:
-
-1. Turn on 2-step verification
-2. Create a Google App Password
-3. Put that app password into `SMTP_PASSWORD`
-
-If SMTP is not configured, signup verification emails will not send correctly.
+---
 
 ## AI routing
 
-If `GEMINI_API_KEY` is set, Lumina uses Gemini to help classify and route tickets.
+When `GEMINI_API_KEY` is present in the API environment, ticket classification and routing pass through **Google Gemini** (`ticketRouting.js`):
 
-If Gemini is unavailable, the backend falls back to rules-based routing so ticket assignment still works.
+```
+submitted ticket → Gemini analyse (category, priority, reasoning) → match to available admin → assign
+```
+
+If the Gemini call fails (no key, quota hit, timeout), the backend **falls back silently to rules-based routing** so ticket assignment never breaks. The decision source (`gemini` / `rules` / `fallback`) and reasoning are stored in `ticket.metadata` and surfaced in the ticket detail and admin dashboard.
+
+---
 
 ## Security notes
 
-- JWT expiry is controlled by `JWT_ACCESS_EXPIRES_IN`
-- SQL queries use parameterized statements
-- OTP verification is enforced server-side
-- auth endpoints are rate-limited
-- role checks are enforced in backend middleware
+- Passwords are hashed with `bcrypt` before any write to the database.
+- All SQL uses **parameterised queries** — no string concatenation.
+- Auth endpoints carry **rate-limiting** middleware to limit brute-force attempts.
+- JWT **refresh tokens** exist alongside access tokens (longer TTL).
+- OTP verification is **server-side**; the frontend only collects the code.
+- Role enforcement is **bidirectional** (frontend hides UI actions, backend rejects the call regardless).
+
+---
 
 ## Deployment
 
-See:
+See `docs/production.md` for a full deployment guide covering Vercel Hobby (frontend), Supabase Free (PostgreSQL), and Gmail SMTP for email.
 
-- `docs/production.md`
+In short:
 
-That file explains the realistic free deployment options for Vercel, Bun, PostgreSQL, and SMTP.
+- push to `git push hosting main` to deploy to Vercel.
+- `VITE_API_URL=/api/v1` keeps browser calls going through `vercel.json` rewrites to API handlers.
+- `DATABASE_URL`, `JWT_*`, `SMTP_*`, `GOOGLE_CLIENT_ID`, and `GEMINI_API_KEY` are all managed as Vercel environment variables.
+
+### Vercel config
+
+`vercel.json` rewrites all `/api/*` and `/uploads/*` to `backend/server.js`. All other paths serve the Vite build output from `dist/`.
+
+---
+
+## Monorepo layout
+
+```
+.
+├── src/               # React + Vite frontend
+├── backend/           # Express API, routes, middleware, db/
+│   ├── routes/        # REST endpoints
+│   ├── middleware/    # auth, rate-limit, error-handler
+│   ├── lib/           # ticketRouting, jwt, mailer, loadRootEnv
+│   ├── db/            # DDL.sql + node-pg index.js
+│   └── uploads/       # avatar image storage
+├── assets/lumina-brand/
+│   ├── logo.svg       # brand sparkle mark
+│   └── brand-spec.md  # colour / font / spacing tokens
+├── docs/              # on-demand documentation (PRD, design, production, test-users)
+├── dist/              # Vite production build (git-ignored)
+├── package.json       # root workspace deps + scripts
+├── pnpm-workspace.yaml
+├── vite.config.ts
+├── vercel.json        # Vercel function / rewrites config
+└── .env.*             # env profiles (git-ignored)
+```
+
+---
+
+## Commands at a glance
+
+```
+pnpm install            # install root + backend deps
+pnpm run dev            # full stack dev
+pnpm run dev:frontend   # frontend only
+pnpm run dev:hosting    # full stack in hosting profile
+pnpm run build          # Vite production build
+pnpm run start          # preview built app
+pnpm run lint:frontend  # TypeScript + ESLint
+pnpm db:init            # reset + seed PostgreSQL
+```
+
+---
+
+## Project workflow and phases
+
+The sections below describe **phases of the work** in a logical order. They are not tied to calendar dates; adjust duration and parallelism to your team or course schedule.
+
+### Phase A — Discovery and alignment
+
+- Confirm scope: which roles, ticket flows, and integrations (SMTP, Google OAuth, Gemini) are in scope for the first milestone.
+- Agree on environments: local PostgreSQL, shared staging DB (if any), and production provider choices.
+
+### Phase B — Foundation (repository and data)
+
+- Clone the repository and configure the **root** `.env` from [`.env.example`](.env.example) (`DATABASE_URL`, `PORT`, `JWT_*`, `FRONTEND_URL`, `VITE_API_URL`, and optional SMTP / Google / Gemini keys as needed).
+- Install dependencies (`pnpm install`) and **initialize the database** (`pnpm db:init` or direct `psql` per this README).
+- Verify schema and seeds: super admin, admins, users, pending accounts, and sample ticket data load as expected.
+
+### Phase C — Core platform (auth and authorization)
+
+- Implement or harden **sign-up, OTP verification, login, and OAuth linking** against the live API.
+- Enforce **roles** (`user`, `admin`, `super_admin`) in middleware and UI so that ticket visibility and admin actions cannot be bypassed from the client alone.
+
+### Phase D — Product features (helpdesk flows)
+
+- **Users:** create and track their own tickets; complete any post-resolution steps (e.g. ratings) if applicable.
+- **Admins:** pick up assigned work, update ticket state, and collaborate within the rules of the schema and API.
+- **Super admins:** account approval, operational oversight, and cross-cutting configuration that the product exposes.
+- **Routing:** wire optional Gemini-based routing and validate fallback behaviour when keys or services are absent.
+
+### Phase E — Quality, security, and documentation
+
+- Exercise **auth rate limits**, JWT expiry, and OTP enforcement end-to-end.
+- Run frontend lint/build checks as appropriate (see scripts above).
+- Keep **test credentials** and deployment notes current (`docs/test-users.md`, `docs/production.md`).
+
+### Phase F — Release and operations
+
+- Deploy frontend and backend per your chosen host (e.g. Vercel for the SPA; managed PostgreSQL; external SMTP). Follow constraints and trade-offs documented in `docs/production.md`.
+- Monitor usage against free-tier limits if applicable; plan upgrades if traffic or email volume grows.
+
+### Day-to-day development workflow
+
+For ongoing work after Phase B:
+
+1. Run `pnpm dev` from the repository root to start API and web app together.
+2. Make backend changes with the API contract and migrations/init script in mind; extend the frontend against the same `VITE_API_URL`.
+3. Re-run `db:init` only when you intend to reset local data (it reapplies seed content).
+
+---
+
+## Reference docs
+
+| File | What's in it |
+|------|-------------|
+| `docs/test-users.md` | Seeded demo credentials for local and classroom demos |
+| `docs/lumina.md` | Active design system (colors, typography, layout, component tokens) |
+| `docs/design.md` | Extended design-spec reference |
+| `docs/olddesign.md` | Legacy dark-mode design spec, kept for reference |

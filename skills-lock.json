@@ -25,6 +25,18 @@
       "skillPath": "skills/check/SKILL.md",
       "computedHash": "9318e8cf08cbb3be90cb1970d4cfa225f18645f5775d83e2bce83c2dc813220a"
     },
+    "code-review-graph": {
+      "source": "aradotso/trending-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review-graph/SKILL.md",
+      "computedHash": "96cbafc931a1f3910e099ca1726fe499b926867d63ed0adcafb29b686a4291bf"
+    },
+    "fallow": {
+      "source": "fallow-rs/fallow-skills",
+      "sourceType": "github",
+      "skillPath": "fallow/skills/fallow/SKILL.md",
+      "computedHash": "fe205dd5c9f657245ff9d5ae9bc63d53a7abd52acacb1402e56bea9b36653b0c"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",

@@ -20,7 +20,7 @@ export function Header() {
             <Button variant="secondary" size="sm">Log in</Button>
           </Link>
           <Link to="/signup">
-            <Button variant="primary" size="sm">Try Lumina</Button>
+            <Button variant="secondary-dark" size="sm">Try Lumina</Button>
           </Link>
         </div>
       </div>

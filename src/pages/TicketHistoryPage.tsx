@@ -20,6 +20,33 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const PAGE_SIZE = 12;
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const QUEUE_STATUSES = new Set<ApiTicket['status']>(['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing']);
+
+type SortKey = 'priority' | 'title' | 'status' | 'category' | 'assignee' | 'created';
+type SortDir = 'asc' | 'desc';
+type TicketHistoryMode = 'queue' | 'history';
+
+function assigneeLabel(ticket: ApiTicket) {
+  if (ticket.assigned_to_name) return ticket.assigned_to_name;
+  const routing = ticket.metadata?.routing as { assigned_admin_id?: string; source?: string } | undefined;
+  if (ticket.status === 'pending_routing') return 'Pending routing';
+  if (routing?.assigned_admin_id) return 'Assignment missing';
+  return 'Unassigned';
+}
+
+function AssigneeCell({ ticket }: { ticket: ApiTicket }) {
+  const name = assigneeLabel(ticket);
+  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <div className="th-person-cell">
+      <span className="th-person-avatar">
+        {ticket.assigned_to_avatar_url ? <img src={`${API_BASE}${ticket.assigned_to_avatar_url}`} alt="" /> : initials}
+      </span>
+      <span>{name}</span>
+    </div>
+  );
+}
 
 // AI Ask panel
 function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
@@ -29,7 +56,9 @@ function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
   const [selectedTicketId, setSelectedTicketId] = useState(tickets[0]?.id || '');
 
   useEffect(() => {
-    if (tickets.length && !selectedTicketId) setSelectedTicketId(tickets[0].id);
+    const hasSelectedTicket = tickets.some((ticket) => ticket.id === selectedTicketId);
+    if (tickets.length && !hasSelectedTicket) setSelectedTicketId(tickets[0].id);
+    if (!tickets.length && selectedTicketId) setSelectedTicketId('');
   }, [tickets, selectedTicketId]);
 
   const ask = async () => {
@@ -38,8 +67,14 @@ function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
     setAnswer('');
     try {
       const res = await ticketsApi.askAI(selectedTicketId, question.trim());
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as { answer?: string; error?: string };
+      if (!res.ok) {
+        setAnswer(data.error || 'Lumina AI could not answer right now. Try again in a moment.');
+        return;
+      }
       setAnswer(data.answer || data.error || 'No response');
+    } catch {
+      setAnswer('Lumina AI could not answer right now. Try again in a moment.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +118,7 @@ function AskAIPanel({ tickets }: { tickets: ApiTicket[] }) {
   );
 }
 
-export function TicketHistoryPage() {
+export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMode }) {
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
@@ -95,6 +130,9 @@ export function TicketHistoryPage() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [page, setPage] = useState(1);
   const [showAI, setShowAI] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('created');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const isQueueMode = mode === 'queue';
 
   useEffect(() => {
     let cancelled = false;
@@ -112,27 +150,73 @@ export function TicketHistoryPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const visibleTickets = useMemo(
+    () => isQueueMode ? tickets.filter((ticket) => QUEUE_STATUSES.has(ticket.status)) : tickets,
+    [tickets, isQueueMode]
+  );
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return tickets.filter((t) => {
+    return visibleTickets.filter((t) => {
       if (filterStatus !== 'all' && t.status !== filterStatus) return false;
       if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
       if (filterCategory !== 'all' && t.category_id !== filterCategory) return false;
-      if (q && !t.title.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q)) return false;
+      if (q && !`${t.title} ${t.description} ${t.category_name} ${t.status} ${t.priority} ${assigneeLabel(t)}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tickets, filterStatus, filterPriority, filterCategory, search]);
+  }, [visibleTickets, filterStatus, filterPriority, filterCategory, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sorted = useMemo(() => {
+    const priorityRank: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
+    const getValue = (t: ApiTicket) => {
+      switch (sortKey) {
+        case 'priority': return priorityRank[t.priority] || 99;
+        case 'title': return t.title.toLowerCase();
+        case 'status': return t.status;
+        case 'category': return t.category_name.toLowerCase();
+        case 'assignee': return assigneeLabel(t).toLowerCase();
+        case 'created': return new Date(t.created_at).getTime();
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const av = getValue(a);
+      const bv = getValue(b);
+      const result = av > bv ? 1 : av < bv ? -1 : 0;
+      return sortDir === 'asc' ? result : -result;
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const setSort = (key: SortKey) => {
+    setSortDir((dir) => (sortKey === key ? (dir === 'asc' ? 'desc' : 'asc') : key === 'created' ? 'desc' : 'asc'));
+    setSortKey(key);
+    resetPage();
+  };
+
+  const SortHeader = ({ label, k }: { label: string; k: SortKey }) => (
+    <button className={`th-sort-header ${sortKey === k ? 'active' : ''}`} onClick={() => setSort(k)}>
+      {label} {sortKey === k ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+    </button>
+  );
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const resetPage = useCallback(() => setPage(1), []);
 
   const counts = useMemo(() => ({
-    open: tickets.filter((t) => t.status === 'open').length,
-    inProgress: tickets.filter((t) => t.status === 'in_progress').length,
-    resolved: tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
-  }), [tickets]);
+    open: visibleTickets.filter((t) => t.status === 'open').length,
+    inProgress: visibleTickets.filter((t) => t.status === 'in_progress').length,
+    resolved: visibleTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
+  }), [visibleTickets]);
+
+  const pageTitle = isQueueMode ? 'Ticket Queue' : 'Ticket History';
+  const pageSubtitle = isQueueMode
+    ? user?.role === 'user'
+      ? 'Your active support tickets'
+      : 'Active tickets that still need attention'
+    : user?.role === 'user'
+      ? 'All your submitted support tickets'
+      : 'All tickets across the system';
 
   return (
     <DashboardLayout>
@@ -141,10 +225,8 @@ export function TicketHistoryPage() {
           {/* Header */}
           <motion.div className="th-header" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <div>
-              <h1 className="th-title">Ticket History</h1>
-              <p className="th-subtitle">
-                {user?.role === 'user' ? 'All your submitted support tickets' : 'All tickets across the system'}
-              </p>
+              <h1 className="th-title">{pageTitle}</h1>
+              <p className="th-subtitle">{pageSubtitle}</p>
             </div>
             <div className="th-header-actions">
               <button
@@ -159,14 +241,14 @@ export function TicketHistoryPage() {
 
           {/* AI Panel */}
           <AnimatePresence>
-            {showAI && tickets.length > 0 && (
+            {showAI && visibleTickets.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 style={{ overflow: 'hidden' }}
               >
-                <AskAIPanel tickets={tickets} />
+                <AskAIPanel tickets={visibleTickets} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -187,7 +269,7 @@ export function TicketHistoryPage() {
             </div>
             <div className="th-stat-pill">
               <span className="th-stat-dot" style={{ background: '#6b7280' }} />
-              <span>{tickets.length} Total</span>
+              <span>{visibleTickets.length} Total</span>
             </div>
           </div>
 
@@ -234,9 +316,9 @@ export function TicketHistoryPage() {
 
           {/* Results count */}
           <div className="th-results-info">
-            {filtered.length !== tickets.length
-              ? `${filtered.length} of ${tickets.length} tickets`
-              : `${tickets.length} tickets`}
+            {sorted.length !== visibleTickets.length
+              ? `${sorted.length} of ${visibleTickets.length} tickets`
+              : `${visibleTickets.length} tickets`}
           </div>
 
           {/* Content */}
@@ -257,12 +339,12 @@ export function TicketHistoryPage() {
               <table className="ticket-table">
                 <thead>
                   <tr>
-                    <th>Priority</th>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Category</th>
-                    <th>Assignee</th>
-                    <th>Created</th>
+                    <th><SortHeader label="Priority" k="priority" /></th>
+                    <th><SortHeader label="Title" k="title" /></th>
+                    <th><SortHeader label="Status" k="status" /></th>
+                    <th><SortHeader label="Category" k="category" /></th>
+                    <th><SortHeader label="Assignee" k="assignee" /></th>
+                    <th><SortHeader label="Created" k="created" /></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,7 +363,7 @@ export function TicketHistoryPage() {
                         </span>
                       </td>
                       <td className="tbl-muted">{t.category_name}</td>
-                      <td className="tbl-muted">{t.assigned_to_name || '—'}</td>
+                      <td className="tbl-muted"><AssigneeCell ticket={t} /></td>
                       <td className="tbl-muted tbl-mono">{new Date(t.created_at).toLocaleDateString()}</td>
                     </tr>
                   ))}
@@ -293,7 +375,7 @@ export function TicketHistoryPage() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="ticket-pagination">
-              <span className="pagination-info">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+              <span className="pagination-info">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}</span>
               <div className="pagination-controls">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
                   <ChevronLeft size={14} />

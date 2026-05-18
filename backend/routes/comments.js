@@ -71,4 +71,44 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+router.delete('/:commentId', async (req, res, next) => {
+  try {
+    const commentResult = await db.query(
+      `SELECT c.id, c.ticket_id, c.author_id, t.submitted_by
+       FROM ticket_comments c
+       JOIN tickets t ON t.id = c.ticket_id
+       WHERE c.id = $1 AND c.ticket_id = $2`,
+      [req.params.commentId, req.params.ticketId]
+    );
+
+    const comment = commentResult.rows[0];
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const isAuthor = comment.author_id === req.user.id;
+    if (!isAdmin && !isAuthor) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    await db.query(`DELETE FROM ticket_comments WHERE id = $1`, [req.params.commentId]);
+    await db.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'ticket_comment_deleted', $2::jsonb)`,
+      [
+        req.user.id,
+        JSON.stringify({
+          ticket_id: req.params.ticketId,
+          comment_id: req.params.commentId,
+        }),
+      ]
+    );
+
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

@@ -15,6 +15,32 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+function buildTicketAskFallback(ticket, comments, activity, question, reason) {
+  const status = String(ticket.status || 'unknown').replace(/_/g, ' ');
+  const assignee = ticket.assigned_to_name || 'unassigned';
+  const latestComment = comments[0];
+  const latestActivity = activity[0];
+  const parts = [
+    `I could not reach the AI service (${reason}), so here is what Lumina can tell from the ticket data.`,
+    `Question: ${question}`,
+    `Ticket: ${ticket.title}`,
+    `Status: ${status}. Priority: ${ticket.priority}. Category: ${ticket.category_name}. Assignee: ${assignee}.`,
+  ];
+
+  if (ticket.description) {
+    parts.push(`Description: ${String(ticket.description).slice(0, 300)}`);
+  }
+  if (latestComment) {
+    parts.push(`Latest comment: ${latestComment.first_name} ${latestComment.last_name} said "${String(latestComment.body).slice(0, 220)}".`);
+  }
+  if (latestActivity) {
+    parts.push(`Latest activity: ${String(latestActivity.action).replace(/_/g, ' ')} on ${new Date(latestActivity.created_at).toLocaleDateString('en-US')}.`);
+  }
+
+  parts.push('Try again later for the generated AI analysis.');
+  return parts.join('\n');
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const values = [];
@@ -44,7 +70,9 @@ router.get('/', async (req, res, next) => {
       `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.replication_steps,
               t.metadata, c.id AS category_id, c.name AS category_name,
               submitter.id AS submitted_by_id, submitter.email AS submitted_by_email,
+              submitter.avatar_url AS submitted_by_avatar_url,
               assignee.id AS assigned_to_id,
+              assignee.avatar_url AS assigned_to_avatar_url,
               CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
@@ -117,52 +145,99 @@ router.post('/:id/ask', async (req, res, next) => {
   if (!question) return res.status(400).json({ error: 'question is required' });
 
   try {
-    const result = await db.query(
-      `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at,
-              t.replication_steps, t.metadata, c.name AS category_name,
-              submitter.email AS submitted_by_email,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
-       FROM tickets t
-       JOIN categories c ON c.id = t.category_id
-       JOIN users submitter ON submitter.id = t.submitted_by
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
-       WHERE t.id = $1`,
-      [req.params.id]
-    );
-    const ticket = result.rows[0];
+    const [ticketResult, commentsResult, activityResult] = await Promise.all([
+      db.query(
+        `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at,
+                t.replication_steps, t.metadata, c.name AS category_name,
+                submitter.email AS submitted_by_email,
+                CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
+         FROM tickets t
+         JOIN categories c ON c.id = t.category_id
+         JOIN users submitter ON submitter.id = t.submitted_by
+         LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+         LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+         WHERE t.id = $1`,
+        [req.params.id]
+      ),
+      db.query(
+        `SELECT c.body, c.created_at, u.first_name, u.last_name, u.role
+         FROM ticket_comments c
+         JOIN users u ON u.id = c.author_id
+         WHERE c.ticket_id = $1
+         ORDER BY c.created_at DESC
+         LIMIT 5`,
+        [req.params.id]
+      ),
+      db.query(
+        `SELECT a.action, a.metadata, a.created_at, u.first_name, u.last_name, u.role
+         FROM audit_logs a
+         JOIN users u ON u.id = a.actor_id
+         WHERE a.metadata->>'ticket_id' = $1
+         ORDER BY a.created_at DESC
+         LIMIT 8`,
+        [req.params.id]
+      ),
+    ]);
+    const ticket = ticketResult.rows[0];
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
     if (req.user.role === 'user' && ticket.submitted_by_email !== req.user.email) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-    if (!apiKey) return res.status(503).json({ error: 'AI not configured' });
+    if (!apiKey) {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'not configured'),
+        source: 'local_fallback',
+      });
+    }
 
     const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const prompt = [
       'You are Lumina support AI. Answer the user question about the following support ticket concisely and helpfully.',
+      'Use the ticket details, recent comments, and recent activity for context.',
+      'Return plain text only, no markdown headings unless helpful.',
+      '',
       'Ticket context:',
-      JSON.stringify(ticket, null, 2),
+      JSON.stringify({ ticket, comments: commentsResult.rows, activity: activityResult.rows }, null, 2),
       '',
       `User question: ${question}`,
     ].join('\n');
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4 },
-        }),
-      }
-    );
-    if (!geminiRes.ok) return res.status(502).json({ error: 'AI request failed' });
+    let geminiRes;
+    try {
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.4 },
+          }),
+        }
+      );
+    } catch {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'request failed'),
+        source: 'local_fallback',
+      });
+    }
+    if (!geminiRes.ok) {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'request failed'),
+        source: 'local_fallback',
+      });
+    }
     const data = await geminiRes.json();
     const answer = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
-    res.json({ answer });
+    if (!answer.trim()) {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'empty response'),
+        source: 'local_fallback',
+      });
+    }
+    res.json({ answer, source: 'gemini' });
   } catch (error) {
     next(error);
   }
@@ -174,7 +249,9 @@ router.get('/:id', async (req, res, next) => {
       `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.replication_steps,
               t.metadata, c.id AS category_id, c.name AS category_name,
               submitter.id AS submitted_by_id, submitter.email AS submitted_by_email,
+              submitter.avatar_url AS submitted_by_avatar_url,
               assignee.id AS assigned_to_id,
+              assignee.avatar_url AS assigned_to_avatar_url,
               CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
@@ -529,4 +606,3 @@ router.post('/:id/rating', async (req, res, next) => {
 });
 
 module.exports = router;
-

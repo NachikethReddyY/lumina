@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Upload, X, CheckCircle2, Crown } from 'lucide-react';
@@ -8,7 +8,7 @@ import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../context/useToast';
 import { usersApi } from '../utils/apiClient';
 import './OnboardingPage.css';
 
@@ -91,6 +91,17 @@ export function OnboardingPage() {
   const [selectedRole, setSelectedRole] = useState<string>(user?.role || 'user');
   const [status, setStatus] = useState<Status>('idle');
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  useEffect(() => {
+    // After onboarding is complete, always check approval status:
+    if (user?.onboarding_completed) {
+      if (user.status === 'active') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/pending-approval', { replace: true });
+      }
+    }
+  }, [user?.onboarding_completed, user?.status, navigate]);
 
   const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { width, height } = e.currentTarget;
@@ -192,7 +203,6 @@ export function OnboardingPage() {
 
       setStatus('success');
       await refetch();
-      navigate('/pending-approval');
     } catch {
       setStatus('error');
       setShowConfirmation(false);
@@ -233,6 +243,7 @@ export function OnboardingPage() {
                 <div className="onboarding-avatar-container">
                   {avatarPreview || user.avatar_url ? (
                     <img
+                      key={avatarPreview || user.avatar_url}
                       src={avatarPreview || `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${user.avatar_url}`}
                       alt={user.first_name}
                       className="onboarding-avatar"
@@ -363,7 +374,7 @@ export function OnboardingPage() {
               size="lg"
               loading={status === 'loading'}
               disabled={!jobTitle.trim() || !department || status === 'loading'}
-              className="w-full"
+              className="w-full onboarding-submit-btn"
             >
               Continue to Approval
             </Button>

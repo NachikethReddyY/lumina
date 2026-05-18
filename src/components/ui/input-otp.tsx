@@ -36,8 +36,8 @@ function InputOTPSlot({
     <div
       data-slot="input-otp-slot"
       className={cn(
-        'relative flex h-14 w-12 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-lg font-semibold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-all',
-        slot.isActive && 'border-blue-400 shadow-[0_0_0_1px_rgba(96,165,250,0.45),0_0_20px_rgba(59,130,246,0.18)]',
+        'relative flex h-14 w-12 items-center justify-center rounded-lg border border-[var(--color-hairline-strong)] bg-[var(--color-surface-card)] text-lg font-semibold text-[var(--color-ink)] transition-all',
+        slot.isActive && 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/10',
         className
       )}
       {...props}
@@ -45,7 +45,7 @@ function InputOTPSlot({
       {slot.char ?? slot.placeholderChar}
       {slot.hasFakeCaret ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-5 w-px animate-pulse bg-white" />
+          <div className="h-5 w-px animate-pulse bg-[var(--color-ink)]" />
         </div>
       ) : null}
     </div>
@@ -54,7 +54,7 @@ function InputOTPSlot({
 
 function InputOTPSeparator({ className, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div data-slot="input-otp-separator" className={cn('text-white/35', className)} role="separator" {...props}>
+    <div data-slot="input-otp-separator" className={cn('text-[var(--color-muted)]', className)} role="separator" {...props}>
       -
     </div>
   );

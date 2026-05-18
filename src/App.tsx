@@ -7,6 +7,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyEmailOtpPage from './pages/VerifyEmailOtpPage';
 import OnboardingPage from './pages/OnboardingPage';
+import OAuthNamePage from './pages/OAuthNamePage';
 import PendingApprovalPage from './pages/PendingApprovalPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ServerErrorPage from './pages/ServerErrorPage';
@@ -34,12 +35,14 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/verify-email-otp" element={<VerifyEmailOtpPage />} />
 
+        <Route path="/complete-profile" element={<ProtectedRoute><OAuthNamePage /></ProtectedRoute>} />
         <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
         <Route path="/pending-approval" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
 
         <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
-        <Route path="/tickets" element={<ProtectedRoute><TicketHistoryPage /></ProtectedRoute>} />
+        <Route path="/tickets" element={<ProtectedRoute><TicketHistoryPage mode="queue" /></ProtectedRoute>} />
+        <Route path="/tickets/history" element={<ProtectedRoute><TicketHistoryPage mode="history" /></ProtectedRoute>} />
 
         <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetailPage /></ProtectedRoute>} />
 
@@ -50,6 +53,7 @@ function App() {
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin', 'super_admin']}><AdminDashboard /></ProtectedRoute>} />
         <Route path="/super-admin/dashboard" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
         <Route path="/super-admin/users" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
+        <Route path="/super-admin/approvals" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
         <Route path="/routing-logs" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
 
         <Route path="/500" element={<ServerErrorPage />} />

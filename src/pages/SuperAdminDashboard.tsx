@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -9,6 +10,7 @@ import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { ticketsApi, usersApi, notificationsApi, type AdminWorkload, type ApiTicket, type ApiUser, type ApiAiDecision } from '../utils/apiClient';
+import { useToast } from '../context/useToast';
 import './Dashboard.css';
 import './SuperAdminDashboard.css';
 
@@ -38,10 +40,10 @@ function buildMonthlyLine(tickets: ApiTicket[]) {
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number }[]; label?: string }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', padding: '8px 12px', borderRadius: '8px' }}>
-      <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 2px' }}>{label}</p>
+    <div className="chart-tooltip">
+      <p>{label}</p>
       {payload.map((p) => (
-        <p key={p.name} style={{ color: '#f7f8f8', fontSize: '13px', fontWeight: 600, margin: '2px 0' }}>{p.value}</p>
+        <strong key={p.name}>{p.value}</strong>
       ))}
     </div>
   );
@@ -51,19 +53,27 @@ type UserFilter = 'all' | 'user' | 'admin' | 'super_admin';
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 
 export function SuperAdminDashboard() {
+  const location = useLocation();
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [workload, setWorkload] = useState<AdminWorkload[]>([]);
   const [aiDecisions, setAiDecisions] = useState<ApiAiDecision[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'ai'>('overview');
+  const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState<'overview' | 'approvals' | 'users' | 'ai'>('overview');
 
   // User management
   const [userRoleFilter, setUserRoleFilter] = useState<UserFilter>('all');
   const [userStatusFilter, setUserStatusFilter] = useState<StatusFilter>('all');
   const [userSearch, setUserSearch] = useState('');
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (location.pathname === '/super-admin/users') setActiveTab('users');
+    else if (location.pathname === '/routing-logs') setActiveTab('ai');
+    else if (location.pathname === '/super-admin/approvals') setActiveTab('approvals');
+    else setActiveTab('overview');
+  }, [location.pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,12 +108,15 @@ export function SuperAdminDashboard() {
   const activeUsers = users.filter((u) => u.status === 'active');
 
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
-      const roleOk = userRoleFilter === 'all' || u.role === userRoleFilter;
-      const statusOk = userStatusFilter === 'all' || u.status === userStatusFilter;
-      const searchOk = !userSearch || `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(userSearch.toLowerCase());
-      return roleOk && statusOk && searchOk;
-    });
+    const statusWeight: Record<ApiUser['status'], number> = { pending: 0, active: 1, suspended: 2 };
+    return users
+      .filter((u) => {
+        const roleOk = userRoleFilter === 'all' || u.role === userRoleFilter;
+        const statusOk = userStatusFilter === 'all' || u.status === userStatusFilter;
+        const searchOk = !userSearch || `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(userSearch.toLowerCase());
+        return roleOk && statusOk && searchOk;
+      })
+      .sort((a, b) => statusWeight[a.status] - statusWeight[b.status] || `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
   }, [users, userRoleFilter, userStatusFilter, userSearch]);
 
   const statusPie = useMemo(() => buildStatusPie(tickets), [tickets]);
@@ -114,7 +127,7 @@ export function SuperAdminDashboard() {
     const res = await usersApi.updateApproval(id, status);
     if (res.ok) {
       setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status } : u));
-      setMessage(status === 'active' ? 'User approved.' : 'User suspended.');
+      showToast(status === 'active' ? 'User approved.' : 'User suspended.', 'success');
     }
   };
 
@@ -122,7 +135,7 @@ export function SuperAdminDashboard() {
     const res = await usersApi.updateRole(id, role);
     if (res.ok) {
       setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
-      setMessage('Role updated.');
+      showToast('Role updated.', 'info');
     }
   };
 
@@ -131,7 +144,7 @@ export function SuperAdminDashboard() {
     const res = await usersApi.delete(id);
     if (res.ok) {
       setUsers((prev) => prev.filter((u) => u.id !== id));
-      setMessage(`${email} removed.`);
+      showToast(`${email} removed.`, 'success');
     }
   };
 
@@ -141,7 +154,7 @@ export function SuperAdminDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="dashboard-content py-8">
+      <div className="dashboard-content super-admin-content">
         <Container maxWidth="xl">
           <motion.div className="dashboard-header" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="header-content">
@@ -152,17 +165,16 @@ export function SuperAdminDashboard() {
             </div>
           </motion.div>
 
-          {message && <p className="auth-notice auth-notice--info" onClick={() => setMessage('')}>{message}</p>}
 
           {/* Tab nav */}
           <div className="sa-tabs">
-            {(['overview', 'users', 'ai'] as const).map((tab) => (
+            {(['overview', 'approvals', 'users', 'ai'] as const).map((tab) => (
               <button
                 key={tab}
                 className={`sa-tab ${activeTab === tab ? 'active' : ''}`}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab === 'overview' ? 'Overview' : tab === 'users' ? `Users (${users.length})` : 'AI Decisions'}
+                {tab === 'overview' ? 'Overview' : tab === 'approvals' ? `Approval Queue${pendingUsers.length ? ` (${pendingUsers.length})` : ''}` : tab === 'users' ? `Users (${users.length})` : 'AI Decisions'}
               </button>
             ))}
           </div>
@@ -181,7 +193,7 @@ export function SuperAdminDashboard() {
                   <h4 className="chart-card-title">Ticket Volume (6 Months)</h4>
                   <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={monthlyLine} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
                       <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip content={<CustomTooltip />} />
@@ -224,7 +236,7 @@ export function SuperAdminDashboard() {
                   <h4 className="chart-card-title">Admin Workload</h4>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={workloadBar} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
                       <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip content={<CustomTooltip />} />
@@ -234,18 +246,27 @@ export function SuperAdminDashboard() {
                 </div>
               </div>
 
-              {/* Approval Queue */}
-              {pendingUsers.length > 0 && (
-                <section className="tickets-section">
-                  <h2>Approval Queue</h2>
+            </motion.div>
+          )}
+
+          {/* ─── APPROVALS TAB ─────────────────────────────────────── */}
+          {activeTab === 'approvals' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+              <section className="tickets-section">
+                <h2>Approval Queue</h2>
+                {pendingUsers.length > 0 ? (
                   <div className="queue-list-container">
                     {pendingUsers.map((account) => (
                       <div key={account.id} className="queue-item">
                         <div className="queue-item-info">
-                          <div className={`status-indicator ${account.role === 'admin' ? 'p1' : 'p3'}`} />
+                          <div className="sa-user-avatar queue-avatar">
+                            {account.avatar_url
+                              ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${account.avatar_url}`} alt="" />
+                              : `${account.first_name[0]}${account.last_name[0]}`}
+                          </div>
                           <div className="queue-item-text">
                             <p className="queue-item-title">{account.first_name} {account.last_name}</p>
-                            <p className="queue-item-meta">{account.email} · {account.role}</p>
+                            <p className="queue-item-meta">{account.email} · {account.role.replace('_', ' ')}</p>
                           </div>
                         </div>
                         <div className="queue-item-actions">
@@ -255,8 +276,10 @@ export function SuperAdminDashboard() {
                       </div>
                     ))}
                   </div>
-                </section>
-              )}
+                ) : (
+                  <div className="empty-state"><h3>No pending approvals</h3><p>New account requests will appear here.</p></div>
+                )}
+              </section>
             </motion.div>
           )}
 
@@ -368,6 +391,8 @@ export function SuperAdminDashboard() {
                     )}
                   </tbody>
                 </table>
+                {/* Space/padding/footer below users table */}
+                <div className="sa-users-table-footer" style={{ minHeight: '64px' }} />
               </div>
             </motion.div>
           )}
@@ -392,6 +417,7 @@ export function SuperAdminDashboard() {
                     const isGemini = routing?.source === 'gemini';
                     const isFallback = routing?.source === 'rules_fallback';
                     const isExpanded = expandedDecision === d.id;
+                    const assignedLabel = d.assigned_to_name || (routing?.assigned_admin_id ? 'assignment unavailable' : 'unassigned');
                     return (
                       <div key={d.id} className={`ai-decision-card ${isGemini ? 'gemini' : isFallback ? 'fallback' : 'rules'}`}>
                         <div className="ai-decision-top" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>
@@ -405,7 +431,7 @@ export function SuperAdminDashboard() {
                             <span className="ai-ticket-title">{d.title}</span>
                           </div>
                           <div className="ai-decision-right">
-                            <span className="ai-assigned-to">→ {d.assigned_to_name || 'unassigned'}</span>
+                            <span className="ai-assigned-to">→ {assignedLabel}</span>
                             <span className="ai-decision-date">{new Date(d.created_at).toLocaleDateString()}</span>
                             {isExpanded ? <ChevronUp size={14} className="ai-chevron" /> : <ChevronDown size={14} className="ai-chevron" />}
                           </div>
