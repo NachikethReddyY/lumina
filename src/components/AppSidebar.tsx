@@ -22,6 +22,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import Logo from "./Logo"
 import { useCurrentUser } from "../hooks/useCurrentUser"
 import { notificationsApi, usersApi, type ApiNotification, type ApiUser } from "../utils/apiClient"
+import { apiAssetUrl } from "../utils/apiBase"
 import "./Sidebar.css"
 
 const ACTION_LABELS: Record<string, string> = {
@@ -119,11 +120,11 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, color: "#2563eb" },
     { title: "Ticket Queue", url: "/tickets", icon: Inbox, color: "#1f8a65" },
     { title: "Ticket History", url: "/tickets/history", icon: History, color: "#8b5cf6" },
-    ...(isAdmin
+    ...(isAdmin && !isSuperAdmin
       ? [
           {
             title: "Admin Dashboard",
-            url: isSuperAdmin ? "/super-admin/dashboard" : "/admin/dashboard",
+            url: "/admin/dashboard",
             icon: Grid3X3,
             color: "#0ea5e9",
           },
@@ -187,6 +188,14 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const getInitials = () => {
     if (!user) return "?"
     return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase()
+  }
+
+  const isMenuItemActive = (url: string) => {
+    if (url === "/tickets") {
+      return location.pathname === "/tickets" || /^\/tickets\/(?!history(?:\/|$))/.test(location.pathname)
+    }
+    if (url === "/tickets/history") return location.pathname.startsWith("/tickets/history")
+    return location.pathname === url || (url === "/dashboard" && location.pathname === "/dashboard/tickets")
   }
 
   return (
@@ -285,7 +294,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
                 <Link
                   key={item.title}
                   to={item.url}
-                  className={`sidebar-menu-item ${location.pathname === item.url || (item.url === "/dashboard" && location.pathname === "/dashboard/tickets") ? "active" : ""}`}
+                  className={`sidebar-menu-item ${isMenuItemActive(item.url) ? "active" : ""}`}
                   title={isCollapsed ? item.title : ""}
                 >
                   <span className="sidebar-menu-icon" style={iconStyle}>
@@ -328,7 +337,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
         <button className="user-profile-btn" onClick={() => setShowUserMenu(!showUserMenu)}>
           {user?.avatar_url ? (
             <img
-              src={`${import.meta.env.VITE_API_URL || "http://localhost:5000"}${user.avatar_url}`}
+              src={apiAssetUrl(user.avatar_url)}
               alt="avatar"
               className="avatar"
               style={{ objectFit: "cover" }}

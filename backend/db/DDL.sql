@@ -219,6 +219,13 @@ LEFT JOIN ticket_assignment ta
 LEFT JOIN tickets t
   ON t.id = ta.ticket_id
 WHERE u.role = 'admin'
+  AND u.status = 'active'
+  AND NOT (
+    lower(u.email) = lower('lumina.ai@lumina.test')
+    OR lower(u.email) LIKE 'pending.%@lumina.test'
+    OR lower(u.first_name) = 'pending'
+    OR (lower(u.first_name) = 'lumina' AND lower(u.last_name) = 'ai')
+  )
 GROUP BY u.id, u.email, u.first_name, u.last_name;
 
 -- Seed users for local development and demos.
@@ -266,6 +273,7 @@ FROM (
     ('admin.bugs@lumina.test', 'Testpass1', 'Bianca', 'Bugs', 'admin', 'active', TRUE),
     ('admin.ops@lumina.test', 'Testpass1', 'Opal', 'Ops', 'admin', 'active', TRUE),
     ('admin.qa@lumina.test', 'Testpass1', 'Quinn', 'Assurance', 'admin', 'active', TRUE),
+    ('lumina.ai@lumina.test', 'Testpass1', 'Lumina', 'AI', 'admin', 'active', TRUE),
     ('alice.user@lumina.test', 'Testpass1', 'Alice', 'User', 'user', 'active', TRUE),
     ('bob.user@lumina.test', 'Testpass1', 'Bob', 'User', 'user', 'active', TRUE),
     ('carol.user@lumina.test', 'Testpass1', 'Carol', 'User', 'user', 'active', TRUE),
@@ -315,19 +323,19 @@ FROM (
   VALUES
     ('Laptop screen flickering', 'The display flickers whenever I open design software.', 'Hardware Support', 'hardware', 'P2', 'assigned', 'alice.user@lumina.test', 'Open Illustrator and resize the window.', '{"source":"seed","routing":{"source":"seed","reasoning":"Balanced to least-loaded admin."}}'),
     ('VPN login blocked', 'The VPN rejects my password after the latest reset.', 'Software Support', 'software', 'P1', 'in_progress', 'bob.user@lumina.test', 'Open VPN client and attempt login.', '{"source":"seed","routing":{"source":"seed","reasoning":"Critical auth issue routed to active admin."}}'),
-    ('App crashes on startup', 'The app closes instantly after showing the splash screen.', 'Bug Reports', 'bug', 'P1', 'open', 'carol.user@lumina.test', 'Launch app on Windows 11 after fresh install.', '{"source":"seed","routing":{"source":"seed","reasoning":"Awaiting active investigation."}}'),
+    ('App crashes on startup', 'The app closes instantly after showing the splash screen.', 'Bug Reports', 'bug', 'P1', 'assigned', 'carol.user@lumina.test', 'Launch app on Windows 11 after fresh install.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
     ('Keyboard replacement request', 'Several keys are sticking and no longer register.', 'Hardware Support', 'hardware', 'P3', 'resolved', 'dan.user@lumina.test', 'Issue persists across multiple reboots.', '{"source":"seed"}'),
     ('Reporting export timeout', 'CSV export times out after around 30 seconds.', 'Software Support', 'software', 'P2', 'assigned', 'eve.user@lumina.test', 'Run export from finance dashboard.', '{"source":"seed"}'),
-    ('Blue screen after update', 'Laptop hits a blue screen after the latest driver patch.', 'Hardware Support', 'hardware', 'P1', 'open', 'alice.user@lumina.test', 'Occurs during boot.', '{"source":"seed"}'),
+    ('Blue screen after update', 'Laptop hits a blue screen after the latest driver patch.', 'Hardware Support', 'hardware', 'P1', 'assigned', 'alice.user@lumina.test', 'Occurs during boot.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
     ('Notification emails delayed', 'Password reset emails arrive after 15 minutes.', 'Software Support', 'software', 'P2', 'closed', 'bob.user@lumina.test', 'Triggered from forgot password page.', '{"source":"seed"}'),
     ('Search results missing records', 'Two recent tickets do not appear in search results.', 'Bug Reports', 'bug', 'P2', 'in_progress', 'carol.user@lumina.test', 'Search by ticket title after creating a ticket.', '{"source":"seed"}'),
     ('Docking station not detected', 'The docking station is not recognized after reconnecting.', 'Hardware Support', 'hardware', 'P3', 'assigned', 'dan.user@lumina.test', 'Reconnect dock after wake from sleep.', '{"source":"seed"}'),
     ('SSO callback loop', 'Logging in with SSO keeps redirecting back to the login page.', 'Software Support', 'software', 'P1', 'resolved', 'eve.user@lumina.test', 'Happens in Chrome and Edge.', '{"source":"seed"}'),
-    ('Attachment upload fails', 'PNG attachments fail with a 500 error.', 'Bug Reports', 'bug', 'P2', 'pending_routing', 'alice.user@lumina.test', 'Upload 2MB PNG to a new ticket.', '{"source":"seed"}'),
+    ('Attachment upload fails', 'PNG attachments fail with a 500 error.', 'Bug Reports', 'bug', 'P2', 'assigned', 'alice.user@lumina.test', 'Upload 2MB PNG to a new ticket.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
     ('Monitor color calibration issue', 'External monitor colors shifted after reconnect.', 'Hardware Support', 'hardware', 'P4', 'closed', 'bob.user@lumina.test', 'Reconnect HDMI after sleep.', '{"source":"seed"}'),
-    ('License activation stuck', 'Activation spinner never completes for a desktop tool.', 'Software Support', 'software', 'P3', 'assigned', 'carol.user@lumina.test', 'Click activate after entering key.', '{"source":"seed"}'),
+    ('License activation stuck', 'Activation spinner never completes for a desktop tool.', 'Software Support', 'software', 'P3', 'assigned', 'carol.user@lumina.test', 'Click activate after entering key.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
     ('Mobile UI overlaps buttons', 'Action buttons overlap on iPhone Safari.', 'Bug Reports', 'bug', 'P3', 'in_progress', 'dan.user@lumina.test', 'Open settings on iPhone 14.', '{"source":"seed"}'),
-    ('Printer queue jam', 'The office printer queue stalls after one successful print.', 'Hardware Support', 'hardware', 'P4', 'open', 'eve.user@lumina.test', 'Send multiple print jobs in sequence.', '{"source":"seed"}')
+    ('Printer queue jam', 'The office printer queue stalls after one successful print.', 'Hardware Support', 'hardware', 'P4', 'assigned', 'eve.user@lumina.test', 'Send multiple print jobs in sequence.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}')
 ) AS seed(title, description, category_name, type, priority, status, submitter_email, replication_steps, metadata)
 JOIN categories c ON lower(c.name) = lower(seed.category_name)
 JOIN users u ON u.email = lower(seed.submitter_email)
@@ -350,13 +358,107 @@ FROM (
     ('Search results missing records', 'admin.bugs@lumina.test', 5),
     ('Docking station not detected', 'admin.hardware@lumina.test', 3),
     ('SSO callback loop', 'admin.software@lumina.test', 9),
-    ('License activation stuck', 'admin.qa@lumina.test', 2),
-    ('Mobile UI overlaps buttons', 'admin.bugs@lumina.test', 1)
+    ('License activation stuck', 'admin.software@lumina.test', 2),
+    ('Mobile UI overlaps buttons', 'admin.bugs@lumina.test', 1),
+    ('App crashes on startup', 'admin.bugs@lumina.test', 1),
+    ('Blue screen after update', 'admin.hardware@lumina.test', 1),
+    ('Attachment upload fails', 'admin.bugs@lumina.test', 1),
+    ('Printer queue jam', 'admin.hardware@lumina.test', 1)
 ) AS seed(ticket_title, assignee_email, days_ago)
 JOIN tickets t ON t.title = seed.ticket_title
 JOIN users assignee ON assignee.email = lower(seed.assignee_email)
 JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
 WHERE NOT EXISTS (SELECT 1 FROM ticket_assignment);
+
+WITH pipeline_targets(ticket_title, assignee_email) AS (
+  VALUES
+    ('License activation stuck', 'admin.software@lumina.test'),
+    ('App crashes on startup', 'admin.bugs@lumina.test'),
+    ('Blue screen after update', 'admin.hardware@lumina.test'),
+    ('Attachment upload fails', 'admin.bugs@lumina.test'),
+    ('Printer queue jam', 'admin.hardware@lumina.test')
+)
+UPDATE ticket_assignment ta
+SET assigned_to = assignee.id,
+    assigned_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
+FROM tickets t
+JOIN pipeline_targets target ON target.ticket_title = t.title
+JOIN users assignee ON assignee.email = lower(target.assignee_email)
+WHERE ta.ticket_id = t.id
+  AND ta.is_active = TRUE
+  AND ta.assigned_to = (SELECT id FROM users WHERE email = lower('lumina.ai@lumina.test'));
+
+WITH lumina_user AS (
+  SELECT id FROM users WHERE email = lower('lumina.ai@lumina.test')
+),
+real_admin_targets AS (
+  SELECT
+    t.id AS ticket_id,
+    assignee.id AS assignee_id
+  FROM ticket_assignment ta
+  JOIN lumina_user lumina ON lumina.id = ta.assigned_to
+  JOIN tickets t ON t.id = ta.ticket_id
+  JOIN categories c ON c.id = t.category_id
+  JOIN users assignee ON assignee.email = lower(
+    CASE
+      WHEN t.type = 'hardware' OR c.name ILIKE '%hardware%' THEN 'admin.hardware@lumina.test'
+      WHEN t.type = 'bug' OR c.name ILIKE '%bug%' THEN 'admin.bugs@lumina.test'
+      WHEN t.type = 'software' OR c.name ILIKE '%software%' THEN 'admin.software@lumina.test'
+      ELSE 'admin.ops@lumina.test'
+    END
+  )
+  WHERE ta.is_active = TRUE
+)
+UPDATE ticket_assignment ta
+SET assigned_to = real_admin_targets.assignee_id,
+    assigned_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
+FROM real_admin_targets
+WHERE ta.ticket_id = real_admin_targets.ticket_id
+  AND ta.is_active = TRUE;
+
+UPDATE tickets
+SET metadata = jsonb_set(
+  COALESCE(metadata, '{}'::jsonb),
+  '{routing}',
+  jsonb_build_object(
+    'source', 'seed_pipeline',
+    'assigned_admin_id', assignee.id::text,
+    'reasoning', 'Lumina AI pipeline selected a real admin based on support area.',
+    'decision', jsonb_build_object(
+      'assigned_admin_id', assignee.id::text,
+      'assignee_name', CONCAT(assignee.first_name, ' ', assignee.last_name),
+      'source', 'seed_pipeline',
+      'confidence', 0.72,
+      'steps', jsonb_build_array(
+        jsonb_build_object('phase', 'thinking', 'summary', 'Seeded ticket selected for routing visibility.'),
+        jsonb_build_object('phase', 'read', 'summary', 'Lumina AI read priority, category, and active workload.'),
+        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Ticket assigned to ', assignee.first_name, ' ', assignee.last_name, '.'))
+      ),
+      'ticket_note', jsonb_build_object(
+        'summary', CONCAT('Route to ', assignee.first_name, ' ', assignee.last_name, '.'),
+        'rationale', 'Seeded routing decision finalized through the Lumina AI pipeline.',
+        'next_step', 'Assignee reviews and starts work.'
+      )
+    )
+  ),
+  true
+)
+FROM ticket_assignment ta
+JOIN users assignee ON assignee.id = ta.assigned_to
+WHERE (
+    title IN (
+      'App crashes on startup',
+      'Blue screen after update',
+      'Attachment upload fails',
+      'License activation stuck',
+      'Printer queue jam'
+    )
+    OR COALESCE(tickets.metadata->'routing'->>'assigned_admin_id', '') = (
+      SELECT id::text FROM users WHERE email = lower('lumina.ai@lumina.test')
+    )
+  )
+  AND ta.ticket_id = tickets.id
+  AND ta.is_active = TRUE;
 
 INSERT INTO satisfaction_ratings (ticket_id, rated_by, rating, comment)
 SELECT

@@ -65,6 +65,7 @@ export function UserDashboard() {
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formError, setFormError] = useState('');
+  const [creatingTicket, setCreatingTicket] = useState(false);
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -98,9 +99,15 @@ export function UserDashboard() {
         const [ticketsBody, categoriesBody] = await Promise.all([ticketsRes.json(), categoriesRes.json()]);
         if (cancelled) return;
         const loadedCategories = Array.isArray(categoriesBody) ? categoriesBody : [];
+        const defaultCategory = loadedCategories.find((category) => category.is_active) || loadedCategories[0];
         setTickets(Array.isArray(ticketsBody) ? ticketsBody : []);
         setCategories(loadedCategories);
-        setNewTicket((prev) => ({ ...prev, categoryId: prev.categoryId || loadedCategories[0]?.id || '' }));
+        setNewTicket((prev) => ({
+          ...prev,
+          categoryId: loadedCategories.some((category) => category.id === prev.categoryId && category.is_active)
+            ? prev.categoryId
+            : defaultCategory?.id || '',
+        }));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -118,6 +125,7 @@ export function UserDashboard() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const activeCategories = useMemo(() => categories.filter((category) => category.is_active), [categories]);
 
   const handleResolve = async (ticketId: string) => {
     const res = await ticketsApi.updateStatus(ticketId, 'resolved');
@@ -218,13 +226,34 @@ export function UserDashboard() {
                   <form
                     onSubmit={async (e) => {
                       e.preventDefault();
+                      if (creatingTicket) return;
                       setFormError('');
-                      const res = await ticketsApi.create(newTicket);
-                      const body = await res.json().catch(() => ({}));
-                      if (!res.ok) { setFormError((body as { error?: string }).error || 'Could not create ticket.'); return; }
-                      setTickets((prev) => [body as ApiTicket, ...prev]);
-                      setNewTicket({ title: '', description: '', categoryId: categories[0]?.id || '', type: 'software', priority: 'P2', replicationSteps: '' });
-                      setShowNewTicket(false);
+                      const categoryId = newTicket.categoryId || activeCategories[0]?.id || '';
+                      if (!categoryId) {
+                        setFormError('Choose a category before creating a ticket.');
+                        return;
+                      }
+                      setCreatingTicket(true);
+                      try {
+                        const res = await ticketsApi.create({ ...newTicket, categoryId });
+                        const body = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                          const errorBody = body as { error?: string; details?: Record<string, string> };
+                          const detail = Object.values(errorBody.details || {})[0];
+                          setFormError(detail || errorBody.error || 'Could not create ticket.');
+                          return;
+                        }
+                        setTickets((prev) => [body as ApiTicket, ...prev]);
+                        setFilterStatus('all');
+                        setFilterPriority('all');
+                        setPage(1);
+                        setNewTicket({ title: '', description: '', categoryId: activeCategories[0]?.id || '', type: 'software', priority: 'P2', replicationSteps: '' });
+                        setShowNewTicket(false);
+                      } catch {
+                        setFormError('Could not create ticket. Check your connection and try again.');
+                      } finally {
+                        setCreatingTicket(false);
+                      }
                     }}
                     className="nt-form"
                   >
@@ -234,7 +263,7 @@ export function UserDashboard() {
                       <div className="nt-field">
                         <label>Category</label>
                         <select value={newTicket.categoryId} onChange={(e) => setNewTicket((p) => ({ ...p, categoryId: e.target.value }))}>
-                          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          {activeCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                       </div>
                       <div className="nt-field">
@@ -260,8 +289,8 @@ export function UserDashboard() {
                       <input value={newTicket.replicationSteps} onChange={(e) => setNewTicket((p) => ({ ...p, replicationSteps: e.target.value }))} placeholder="Optional — steps to reproduce" />
                     </div>
                     <div className="nt-actions">
-                      <Button variant="secondary" onClick={() => setShowNewTicket(false)}>Cancel</Button>
-                      <Button variant="primary" type="submit">Create Ticket</Button>
+                      <Button variant="secondary" type="button" onClick={() => setShowNewTicket(false)} disabled={creatingTicket}>Cancel</Button>
+                      <Button variant="primary" type="submit" loading={creatingTicket} disabled={!activeCategories.length}>Create Ticket</Button>
                     </div>
                   </form>
                 </motion.div>
@@ -304,7 +333,7 @@ export function UserDashboard() {
                       <th>Title</th>
                       <th>Status</th>
                       <th>Category</th>
-                      <th>Assigned To</th>
+                      <th>Support Owner</th>
                       <th>Created</th>
                       <th></th>
                     </tr>

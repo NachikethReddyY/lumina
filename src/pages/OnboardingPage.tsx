@@ -10,6 +10,7 @@ import Container from '../components/Container';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../context/useToast';
 import { usersApi } from '../utils/apiClient';
+import { apiAssetUrl } from '../utils/apiBase';
 import './OnboardingPage.css';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
@@ -244,7 +245,7 @@ export function OnboardingPage() {
                   {avatarPreview || user.avatar_url ? (
                     <img
                       key={avatarPreview || user.avatar_url}
-                      src={avatarPreview || `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${user.avatar_url}`}
+                      src={avatarPreview || apiAssetUrl(user.avatar_url)}
                       alt={user.first_name}
                       className="onboarding-avatar"
                     />

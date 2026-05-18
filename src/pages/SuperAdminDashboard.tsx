@@ -10,12 +10,18 @@ import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { ticketsApi, usersApi, notificationsApi, type AdminWorkload, type ApiTicket, type ApiUser, type ApiAiDecision } from '../utils/apiClient';
+import { apiAssetUrl } from '../utils/apiBase';
 import { useToast } from '../context/useToast';
 import './Dashboard.css';
 import './SuperAdminDashboard.css';
 
 const PRIORITY_COLOR: Record<string, string> = { P1: '#ff3b30', P2: '#ff9500', P3: '#34c759', P4: '#6b7280' };
 const STATUS_PIE_COLORS = ['#ff6b6b', '#60a5fa', '#fbbf24', '#34c759', '#6b7280', '#d97706'];
+const USER_STATUS_COLORS: Record<ApiUser['status'], string> = {
+  active: '#2563eb',
+  pending: '#d97706',
+  suspended: '#dc2626',
+};
 
 function buildStatusPie(tickets: ApiTicket[]) {
   const map: Record<string, number> = {};
@@ -37,13 +43,68 @@ function buildMonthlyLine(tickets: ApiTicket[]) {
   return Object.entries(months).map(([month, count]) => ({ month, count }));
 }
 
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number }[]; label?: string }) => {
+function buildPeopleByRole(users: ApiUser[]) {
+  const roles: Array<ApiUser['role']> = ['user', 'admin', 'super_admin'];
+  return roles.map((role) => {
+    const scoped = users.filter((user) => user.role === role);
+    return {
+      role: role === 'super_admin' ? 'super admin' : role,
+      active: scoped.filter((user) => user.status === 'active').length,
+      pending: scoped.filter((user) => user.status === 'pending').length,
+      suspended: scoped.filter((user) => user.status === 'suspended').length,
+    };
+  });
+}
+
+function buildPendingAgeBuckets(users: ApiUser[]) {
+  const buckets = [
+    { name: '0-1d', value: 0, fill: '#2563eb' },
+    { name: '2-3d', value: 0, fill: '#60a5fa' },
+    { name: '4-7d', value: 0, fill: '#d97706' },
+    { name: '8d+', value: 0, fill: '#dc2626' },
+  ];
+
+  users
+    .filter((user) => user.status === 'pending')
+    .forEach((user) => {
+      const ageDays = Math.floor((Date.now() - new Date(user.created_at).getTime()) / 86400000);
+      if (ageDays <= 1) buckets[0].value++;
+      else if (ageDays <= 3) buckets[1].value++;
+      else if (ageDays <= 7) buckets[2].value++;
+      else buckets[3].value++;
+    });
+
+  return buckets;
+}
+
+function buildAdminPriorityLoad(workload: AdminWorkload[]) {
+  return workload.map((admin) => ({
+    name: admin.first_name,
+    P1: admin.p1_count,
+    P2: admin.p2_count,
+    P3: admin.p3_count,
+    P4: admin.p4_count,
+    score: admin.load_score,
+  }));
+}
+
+function luminaVoice(text?: string | null): string {
+  if (!text) return '';
+  return text
+    .replace(/Gemini AI/gi, 'Lumina AI')
+    .replace(/Gemini fallback was used because:\s*/gi, 'Lumina AI used fallback routing because ')
+    .replace(/Gemini routing request failed \(429\)/gi, 'the routing model was rate limited (429)')
+    .replace(/Gemini routing request failed \((\d+)\)/gi, 'the routing model request failed ($1)')
+    .replace(/\bGemini\b/gi, 'Lumina AI');
+}
+
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color?: string }[]; label?: string }) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="chart-tooltip">
       <p>{label}</p>
       {payload.map((p) => (
-        <strong key={p.name}>{p.value}</strong>
+        <strong key={p.name} style={{ color: p.color || undefined }}>{p.name}: {p.value}</strong>
       ))}
     </div>
   );
@@ -105,7 +166,6 @@ export function SuperAdminDashboard() {
 
   const pendingUsers = users.filter((u) => u.status === 'pending');
   const activeAdmins = users.filter((u) => u.role !== 'user' && u.status === 'active');
-  const activeUsers = users.filter((u) => u.status === 'active');
 
   const filteredUsers = useMemo(() => {
     const statusWeight: Record<ApiUser['status'], number> = { pending: 0, active: 1, suspended: 2 };
@@ -121,7 +181,9 @@ export function SuperAdminDashboard() {
 
   const statusPie = useMemo(() => buildStatusPie(tickets), [tickets]);
   const monthlyLine = useMemo(() => buildMonthlyLine(tickets), [tickets]);
-  const workloadBar = workload.map((a) => ({ name: a.first_name, score: a.load_score }));
+  const peopleByRole = useMemo(() => buildPeopleByRole(users), [users]);
+  const pendingAgeBuckets = useMemo(() => buildPendingAgeBuckets(users), [users]);
+  const adminPriorityLoad = useMemo(() => buildAdminPriorityLoad(workload), [workload]);
 
   const handleApproval = async (id: string, status: 'active' | 'suspended') => {
     const res = await usersApi.updateApproval(id, status);
@@ -185,7 +247,7 @@ export function SuperAdminDashboard() {
               <div className="stats-grid">
                 <div className="stat-card"><h3>Pending Approval</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{pendingUsers.length}</div></div>
                 <div className="stat-card"><h3>Active Staff</h3><div className="stat-value" style={{ color: '#60a5fa' }}>{activeAdmins.length}</div></div>
-                <div className="stat-card"><h3>Total Users</h3><div className="stat-value">{activeUsers.length}</div></div>
+                <div className="stat-card"><h3>Total Users</h3><div className="stat-value">{users.length}</div></div>
               </div>
 
               <div className="charts-grid" style={{ marginBottom: '48px' }}>
@@ -233,14 +295,57 @@ export function SuperAdminDashboard() {
                 </div>
 
                 <div className="chart-card">
-                  <h4 className="chart-card-title">Admin Workload</h4>
+                  <h4 className="chart-card-title">Priority Load by Admin</h4>
                   <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={workloadBar} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                    <BarChart data={adminPriorityLoad} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
                       <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="score" name="Load Score" radius={[4, 4, 0, 0]} fill="#60a5fa" />
+                      <Bar dataKey="P1" stackId="priority" name="P1" fill="#ff3b30" />
+                      <Bar dataKey="P2" stackId="priority" name="P2" fill="#ff9500" />
+                      <Bar dataKey="P3" stackId="priority" name="P3" fill="#34c759" />
+                      <Bar dataKey="P4" stackId="priority" name="P4" fill="#6b7280" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="dashboard-chart-legend">
+                    {Object.entries(PRIORITY_COLOR).map(([priority, color]) => (
+                      <span key={priority}><i style={{ background: color }} />{priority}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="chart-card">
+                  <h4 className="chart-card-title">People by Role & Status</h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={peopleByRole} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
+                      <XAxis dataKey="role" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="active" stackId="status" name="Active" fill={USER_STATUS_COLORS.active} />
+                      <Bar dataKey="pending" stackId="status" name="Pending" fill={USER_STATUS_COLORS.pending} />
+                      <Bar dataKey="suspended" stackId="status" name="Suspended" fill={USER_STATUS_COLORS.suspended} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="dashboard-chart-legend">
+                    {Object.entries(USER_STATUS_COLORS).map(([status, color]) => (
+                      <span key={status}><i style={{ background: color }} />{status}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="chart-card">
+                  <h4 className="chart-card-title">Approval Wait Time</h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={pendingAgeBuckets} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
+                      <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="value" name="Pending users" radius={[4, 4, 0, 0]}>
+                        {pendingAgeBuckets.map((bucket) => <Cell key={bucket.name} fill={bucket.fill} />)}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -261,7 +366,7 @@ export function SuperAdminDashboard() {
                         <div className="queue-item-info">
                           <div className="sa-user-avatar queue-avatar">
                             {account.avatar_url
-                              ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${account.avatar_url}`} alt="" />
+                              ? <img src={apiAssetUrl(account.avatar_url)} alt="" />
                               : `${account.first_name[0]}${account.last_name[0]}`}
                           </div>
                           <div className="queue-item-text">
@@ -339,7 +444,7 @@ export function SuperAdminDashboard() {
                           <div className="sa-user-cell">
                             <div className="sa-user-avatar">
                               {u.avatar_url
-                                ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${u.avatar_url}`} alt="" />
+                                ? <img src={apiAssetUrl(u.avatar_url)} alt="" />
                                 : `${u.first_name[0]}${u.last_name[0]}`
                               }
                             </div>
@@ -404,7 +509,7 @@ export function SuperAdminDashboard() {
                 <Cpu size={18} className="ai-panel-icon" />
                 <div>
                   <h2 className="ai-panel-title">AI Routing Decisions</h2>
-                  <p className="ai-panel-sub">Every ticket routing decision made by Gemini or the rule engine — transparent and traceable.</p>
+                  <p className="ai-panel-sub">Every ticket routing decision made by Lumina AI or the rule engine — transparent and traceable.</p>
                 </div>
               </div>
 
@@ -414,16 +519,16 @@ export function SuperAdminDashboard() {
                 <div className="ai-decisions-list">
                   {aiDecisions.map((d) => {
                     const routing = d.routing;
-                    const isGemini = routing?.source === 'gemini';
+                    const isLuminaAi = routing?.source === 'gemini' || routing?.source === 'lumina_ai';
                     const isFallback = routing?.source === 'rules_fallback';
                     const isExpanded = expandedDecision === d.id;
                     const assignedLabel = d.assigned_to_name || (routing?.assigned_admin_id ? 'assignment unavailable' : 'unassigned');
                     return (
-                      <div key={d.id} className={`ai-decision-card ${isGemini ? 'gemini' : isFallback ? 'fallback' : 'rules'}`}>
+                      <div key={d.id} className={`ai-decision-card ${isLuminaAi ? 'lumina' : isFallback ? 'fallback' : 'rules'}`}>
                         <div className="ai-decision-top" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>
                           <div className="ai-decision-left">
-                            <span className={`ai-source-badge ${isGemini ? 'gemini' : isFallback ? 'fallback' : 'rules'}`}>
-                              {isGemini ? '✦ GEMINI AI' : isFallback ? '↺ FALLBACK' : '⚡ RULES'}
+                            <span className={`ai-source-badge ${isLuminaAi ? 'lumina' : isFallback ? 'fallback' : 'rules'}`}>
+                              {isLuminaAi ? '✦ LUMINA AI' : isFallback ? '↺ FALLBACK' : '⚡ RULES'}
                             </span>
                             <span className="ai-ticket-priority" style={{ color: PRIORITY_COLOR[d.priority] }}>
                               {d.priority}
@@ -440,7 +545,7 @@ export function SuperAdminDashboard() {
                         {isExpanded && routing?.reasoning && (
                           <div className="ai-decision-reasoning">
                             <div className="ai-reasoning-label">REASONING</div>
-                            <pre className="ai-reasoning-text">{routing.reasoning}</pre>
+                            <pre className="ai-reasoning-text">{luminaVoice(routing.reasoning)}</pre>
                           </div>
                         )}
                       </div>

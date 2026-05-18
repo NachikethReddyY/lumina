@@ -59,7 +59,7 @@ const initializeDatabase = async () => {
     const result = await db.query('SELECT COUNT(*)::int AS n FROM users');
     if (result.rows[0].n === 0) {
       console.warn(
-        'No users found. Apply backend/db/init.sql to load the schema and development seed data.'
+        'No users found. Apply backend/db/DDL.sql to load the schema and development seed data.'
       );
     }
     // #region agent log
@@ -70,7 +70,7 @@ const initializeDatabase = async () => {
   } catch (error) {
     console.error('Error initializing database:', error.message);
     console.error(
-      'Hint: apply schema with `psql "$DATABASE_URL" -f db/init.sql` if tables are missing.'
+      'Hint: apply schema with `psql "$DATABASE_URL" -f db/DDL.sql` if tables are missing.'
     );
     // #region agent log
     _agentDbg('H1', 'server.js:initializeDatabase', 'query_err', {
@@ -137,4 +137,3 @@ if (process.env.VERCEL) {
 }
 
 module.exports = app;
-

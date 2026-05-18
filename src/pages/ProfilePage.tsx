@@ -8,9 +8,10 @@ import DashboardLayout from '../components/DashboardLayout';
 import Container from '../components/Container';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usersApi, ticketsApi, type ApiTicket } from '../utils/apiClient';
+import { API_BASE_URL } from '../utils/apiBase';
 import './ProfilePage.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_BASE = API_BASE_URL;
 
 function centerAspectCrop(width: number, height: number, aspect: number): Crop {
   return centerCrop(

@@ -8,9 +8,15 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem("lumina.sidebar.collapsed") === "true")
 
-  const toggleSidebar = () => setIsCollapsed(!isCollapsed)
+  const toggleSidebar = () => {
+    setIsCollapsed((current) => {
+      const next = !current
+      localStorage.setItem("lumina.sidebar.collapsed", String(next))
+      return next
+    })
+  }
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-canvas)' }}>

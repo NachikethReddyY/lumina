@@ -7,9 +7,10 @@ import {
   type ApiChatConversation,
   type ApiChatMessage,
 } from '../utils/apiClient';
+import { API_BASE_URL } from '../utils/apiBase';
 import './SideChat.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_URL = API_BASE_URL;
 
 function timeAgo(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime();
