@@ -16,7 +16,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import RoleDashboardPage from './pages/RoleDashboardPage';
 import ProfilePage from './pages/ProfilePage';
-import TicketDetailPage from './pages/TicketDetailPage';
 import AccountSettingsPage from './pages/AccountSettingsPage';
 import TicketHistoryPage from './pages/TicketHistoryPage';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -42,15 +41,15 @@ function App() {
         <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
         <Route path="/tickets" element={<ProtectedRoute><TicketHistoryPage mode="queue" /></ProtectedRoute>} />
+        <Route path="/tickets/:id" element={<ProtectedRoute><TicketHistoryPage mode="queue" /></ProtectedRoute>} />
         <Route path="/tickets/history" element={<ProtectedRoute><TicketHistoryPage mode="history" /></ProtectedRoute>} />
-
-        <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetailPage /></ProtectedRoute>} />
+        <Route path="/tickets/history/:id" element={<ProtectedRoute><TicketHistoryPage mode="history" /></ProtectedRoute>} />
 
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/account-settings" element={<ProtectedRoute><AccountSettingsPage /></ProtectedRoute>} />
 
         <Route path="/user/dashboard" element={<ProtectedRoute roles={['user']}><UserDashboard /></ProtectedRoute>} />
-        <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin', 'super_admin']}><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
         <Route path="/super-admin/dashboard" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
         <Route path="/super-admin/users" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />
         <Route path="/super-admin/approvals" element={<ProtectedRoute roles={['super_admin']}><SuperAdminDashboard /></ProtectedRoute>} />

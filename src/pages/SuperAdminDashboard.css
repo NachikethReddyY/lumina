@@ -380,12 +380,12 @@
   background: var(--color-surface-card);
 }
 
-.ai-decision-card.gemini {
+.ai-decision-card.lumina {
   border-color: #bfdbfe;
   background: #eff6ff;
 }
 
-.ai-decision-card.gemini:hover {
+.ai-decision-card.lumina:hover {
   border-color: #93c5fd;
 }
 
@@ -440,7 +440,7 @@
   white-space: nowrap;
 }
 
-.ai-source-badge.gemini {
+.ai-source-badge.lumina {
   background: #dbeafe;
   color: #0369a1;
   border: 1px solid #bfdbfe;

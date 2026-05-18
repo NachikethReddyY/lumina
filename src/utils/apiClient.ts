@@ -1,5 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const API_PREFIX = import.meta.env.VITE_API_PREFIX || '/api/v1';
+import { API_BASE_URL } from './apiBase';
+
+const API_PREFIX = import.meta.env.VITE_API_PREFIX ?? '/api/v1';
 
 export type AuthValidationErrorBody = {
   error?: string;
@@ -274,6 +275,9 @@ export const ticketsApi = {
   updateStatus: (ticketId: string, status: ApiTicket['status']) =>
     apiRequest(`/tickets/${ticketId}/status`, { method: 'PATCH' as RequestOptions['method'], body: { status } }),
 
+  updatePriority: (ticketId: string, priority: ApiTicket['priority']) =>
+    apiRequest(`/tickets/${ticketId}/priority`, { method: 'PATCH' as RequestOptions['method'], body: { priority } }),
+
   assign: (ticketId: string, assignedTo: string) =>
     apiRequest(`/tickets/${ticketId}/assign`, { method: 'POST', body: { assignedTo } }),
 
@@ -294,9 +298,6 @@ export const ticketsApi = {
     apiRequest(`/tickets/${ticketId}/comments/${commentId}`, { method: 'DELETE' }),
 
   getActivity: (ticketId: string) => apiRequest(`/tickets/${ticketId}/activity`),
-
-  askAI: (ticketId: string, question: string) =>
-    apiRequest(`/tickets/${ticketId}/ask`, { method: 'POST', body: { question } }),
 };
 
 export type ApiChatConversation = {

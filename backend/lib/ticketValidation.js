@@ -54,6 +54,14 @@ function validateTicketStatusBody(body) {
   return { ok: true, value: { status } };
 }
 
+function validateTicketPriorityBody(body) {
+  const priority = String(body?.priority ?? '').trim().toUpperCase();
+  if (!ALLOWED_PRIORITIES.includes(priority)) {
+    return { ok: false, details: { priority: 'Priority must be P1, P2, P3, or P4' } };
+  }
+  return { ok: true, value: { priority } };
+}
+
 function validateTicketAssignmentBody(body) {
   const assignedTo = String(body?.assignedTo ?? body?.assigned_to ?? '').trim();
   if (!assignedTo) {
@@ -111,6 +119,6 @@ module.exports = {
   validateRatingBody,
   validateTicketAssignmentBody,
   validateTicketCreateBody,
+  validateTicketPriorityBody,
   validateTicketStatusBody,
 };
-

@@ -6,39 +6,91 @@ const {
   validateRatingBody,
   validateTicketAssignmentBody,
   validateTicketCreateBody,
+  validateTicketPriorityBody,
   validateTicketStatusBody,
   validationError,
 } = require('../lib/ticketValidation');
-const { chooseAssignee, getAdminWorkloads } = require('../lib/ticketRouting');
+const { chooseAssignee, getAdminWorkloads, isLuminaAIUser } = require('../lib/ticketRouting');
 
 const router = express.Router();
 
 router.use(requireAuth);
 
-function buildTicketAskFallback(ticket, comments, activity, question, reason) {
-  const status = String(ticket.status || 'unknown').replace(/_/g, ' ');
-  const assignee = ticket.assigned_to_name || 'unassigned';
-  const latestComment = comments[0];
-  const latestActivity = activity[0];
-  const parts = [
-    `I could not reach the AI service (${reason}), so here is what Lumina can tell from the ticket data.`,
-    `Question: ${question}`,
-    `Ticket: ${ticket.title}`,
-    `Status: ${status}. Priority: ${ticket.priority}. Category: ${ticket.category_name}. Assignee: ${assignee}.`,
-  ];
+function userDisplayName(user) {
+  return `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || null;
+}
 
-  if (ticket.description) {
-    parts.push(`Description: ${String(ticket.description).slice(0, 300)}`);
-  }
-  if (latestComment) {
-    parts.push(`Latest comment: ${latestComment.first_name} ${latestComment.last_name} said "${String(latestComment.body).slice(0, 220)}".`);
-  }
-  if (latestActivity) {
-    parts.push(`Latest activity: ${String(latestActivity.action).replace(/_/g, ' ')} on ${new Date(latestActivity.created_at).toLocaleDateString('en-US')}.`);
+function buildRoutingMetadata(routing) {
+  return {
+    source: routing.source,
+    assigned_admin_id: routing.assignedAdminId,
+    reasoning: routing.reasoning,
+    decision: routing.decision || null,
+  };
+}
+
+async function applyRoutingAssignment(client, { ticket, routing, actorId, auditAction, assignmentMode, requestedAssignee = null }) {
+  if (!routing.assignedAdminId) {
+    throw Object.assign(new Error('No admins are available for routing'), { status: 409 });
   }
 
-  parts.push('Try again later for the generated AI analysis.');
-  return parts.join('\n');
+  const routingMetadata = buildRoutingMetadata(routing);
+  const assignedResult = await client.query(
+    `SELECT id, first_name, last_name, email FROM users WHERE id = $1`,
+    [routing.assignedAdminId]
+  );
+  const assignedUser = assignedResult.rows[0] || null;
+  if (!assignedUser || isLuminaAIUser(assignedUser)) {
+    throw Object.assign(new Error('Lumina AI routes tickets to real admins and cannot own tickets'), { status: 409 });
+  }
+  const assignedToName = userDisplayName(assignedUser);
+
+  await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE`, [
+    ticket.id,
+  ]);
+  await client.query(
+    `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active)
+     VALUES ($1, $2, $3, TRUE)`,
+    [ticket.id, routing.assignedAdminId, actorId]
+  );
+  await client.query(
+    `UPDATE tickets
+     SET status = 'assigned'::ticket_status,
+         metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{routing}', $2::jsonb, true)
+     WHERE id = $1`,
+    [ticket.id, JSON.stringify(routingMetadata)]
+  );
+
+  const requestedAssigneeName = requestedAssignee ? userDisplayName(requestedAssignee) : null;
+
+  await client.query(
+    `INSERT INTO audit_logs (actor_id, action, metadata)
+     VALUES ($1, $2, $3::jsonb)`,
+    [
+      actorId,
+      auditAction,
+      JSON.stringify({
+        ticket_id: ticket.id,
+        old_assigned_to: ticket.old_assigned_to || null,
+        old_assigned_to_name: ticket.old_assigned_to_name || null,
+        requested_assignee: requestedAssignee?.id || null,
+        requested_assignee_name: requestedAssigneeName,
+        assigned_admin_id: routing.assignedAdminId,
+        assigned_to: routing.assignedAdminId,
+        assigned_to_name: assignedToName,
+        source: routing.source,
+        routing_source: routing.source,
+        reasoning: routing.reasoning,
+        routing_reasoning: routing.reasoning,
+        routing_decision: routing.decision || null,
+        old_status: ticket.status || null,
+        new_status: 'assigned',
+        assignment_mode: assignmentMode,
+      }),
+    ]
+  );
+
+  return { assignedUser, assignedToName, routingMetadata };
 }
 
 router.get('/', async (req, res, next) => {
@@ -117,7 +169,7 @@ router.get('/:id/activity', async (req, res, next) => {
        FROM audit_logs a
        JOIN users u ON u.id = a.actor_id
        WHERE a.metadata->>'ticket_id' = $1
-       ORDER BY a.created_at ASC`,
+       ORDER BY a.created_at DESC`,
       [req.params.id]
     );
 
@@ -135,109 +187,6 @@ router.get('/:id/activity', async (req, res, next) => {
       events: auditResult.rows,
       rating: ratingResult.rows[0] || null,
     });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post('/:id/ask', async (req, res, next) => {
-  const question = String(req.body?.question ?? '').trim();
-  if (!question) return res.status(400).json({ error: 'question is required' });
-
-  try {
-    const [ticketResult, commentsResult, activityResult] = await Promise.all([
-      db.query(
-        `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at,
-                t.replication_steps, t.metadata, c.name AS category_name,
-                submitter.email AS submitted_by_email,
-                CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
-         FROM tickets t
-         JOIN categories c ON c.id = t.category_id
-         JOIN users submitter ON submitter.id = t.submitted_by
-         LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-         LEFT JOIN users assignee ON assignee.id = ta.assigned_to
-         WHERE t.id = $1`,
-        [req.params.id]
-      ),
-      db.query(
-        `SELECT c.body, c.created_at, u.first_name, u.last_name, u.role
-         FROM ticket_comments c
-         JOIN users u ON u.id = c.author_id
-         WHERE c.ticket_id = $1
-         ORDER BY c.created_at DESC
-         LIMIT 5`,
-        [req.params.id]
-      ),
-      db.query(
-        `SELECT a.action, a.metadata, a.created_at, u.first_name, u.last_name, u.role
-         FROM audit_logs a
-         JOIN users u ON u.id = a.actor_id
-         WHERE a.metadata->>'ticket_id' = $1
-         ORDER BY a.created_at DESC
-         LIMIT 8`,
-        [req.params.id]
-      ),
-    ]);
-    const ticket = ticketResult.rows[0];
-    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-    if (req.user.role === 'user' && ticket.submitted_by_email !== req.user.email) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-    if (!apiKey) {
-      return res.json({
-        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'not configured'),
-        source: 'local_fallback',
-      });
-    }
-
-    const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-    const prompt = [
-      'You are Lumina support AI. Answer the user question about the following support ticket concisely and helpfully.',
-      'Use the ticket details, recent comments, and recent activity for context.',
-      'Return plain text only, no markdown headings unless helpful.',
-      '',
-      'Ticket context:',
-      JSON.stringify({ ticket, comments: commentsResult.rows, activity: activityResult.rows }, null, 2),
-      '',
-      `User question: ${question}`,
-    ].join('\n');
-
-    let geminiRes;
-    try {
-      geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.4 },
-          }),
-        }
-      );
-    } catch {
-      return res.json({
-        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'request failed'),
-        source: 'local_fallback',
-      });
-    }
-    if (!geminiRes.ok) {
-      return res.json({
-        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'request failed'),
-        source: 'local_fallback',
-      });
-    }
-    const data = await geminiRes.json();
-    const answer = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
-    if (!answer.trim()) {
-      return res.json({
-        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'empty response'),
-        source: 'local_fallback',
-      });
-    }
-    res.json({ answer, source: 'gemini' });
   } catch (error) {
     next(error);
   }
@@ -317,8 +266,33 @@ router.post('/', async (req, res, next) => {
     );
     const ticket = ticketResult.rows[0];
 
+    await client.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'ticket_created', $2::jsonb)`,
+      [
+        req.user.id,
+        JSON.stringify({
+          ticket_id: ticket.id,
+          title: ticket.title,
+          type: ticket.type,
+          priority: ticket.priority,
+          category_id: ticket.category_id,
+          category_name: category.rows[0].name,
+          initial_status: 'pending_routing',
+          submitted_by: req.user.id,
+          submitted_by_email: req.user.email,
+        }),
+      ]
+    );
+
     const admins = await getAdminWorkloads(client);
     const routing = await chooseAssignee(ticket, admins);
+    const routingMetadata = {
+      source: routing.source,
+      assigned_admin_id: routing.assignedAdminId,
+      reasoning: routing.reasoning,
+      decision: routing.decision || null,
+    };
 
     let assignedUser = null;
     if (routing.assignedAdminId) {
@@ -339,39 +313,64 @@ router.post('/', async (req, res, next) => {
          WHERE id = $1`,
         [
           ticket.id,
-          JSON.stringify({
-            source: routing.source,
-            assigned_admin_id: routing.assignedAdminId,
-            reasoning: routing.reasoning,
-          }),
+          JSON.stringify(routingMetadata),
         ]
       );
       const assignedResult = await client.query(
-        `SELECT id, first_name, last_name, email FROM users WHERE id = $1`,
+        `SELECT id, first_name, last_name, email, avatar_url FROM users WHERE id = $1`,
         [routing.assignedAdminId]
       );
       assignedUser = assignedResult.rows[0] || null;
-    }
 
-    await client.query(
-      `INSERT INTO audit_logs (actor_id, action, metadata)
-       VALUES ($1, 'ticket_created', $2::jsonb)`,
-      [
-        req.user.id,
-        JSON.stringify({
-          ticket_id: ticket.id,
-          routing_source: routing.source,
-          assigned_admin_id: routing.assignedAdminId,
-          routing_reasoning: routing.reasoning,
-        }),
-      ]
-    );
+      await client.query(
+        `INSERT INTO audit_logs (actor_id, action, metadata)
+         VALUES ($1, 'ticket_assigned', $2::jsonb)`,
+        [
+          req.user.id,
+          JSON.stringify({
+            ticket_id: ticket.id,
+            assigned_to: routing.assignedAdminId,
+            assigned_to_name: assignedUser
+              ? `${assignedUser.first_name} ${assignedUser.last_name}`
+              : null,
+            source: routing.source,
+            routing_source: routing.source,
+            routing_reasoning: routing.reasoning,
+            routing_decision: routing.decision || null,
+            old_status: 'pending_routing',
+            new_status: 'assigned',
+            assignment_mode: 'ai_routing',
+          }),
+        ]
+      );
+    } else {
+      await client.query(
+        `UPDATE tickets
+         SET metadata = jsonb_set(
+           COALESCE(metadata, '{}'::jsonb),
+           '{routing}',
+           $2::jsonb,
+           true
+         )
+         WHERE id = $1`,
+        [ticket.id, JSON.stringify(routingMetadata)]
+      );
+    }
 
     await client.query('COMMIT');
     res.status(201).json({
       ...ticket,
+      status: routing.assignedAdminId ? 'assigned' : ticket.status,
+      metadata: {
+        ...ticket.metadata,
+        routing: routingMetadata,
+      },
       category_name: category.rows[0].name,
+      submitted_by_id: req.user.id,
+      submitted_by_email: req.user.email,
+      submitted_by_avatar_url: req.user.avatar_url || null,
       assigned_to_id: assignedUser?.id || null,
+      assigned_to_avatar_url: assignedUser?.avatar_url || null,
       assigned_to_name: assignedUser ? `${assignedUser.first_name} ${assignedUser.last_name}` : null,
       routing,
     });
@@ -393,20 +392,54 @@ router.post('/:id/assign', requireRole('admin', 'super_admin'), async (req, res,
   try {
     await client.query('BEGIN');
 
-    const ticket = await client.query(`SELECT id FROM tickets WHERE id = $1`, [req.params.id]);
+    const ticket = await client.query(
+      `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.metadata,
+              ta.assigned_to AS old_assigned_to,
+              CONCAT(old_assignee.first_name, ' ', old_assignee.last_name) AS old_assigned_to_name
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN users old_assignee ON old_assignee.id = ta.assigned_to
+       WHERE t.id = $1`,
+      [req.params.id]
+    );
     if (!ticket.rows[0]) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
     const assignee = await client.query(
-      `SELECT id, first_name, last_name FROM users
+      `SELECT id, email, first_name, last_name FROM users
        WHERE id = $1 AND role IN ('admin', 'super_admin') AND status = 'active'`,
       [parsed.value.assignedTo]
     );
     if (!assignee.rows[0]) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Assignee must be an active admin user' });
+    }
+
+    const ticketRow = ticket.rows[0];
+    const assigneeRow = assignee.rows[0];
+
+    if (isLuminaAIUser(assigneeRow)) {
+      const admins = await getAdminWorkloads(client);
+      const routing = await chooseAssignee(ticketRow, admins);
+      const applied = await applyRoutingAssignment(client, {
+        ticket: ticketRow,
+        routing,
+        actorId: req.user.id,
+        auditAction: 'ticket_assigned',
+        assignmentMode: 'lumina_ai_pipeline',
+        requestedAssignee: assigneeRow,
+      });
+
+      await client.query('COMMIT');
+      return res.json({
+        ticketId: req.params.id,
+        assignedToId: routing.assignedAdminId,
+        assignedToName: applied.assignedToName,
+        routing,
+        routedVia: 'lumina_ai_pipeline',
+      });
     }
 
     await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE`, [
@@ -426,6 +459,12 @@ router.post('/:id/assign', requireRole('admin', 'super_admin'), async (req, res,
         JSON.stringify({
           ticket_id: req.params.id,
           assigned_to: parsed.value.assignedTo,
+          assigned_to_name: userDisplayName(assigneeRow),
+          old_assigned_to: ticketRow.old_assigned_to,
+          old_assigned_to_name: ticketRow.old_assigned_to_name,
+          old_status: ticketRow.status,
+          new_status: 'assigned',
+          source: 'manual',
         }),
       ]
     );
@@ -434,7 +473,7 @@ router.post('/:id/assign', requireRole('admin', 'super_admin'), async (req, res,
     res.json({
       ticketId: req.params.id,
       assignedToId: parsed.value.assignedTo,
-      assignedToName: `${assignee.rows[0].first_name} ${assignee.rows[0].last_name}`,
+      assignedToName: userDisplayName(assigneeRow),
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -449,9 +488,13 @@ router.post('/:id/route', requireRole('admin', 'super_admin'), async (req, res, 
   try {
     await client.query('BEGIN');
     const result = await client.query(
-      `SELECT id, title, description, type, priority, metadata
-       FROM tickets
-       WHERE id = $1`,
+      `SELECT t.id, t.title, t.description, t.type, t.priority, t.metadata,
+              ta.assigned_to AS old_assigned_to,
+              CONCAT(old_assignee.first_name, ' ', old_assignee.last_name) AS old_assigned_to_name
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN users old_assignee ON old_assignee.id = ta.assigned_to
+       WHERE t.id = $1`,
       [req.params.id]
     );
     const ticket = result.rows[0];
@@ -462,48 +505,20 @@ router.post('/:id/route', requireRole('admin', 'super_admin'), async (req, res, 
 
     const admins = await getAdminWorkloads(client);
     const routing = await chooseAssignee(ticket, admins);
-    if (!routing.assignedAdminId) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ error: 'No admins are available for routing' });
-    }
-
-    await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE`, [
-      ticket.id,
-    ]);
-    await client.query(
-      `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active)
-       VALUES ($1, $2, $3, TRUE)`,
-      [ticket.id, routing.assignedAdminId, req.user.id]
-    );
-    await client.query(
-      `UPDATE tickets
-       SET status = 'assigned'::ticket_status,
-           metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{routing}', $2::jsonb, true)
-       WHERE id = $1`,
-      [
-        ticket.id,
-        JSON.stringify({
-          source: routing.source,
-          assigned_admin_id: routing.assignedAdminId,
-          reasoning: routing.reasoning,
-        }),
-      ]
-    );
-    await client.query(
-      `INSERT INTO audit_logs (actor_id, action, metadata)
-       VALUES ($1, 'ticket_rerouted', $2::jsonb)`,
-      [
-        req.user.id,
-        JSON.stringify({
-          ticket_id: ticket.id,
-          assigned_admin_id: routing.assignedAdminId,
-          source: routing.source,
-          reasoning: routing.reasoning,
-        }),
-      ]
-    );
+    const applied = await applyRoutingAssignment(client, {
+      ticket,
+      routing,
+      actorId: req.user.id,
+      auditAction: 'ticket_rerouted',
+      assignmentMode: 'ai_routing',
+    });
     await client.query('COMMIT');
-    res.json({ ticketId: ticket.id, routing });
+    res.json({
+      ticketId: ticket.id,
+      assignedToId: routing.assignedAdminId,
+      assignedToName: applied.assignedToName,
+      routing,
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     next(error);
@@ -520,7 +535,7 @@ router.patch('/:id/status', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT t.id, t.submitted_by, ta.assigned_to
+      `SELECT t.id, t.submitted_by, t.status, ta.assigned_to
        FROM tickets t
        LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
        WHERE t.id = $1`,
@@ -551,10 +566,58 @@ router.patch('/:id/status', async (req, res, next) => {
         req.user.id,
         JSON.stringify({
           ticket_id: req.params.id,
+          old_status: ticket.status,
+          new_status: parsed.value.status,
           status: parsed.value.status,
         }),
       ]
     );
+    res.json(updated.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id/priority', requireRole('admin', 'super_admin'), async (req, res, next) => {
+  const parsed = validateTicketPriorityBody(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json(validationError(parsed.details));
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT id, priority
+       FROM tickets
+       WHERE id = $1`,
+      [req.params.id]
+    );
+    const ticket = result.rows[0];
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const updated = await db.query(
+      `UPDATE tickets
+       SET priority = $2::ticket_priority
+       WHERE id = $1
+       RETURNING id, priority`,
+      [req.params.id, parsed.value.priority]
+    );
+
+    await db.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'ticket_priority_changed', $2::jsonb)`,
+      [
+        req.user.id,
+        JSON.stringify({
+          ticket_id: req.params.id,
+          old_priority: ticket.priority,
+          new_priority: parsed.value.priority,
+          priority: parsed.value.priority,
+        }),
+      ]
+    );
+
     res.json(updated.rows[0]);
   } catch (error) {
     next(error);
