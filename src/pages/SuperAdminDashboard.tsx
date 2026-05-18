@@ -10,7 +10,7 @@ import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { ticketsApi, usersApi, notificationsApi, type AdminWorkload, type ApiTicket, type ApiUser, type ApiAiDecision } from '../utils/apiClient';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../context/useToast';
 import './Dashboard.css';
 import './SuperAdminDashboard.css';
 
@@ -417,6 +417,7 @@ export function SuperAdminDashboard() {
                     const isGemini = routing?.source === 'gemini';
                     const isFallback = routing?.source === 'rules_fallback';
                     const isExpanded = expandedDecision === d.id;
+                    const assignedLabel = d.assigned_to_name || (routing?.assigned_admin_id ? 'assignment unavailable' : 'unassigned');
                     return (
                       <div key={d.id} className={`ai-decision-card ${isGemini ? 'gemini' : isFallback ? 'fallback' : 'rules'}`}>
                         <div className="ai-decision-top" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>
@@ -430,7 +431,7 @@ export function SuperAdminDashboard() {
                             <span className="ai-ticket-title">{d.title}</span>
                           </div>
                           <div className="ai-decision-right">
-                            <span className="ai-assigned-to">→ {d.assigned_to_name || 'unassigned'}</span>
+                            <span className="ai-assigned-to">→ {assignedLabel}</span>
                             <span className="ai-decision-date">{new Date(d.created_at).toLocaleDateString()}</span>
                             {isExpanded ? <ChevronUp size={14} className="ai-chevron" /> : <ChevronDown size={14} className="ai-chevron" />}
                           </div>

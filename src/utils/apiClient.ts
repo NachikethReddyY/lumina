@@ -290,6 +290,9 @@ export const ticketsApi = {
   addComment: (ticketId: string, body: string) =>
     apiRequest(`/tickets/${ticketId}/comments`, { method: 'POST', body: { body } }),
 
+  deleteComment: (ticketId: string, commentId: string) =>
+    apiRequest(`/tickets/${ticketId}/comments/${commentId}`, { method: 'DELETE' }),
+
   getActivity: (ticketId: string) => apiRequest(`/tickets/${ticketId}/activity`),
 
   askAI: (ticketId: string, question: string) =>

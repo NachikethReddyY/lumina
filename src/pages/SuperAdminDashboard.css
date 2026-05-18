@@ -174,7 +174,7 @@
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, #c084fc 100%);
+  background-color: #A39E98;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -198,6 +198,7 @@
 .queue-avatar {
   width: 36px;
   height: 36px;
+  background-color: #A39E98;
 }
 
 .sa-role-badge {
@@ -218,8 +219,8 @@
 }
 
 .sa-role-badge.admin {
-  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-card));
-  color: var(--color-primary);
+  background: #dbeafe;
+  color: #2563eb;
   border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-hairline));
 }
 

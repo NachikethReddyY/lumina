@@ -223,7 +223,7 @@ GROUP BY u.id, u.email, u.first_name, u.last_name;
 
 -- Seed users for local development and demos.
 INSERT INTO users (
-  email, password_hash, first_name, last_name, role, status, email_is_verified, approved_at
+  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, approved_at
 )
 VALUES (
   lower('ynrdevs@gmail.com'),
@@ -233,6 +233,7 @@ VALUES (
   'super_admin'::user_role,
   'active'::user_status,
   TRUE,
+  TRUE,
   NOW()
 )
 ON CONFLICT (email) DO UPDATE
@@ -241,10 +242,11 @@ SET first_name = EXCLUDED.first_name,
     role = EXCLUDED.role,
     status = EXCLUDED.status,
     email_is_verified = EXCLUDED.email_is_verified,
+    onboarding_completed = EXCLUDED.onboarding_completed,
     approved_at = COALESCE(users.approved_at, NOW());
 
 INSERT INTO users (
-  email, password_hash, first_name, last_name, role, status, email_is_verified, approved_by, approved_at
+  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, approved_by, approved_at
 )
 SELECT
   lower(seed.email),
@@ -254,6 +256,7 @@ SELECT
   seed.role::user_role,
   seed.status::user_status,
   seed.email_is_verified,
+  seed.status = 'active',
   (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')),
   CASE WHEN seed.status = 'active' THEN NOW() ELSE NULL END
 FROM (
@@ -280,6 +283,7 @@ SET first_name = EXCLUDED.first_name,
     role = EXCLUDED.role,
     status = EXCLUDED.status,
     email_is_verified = EXCLUDED.email_is_verified,
+    onboarding_completed = EXCLUDED.onboarding_completed,
     approved_by = EXCLUDED.approved_by,
     approved_at = COALESCE(users.approved_at, EXCLUDED.approved_at);
 

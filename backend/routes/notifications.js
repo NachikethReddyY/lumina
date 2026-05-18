@@ -50,10 +50,14 @@ router.get('/ai-decisions', requireAuth, async (req, res, next) => {
     const result = await db.query(
       `SELECT t.id, t.title, t.priority, t.type, t.created_at,
               t.metadata->'routing' AS routing,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
+              COALESCE(
+                NULLIF(CONCAT(assignee.first_name, ' ', assignee.last_name), ' '),
+                NULLIF(CONCAT(routed_assignee.first_name, ' ', routed_assignee.last_name), ' ')
+              ) AS assigned_to_name
        FROM tickets t
        LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
        LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       LEFT JOIN users routed_assignee ON routed_assignee.id::text = t.metadata->'routing'->>'assigned_admin_id'
        WHERE t.metadata->'routing' IS NOT NULL
          AND t.metadata->'routing' != 'null'
        ORDER BY t.created_at DESC

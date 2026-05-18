@@ -6,7 +6,7 @@ import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../context/useToast';
 import { authApi } from '../utils/apiClient';
 import './AuthPage.css';
 

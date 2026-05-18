@@ -375,7 +375,7 @@
   padding: 12px;
 }
 
-.sidebar-container.collapsed .sidebar-menu-item span {
+.sidebar-container.collapsed .sidebar-menu-item > span:not(.sidebar-menu-icon):not(.sidebar-nav-badge) {
   display: none;
 }
 
@@ -394,6 +394,38 @@
 
 .sidebar-menu-item:not(.active) {
   color: var(--color-muted);
+}
+
+.sidebar-menu-icon {
+  --sidebar-icon-color: var(--color-primary);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--sidebar-icon-color);
+  background: color-mix(in srgb, var(--sidebar-icon-color) 12%, var(--color-surface-card));
+  border: 1px solid color-mix(in srgb, var(--sidebar-icon-color) 22%, var(--color-hairline));
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-menu-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-menu-item:hover .sidebar-menu-icon,
+.sidebar-menu-item.active .sidebar-menu-icon {
+  background: color-mix(in srgb, var(--sidebar-icon-color) 18%, var(--color-surface-card));
+  border-color: color-mix(in srgb, var(--sidebar-icon-color) 34%, var(--color-hairline-strong));
+  color: var(--sidebar-icon-color);
+}
+
+.sidebar-container.collapsed .sidebar-menu-icon {
+  width: 32px;
+  height: 32px;
 }
 
 .sidebar-nav-badge {
@@ -421,7 +453,7 @@
   position: relative;
 }
 
-.sidebar-menu-item svg {
+.sidebar-menu-item > svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;

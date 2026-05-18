@@ -8,7 +8,7 @@ import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../context/useToast';
 import { usersApi } from '../utils/apiClient';
 import './OnboardingPage.css';
 

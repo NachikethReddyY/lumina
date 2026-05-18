@@ -15,6 +15,32 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+function buildTicketAskFallback(ticket, comments, activity, question, reason) {
+  const status = String(ticket.status || 'unknown').replace(/_/g, ' ');
+  const assignee = ticket.assigned_to_name || 'unassigned';
+  const latestComment = comments[0];
+  const latestActivity = activity[0];
+  const parts = [
+    `I could not reach the AI service (${reason}), so here is what Lumina can tell from the ticket data.`,
+    `Question: ${question}`,
+    `Ticket: ${ticket.title}`,
+    `Status: ${status}. Priority: ${ticket.priority}. Category: ${ticket.category_name}. Assignee: ${assignee}.`,
+  ];
+
+  if (ticket.description) {
+    parts.push(`Description: ${String(ticket.description).slice(0, 300)}`);
+  }
+  if (latestComment) {
+    parts.push(`Latest comment: ${latestComment.first_name} ${latestComment.last_name} said "${String(latestComment.body).slice(0, 220)}".`);
+  }
+  if (latestActivity) {
+    parts.push(`Latest activity: ${String(latestActivity.action).replace(/_/g, ' ')} on ${new Date(latestActivity.created_at).toLocaleDateString('en-US')}.`);
+  }
+
+  parts.push('Try again later for the generated AI analysis.');
+  return parts.join('\n');
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const values = [];
@@ -159,7 +185,12 @@ router.post('/:id/ask', async (req, res, next) => {
     }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-    if (!apiKey) return res.status(503).json({ error: 'AI not configured' });
+    if (!apiKey) {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'not configured'),
+        source: 'local_fallback',
+      });
+    }
 
     const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const prompt = [
@@ -173,21 +204,40 @@ router.post('/:id/ask', async (req, res, next) => {
       `User question: ${question}`,
     ].join('\n');
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4 },
-        }),
-      }
-    );
-    if (!geminiRes.ok) return res.status(502).json({ error: 'AI request failed' });
+    let geminiRes;
+    try {
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.4 },
+          }),
+        }
+      );
+    } catch {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'request failed'),
+        source: 'local_fallback',
+      });
+    }
+    if (!geminiRes.ok) {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'request failed'),
+        source: 'local_fallback',
+      });
+    }
     const data = await geminiRes.json();
     const answer = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
-    res.json({ answer });
+    if (!answer.trim()) {
+      return res.json({
+        answer: buildTicketAskFallback(ticket, commentsResult.rows, activityResult.rows, question, 'empty response'),
+        source: 'local_fallback',
+      });
+    }
+    res.json({ answer, source: 'gemini' });
   } catch (error) {
     next(error);
   }
@@ -556,4 +606,3 @@ router.post('/:id/rating', async (req, res, next) => {
 });
 
 module.exports = router;
-
