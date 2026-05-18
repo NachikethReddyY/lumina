@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -64,8 +64,9 @@ function eventDotColor(action: string): string {
   if (action.includes('created')) return '#60a5fa';
   if (action.includes('assigned') || action.includes('rerouted')) return '#d97706';
   if (action.includes('status')) return '#fbbf24';
+  if (action.includes('comment')) return '#8b5cf6';
   if (action.includes('resolved') || action.includes('rated')) return '#34c759';
-  return 'rgba(255,255,255,0.15)';
+  return '#9ca3af';
 }
 
 // Star rating widget
@@ -246,22 +247,36 @@ export function TicketDetailPage() {
   const canResolve = !isAdmin && isOwner && ticket?.status === 'in_progress';
   const showRating = isOwner && (ticket?.status === 'resolved' || ticket?.status === 'closed');
 
+  const reloadTicketData = useCallback(
+    async (background = true) => {
+      if (!id) return;
+      if (!background) setLoading(true);
+
+      try {
+        const [ticketData, commentData, activityData] = await Promise.all([
+          ticketsApi.get(id).then((r) => r.json()),
+          ticketsApi.getComments(id).then((r) => r.json()),
+          ticketsApi.getActivity(id).then((r) => r.json()),
+        ]);
+
+        setTicket(ticketData as ApiTicket);
+        setComments(Array.isArray(commentData) ? (commentData as ApiComment[]) : []);
+        const { events, rating: r } = activityData as { events: ApiActivityEvent[]; rating: ApiRating | null };
+        setActivityEvents(Array.isArray(events) ? events : []);
+        setRating(r);
+        setError('');
+      } catch {
+        if (!background) setError('Failed to load ticket');
+      } finally {
+        if (!background) setLoading(false);
+      }
+    },
+    [id],
+  );
+
   useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    Promise.all([
-      ticketsApi.get(id).then((r) => r.json()),
-      ticketsApi.getComments(id).then((r) => r.json()),
-      ticketsApi.getActivity(id).then((r) => r.json()),
-    ]).then(([ticketData, commentData, activityData]) => {
-      setTicket(ticketData as ApiTicket);
-      setComments(Array.isArray(commentData) ? (commentData as ApiComment[]) : []);
-      const { events, rating: r } = activityData as { events: ApiActivityEvent[]; rating: ApiRating | null };
-      setActivityEvents(Array.isArray(events) ? events : []);
-      setRating(r);
-    }).catch(() => setError('Failed to load ticket'))
-      .finally(() => setLoading(false));
-  }, [id]);
+    void reloadTicketData(false);
+  }, [reloadTicketData]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -273,12 +288,34 @@ export function TicketDetailPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  useEffect(() => {
+    if (!id) return;
+
+    const interval = window.setInterval(() => {
+      void reloadTicketData(true);
+    }, 60_000);
+
+    const handleRefresh = () => {
+      void reloadTicketData(true);
+    };
+
+    window.addEventListener('ticket:activity-changed', handleRefresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('ticket:activity-changed', handleRefresh);
+    };
+  }, [id, reloadTicketData]);
+
+  const emitActivityChange = () => {
+    window.dispatchEvent(new CustomEvent('ticket:activity-changed', { detail: { ticketId: id } }));
+  };
+
   const handleStatusChange = async (newStatus: ApiTicket['status']) => {
     if (!ticket) return;
     setStatusDropdownOpen(false);
     const res = await ticketsApi.updateStatus(ticket.id, newStatus);
     if (res.ok) {
-      setTicket((prev) => prev ? { ...prev, status: newStatus } : prev);
+      emitActivityChange();
     }
   };
 
@@ -286,11 +323,7 @@ export function TicketDetailPage() {
     if (!ticket) return;
     const res = await ticketsApi.reroute(ticket.id);
     if (res.ok) {
-      const data = await res.json();
-      setTicket((prev) => prev
-        ? { ...prev, status: 'assigned', assigned_to_id: data.routing?.assignedAdminId || prev.assigned_to_id, assigned_to_name: data.assignedTo?.name || prev.assigned_to_name }
-        : prev
-      );
+      emitActivityChange();
     }
   };
 
@@ -300,12 +333,21 @@ export function TicketDetailPage() {
     try {
       const res = await ticketsApi.addComment(ticket.id, commentText.trim());
       if (res.ok) {
-        const c = await res.json() as ApiComment;
-        setComments((prev) => [...prev, c]);
         setCommentText('');
+        emitActivityChange();
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!ticket) return;
+    const ok = window.confirm('Delete this comment?');
+    if (!ok) return;
+    const res = await ticketsApi.deleteComment(ticket.id, commentId);
+    if (res.ok) {
+      emitActivityChange();
     }
   };
 
@@ -333,6 +375,9 @@ export function TicketDetailPage() {
   }
 
   const routing = ticket.metadata?.routing as { source?: string; reasoning?: string } | undefined;
+  const threadedComments = [...comments].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
   return (
@@ -458,7 +503,7 @@ export function TicketDetailPage() {
                 )}
               </div>
 
-              {/* Activity + Comments */}
+              {/* Activity */}
               <div className="td-comments-section">
                 <h2>Activity</h2>
                 <div className="td-timeline">
@@ -487,26 +532,6 @@ export function TicketDetailPage() {
                     </div>
                   )}
 
-                  {/* Comments interleaved */}
-                  {comments.map((c) => (
-                    <div key={c.id} className="td-comment-item">
-                      <div className="td-comment-avatar">
-                        {c.avatar_url
-                          ? <img src={`${API_URL}${c.avatar_url}`} alt="" />
-                          : <span>{c.first_name[0]}{c.last_name[0]}</span>
-                        }
-                      </div>
-                      <div className="td-comment-body">
-                        <div className="td-comment-header">
-                          <strong>{c.first_name} {c.last_name}</strong>
-                          <span className={`td-comment-role ${c.role}`}>{c.role.replace('_', ' ')}</span>
-                          <span className="td-activity-time">{timeAgo(c.created_at)}</span>
-                        </div>
-                        <p>{c.body}</p>
-                      </div>
-                    </div>
-                  ))}
-
                   {/* Rating at the end of timeline */}
                   {showRating && (
                     <div className="td-rating-section">
@@ -517,7 +542,10 @@ export function TicketDetailPage() {
                       <StarRating
                         ticketId={ticket.id}
                         existingRating={rating}
-                        onRated={(r) => setRating(r)}
+                        onRated={(r) => {
+                          setRating(r);
+                          emitActivityChange();
+                        }}
                       />
                     </div>
                   )}
@@ -534,7 +562,7 @@ export function TicketDetailPage() {
                   )}
                 </div>
 
-                {/* Comment input */}
+                {/* Comment form */}
                 <div className="td-comment-form">
                   <div className="td-comment-form-avatar">
                     {user?.avatar_url
@@ -566,6 +594,44 @@ export function TicketDetailPage() {
                       {submitting ? 'Sending…' : 'Comment'}
                     </button>
                   </div>
+                </div>
+
+                <div className="td-comment-thread">
+                  <h3>Comments</h3>
+                  {threadedComments.length === 0 ? (
+                    <p className="td-comment-thread-empty">No comments yet.</p>
+                  ) : (
+                    threadedComments.map((c) => {
+                      const canDeleteComment = isAdmin || c.author_id === user?.id;
+                      return (
+                        <div key={c.id} className="td-comment-item">
+                          <div className="td-comment-avatar">
+                            {c.avatar_url
+                              ? <img src={`${API_URL}${c.avatar_url}`} alt="" />
+                              : <span>{c.first_name[0]}{c.last_name[0]}</span>
+                            }
+                          </div>
+                          <div className="td-comment-body">
+                            <div className="td-comment-header">
+                              <strong>{c.first_name} {c.last_name}</strong>
+                              <span className={`td-comment-role ${c.role}`}>{c.role.replace('_', ' ')}</span>
+                              <span className="td-activity-time">{timeAgo(c.created_at)}</span>
+                              {canDeleteComment && (
+                                <button
+                                  type="button"
+                                  className="td-comment-delete"
+                                  onClick={() => handleDeleteComment(c.id)}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                            <p>{c.body}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </motion.div>
