@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart, Bar, LineChart, Line, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
+  BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts';
 import { ExternalLink, Play, CheckCircle2, RotateCcw, Trash2 } from 'lucide-react';
 import Button from '../components/Button';
@@ -16,8 +15,9 @@ import './Dashboard.css';
 const PRIORITY_COLOR: Record<string, string> = { P1: '#ff3b30', P2: '#ff9500', P3: '#34c759', P4: '#6b7280' };
 const STATUS_COLOR: Record<string, string> = {
   open: '#ff6b6b', assigned: '#60a5fa', in_progress: '#fbbf24',
-  resolved: '#34c759', closed: '#6b7280', pending_routing: '#d97706',
+  resolved: '#34c759', closed: '#6b7280', on_hold: '#9ca3af', pending_routing: '#d97706',
 };
+const ACTIVE_TICKET_STATUSES = new Set<ApiTicket['status']>(['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing']);
 
 function buildWeeklyLine(tickets: ApiTicket[]) {
   const days: Record<string, { resolved: number; created: number }> = {};
@@ -35,7 +35,39 @@ function buildWeeklyLine(tickets: ApiTicket[]) {
   return Object.entries(days).map(([day, vals]) => ({ day, ...vals }));
 }
 
-function buildAdminRadar(workload: AdminWorkload[]) {
+function buildStatusMix(tickets: ApiTicket[]) {
+  const labels: ApiTicket['status'][] = ['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing', 'resolved', 'closed'];
+  return labels
+    .map((status) => ({
+      name: status.replace(/_/g, ' '),
+      value: tickets.filter((ticket) => ticket.status === status).length,
+      color: STATUS_COLOR[status],
+    }))
+    .filter((item) => item.value > 0);
+}
+
+function buildAgeBuckets(tickets: ApiTicket[]) {
+  const buckets = [
+    { name: '0-1d', value: 0, fill: '#34c759' },
+    { name: '2-3d', value: 0, fill: '#60a5fa' },
+    { name: '4-7d', value: 0, fill: '#ff9500' },
+    { name: '8d+', value: 0, fill: '#ff3b30' },
+  ];
+
+  tickets
+    .filter((ticket) => ACTIVE_TICKET_STATUSES.has(ticket.status))
+    .forEach((ticket) => {
+      const ageDays = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 86400000);
+      if (ageDays <= 1) buckets[0].value++;
+      else if (ageDays <= 3) buckets[1].value++;
+      else if (ageDays <= 7) buckets[2].value++;
+      else buckets[3].value++;
+    });
+
+  return buckets;
+}
+
+function buildPriorityWorkload(workload: AdminWorkload[]) {
   return workload.map((a) => ({
     name: a.first_name,
     P1: a.p1_count,
@@ -106,20 +138,17 @@ export function AdminDashboard() {
   const counts = useMemo(() => ({
     p1: tickets.filter((t) => t.priority === 'P1').length,
     p2: tickets.filter((t) => t.priority === 'P2').length,
+    active: tickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length,
     inProgress: tickets.filter((t) => t.status === 'in_progress').length,
     resolved: tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
   }), [tickets]);
 
   const myLoad = workload.find((e) => e.id === user?.id);
   const weeklyLine = useMemo(() => buildWeeklyLine(tickets), [tickets]);
-  const adminRadar = useMemo(() => buildAdminRadar(workload), [workload]);
-
-  const workloadBar = workload.map((a) => ({
-    name: a.first_name,
-    score: a.load_score,
-    p1: a.p1_count,
-    p2: a.p2_count,
-  }));
+  const statusMix = useMemo(() => buildStatusMix(tickets), [tickets]);
+  const ageBuckets = useMemo(() => buildAgeBuckets(tickets), [tickets]);
+  const priorityWorkload = useMemo(() => buildPriorityWorkload(workload), [workload]);
+  const completionPct = tickets.length ? Math.round((counts.resolved / tickets.length) * 100) : 0;
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmEmail !== user?.email) {
@@ -159,7 +188,7 @@ export function AdminDashboard() {
 
           {/* Stats */}
           <div className="stats-grid">
-            <div className="stat-card"><h3>Total Tickets</h3><div className="stat-value">{tickets.length}</div></div>
+            <div className="stat-card"><h3>Active Tickets</h3><div className="stat-value">{counts.active}</div></div>
             <div className="stat-card"><h3>In Progress</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{counts.inProgress}</div></div>
             <div className="stat-card"><h3>Resolved</h3><div className="stat-value" style={{ color: '#34c759' }}>{counts.resolved}</div></div>
           </div>
@@ -184,7 +213,7 @@ export function AdminDashboard() {
           {/* Charts */}
           <motion.div className="charts-grid" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <div className="chart-card">
-              <h4 className="chart-card-title">Created vs Resolved (7 Days)</h4>
+              <h4 className="chart-card-title">Throughput: Created vs Resolved</h4>
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={weeklyLine} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -198,37 +227,60 @@ export function AdminDashboard() {
             </div>
 
             <div className="chart-card">
-              <h4 className="chart-card-title">Admin Load Distribution</h4>
+              <h4 className="chart-card-title">Your Task Progress</h4>
+              <div className="progress-donut-shell">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={statusMix} dataKey="value" nameKey="name" innerRadius={58} outerRadius={86} paddingAngle={2}>
+                      {statusMix.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="progress-donut-label">
+                  <strong>{completionPct}%</strong>
+                  <span>complete</span>
+                </div>
+              </div>
+              <div className="dashboard-chart-legend">
+                {statusMix.map((entry) => (
+                  <span key={entry.name}><i style={{ background: entry.color }} />{entry.name}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="chart-card">
+              <h4 className="chart-card-title">Priority Load by Owner</h4>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={workloadBar} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <BarChart data={priorityWorkload} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                   <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="score" name="Load" radius={[4, 4, 0, 0]} fill="#3b82f6">
-                    {workloadBar.map((_, i) => (
-                      <Cell key={i} fill={i === workloadBar.findIndex((w) => w.name === myLoad?.first_name) ? '#60a5fa' : '#3b82f6'} />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="p1" name="P1" radius={[4, 4, 0, 0]} fill="#ff3b30" />
+                  <Bar dataKey="P1" stackId="priority" name="P1" fill="#ff3b30" />
+                  <Bar dataKey="P2" stackId="priority" name="P2" fill="#ff9500" />
+                  <Bar dataKey="P3" stackId="priority" name="P3" fill="#34c759" />
+                  <Bar dataKey="P4" stackId="priority" name="P4" fill="#6b7280" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {adminRadar.length > 0 && (
-              <div className="chart-card">
-                <h4 className="chart-card-title">Priority Balance by Admin</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <RadarChart data={adminRadar} margin={{ top: 4, right: 20, bottom: 4, left: 20 }}>
-                    <PolarGrid stroke="rgba(255,255,255,0.06)" />
-                    <PolarAngleAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} />
-                    <Radar name="P1" dataKey="P1" stroke="#ff3b30" fill="#ff3b30" fillOpacity={0.15} />
-                    <Radar name="P2" dataKey="P2" stroke="#ff9500" fill="#ff9500" fillOpacity={0.1} />
-                    <Tooltip content={<CustomTooltip />} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            <div className="chart-card">
+              <h4 className="chart-card-title">Aging Risk</h4>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={ageBuckets} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" name="Active tickets" radius={[4, 4, 0, 0]}>
+                    {ageBuckets.map((bucket) => <Cell key={bucket.name} fill={bucket.fill} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </motion.div>
 
           {/* Queue Table */}

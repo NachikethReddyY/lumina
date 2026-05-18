@@ -1,6 +1,6 @@
 # Lumina Test Users
 
-These accounts are seeded by `backend/db/init.sql` for local demos and classroom testing.
+These accounts are seeded by `backend/db/DDL.sql` for local demos and classroom testing.
 
 ## Super Admin
 
@@ -14,6 +14,7 @@ These accounts are seeded by `backend/db/init.sql` for local demos and classroom
 - `admin.bugs@lumina.test` / `Testpass1`
 - `admin.ops@lumina.test` / `Testpass1`
 - `admin.qa@lumina.test` / `Testpass1`
+- `lumina.ai@lumina.test` / `Testpass1`
 
 ## Active Users
 

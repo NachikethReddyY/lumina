@@ -276,3 +276,5 @@ For this school project, non-functional goals focus on delivering a stable, unde
 - KPI events instrumented for activation, ticket creation, and admin status actions.
 - Demo-ready validation completed for routing, form behavior, role access, and dashboard responsiveness.
 - PRD reviewed and accepted by project team/advisor.
+
+Categories times etc

@@ -29,13 +29,15 @@ Lumina operates in the **IT helpdesk and internal issue-tracking** domain. It su
 
 The product is aimed at scenarios such as **classroom demos**, **small teams**, or **prototypes** where a credible helpdesk experience is required without building everything from scratch.
 
+For a detailed inventory of the current frontend/backend stack, package counts, database tables, routes, uploads, and setup notes, see [docs/stack-analysis.md](docs/stack-analysis.md).
+
 ### Technical overview
 
 | Layer | Location | Stack |
 |-------|----------|-------|
 | API & data | `backend/` | Node/Express, PostgreSQL, JWT auth, parameterised SQL, rate-limited auth endpoints |
 | Client | repo root (`src/`, Vite) | Vite, React, TypeScript |
-| Database schema & seeds | `backend/db/init.sql` | Schema plus demo users, tickets, categories, assignments, ratings, audit data |
+| Database schema & seeds | `backend/db/DDL.sql` | Schema plus demo users, tickets, categories, assignments, ratings, audit data |
 
 When configured, the backend can use **Google Gemini** to help classify and route tickets; if the AI path is unavailable, **rules-based routing** keeps assignment working.
 
@@ -53,7 +55,7 @@ cp .env.hosting.example .env.hosting
 # edit both files with your DATABASE_URL, JWT_SECRET, SMTP creds, etc.
 
 # 3. Initialise the database
-pnpm db:init          # or: psql "$DATABASE_URL" -f backend/db/init.sql
+pnpm db:init          # or: psql "$DATABASE_URL" -f backend/db/DDL.sql
 
 # 4. Start everything
 pnpm dev              # backend on :5000, frontend on :5173
@@ -85,7 +87,7 @@ Lumina uses **profile-switched env files** so you can keep local and hosting set
 | File | When to use |
 |------|-------------|
 | `.env.development` | Day-to-day coding (`PORT=5000`, `DATABASE_URL=localhost`, `VITE_API_URL=http://localhost:5000`) |
-| `.env.hosting` | Staging/production simulation (`PORT=5000`, `VITE_API_URL=/api/v1`, managed `DATABASE_URL`) |
+| `.env.hosting` | Staging/production simulation (`PORT=5001`, `VITE_API_URL=http://localhost:5001`, managed `DATABASE_URL`) |
 
 Each file needs these core variables (see the `.example` versions for full detail):
 
@@ -146,7 +148,7 @@ pnpm --dir backend install
 pnpm db:init
 ```
 
-Runs `psql "$DATABASE_URL" -f backend/db/init.sql` — creates schema, seeds demo users, categories, tickets, assignments, and ratings.
+Runs `psql "$DATABASE_URL" -f backend/db/DDL.sql` — creates schema, seeds demo users, categories, tickets, assignments, and ratings.
 
 ### Manual / fresh reset
 
@@ -155,7 +157,7 @@ Runs `psql "$DATABASE_URL" -f backend/db/init.sql` — creates schema, seeds dem
 createdb lumina
 
 # Apply schema + seeds
-psql "$DATABASE_URL" -f backend/db/init.sql
+psql "$DATABASE_URL" -f backend/db/DDL.sql
 ```
 
 `backend/db/DDL.sql` holds the raw schema in one file; `backend/db/index.js` wraps it if you prefer programmatic control.
@@ -181,7 +183,7 @@ pnpm run dev:frontend
 
 ### Hosting profile locally
 
-Use `.env.hosting` settings (e.g. prod `DATABASE_URL`, `VITE_API_URL=/api/v1`) without redeploying:
+Use `.env.hosting` settings (e.g. Neon `DATABASE_URL`, `VITE_API_URL=http://localhost:5001`) without redeploying:
 
 ```bash
 pnpm run dev:hosting
@@ -207,13 +209,13 @@ macOS — AirPlay Receiver commonly steals port 5000. Either turn it off in **Sy
 
 ## How the backend connects to the frontend
 
-The **only runtime link** between the two is the `VITE_API_URL` environment variable.
+The main runtime link between the two is the `VITE_API_URL` environment variable.
 
 ```
-Browser → Vite dev server (5173) → VITE_API_URL (http://localhost:5000) → Express API → PostgreSQL
+Browser → Vite dev server (5173) → VITE_API_URL (http://localhost:5001) → Express API → PostgreSQL
 ```
 
-In production the same pattern applies: browser → static build → `VITE_API_URL=/api/v1` → Vercel rewrites → Express handlers on Vercel Functions / a hosted server.
+In production, leave `VITE_API_URL` unset/empty so the browser calls same-origin `/api/v1` and `vercel.json` rewrites route requests to Express handlers on Vercel Functions / a hosted server.
 
 ### The API client
 
@@ -236,7 +238,7 @@ The helpers handle `Authorization: Bearer <token>` header injection, error surfa
 
 The build process inlines whatever `VITE_*` variables are in the **active** `.env` file. You don't need restart old servers when switching — Vite reload handles hot module replacement during development.
 
-For deployment, `VITE_API_URL=/api/v1` combined with `vercel.json` rewrites keeps the frontend code calling a relative URL that works on every environment.
+For local hosting-profile development, set `VITE_API_URL=http://localhost:5001`. For deployment, leave it empty/unset so the same-origin `/api/v1` path works with `vercel.json` rewrites.
 
 ---
 
@@ -345,7 +347,7 @@ See `docs/production.md` for a full deployment guide covering Vercel Hobby (fron
 In short:
 
 - push to `git push hosting main` to deploy to Vercel.
-- `VITE_API_URL=/api/v1` keeps browser calls going through `vercel.json` rewrites to API handlers.
+- Leave `VITE_API_URL` empty/unset in hosted production so browser calls go through same-origin `/api/v1` rewrites to API handlers.
 - `DATABASE_URL`, `JWT_*`, `SMTP_*`, `GOOGLE_CLIENT_ID`, and `GEMINI_API_KEY` are all managed as Vercel environment variables.
 
 ### Vercel config
