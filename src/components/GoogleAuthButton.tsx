@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
-import { authApi } from '../utils/apiClient';
+import { authApi, type ApiUser } from '../utils/apiClient';
+import { getPostAuthPath } from '../utils/authRedirect';
 import './GoogleAuthButton.css';
 
 type Props = {
@@ -8,11 +10,8 @@ type Props = {
   onError?: (message: string) => void;
 };
 
-import { useState } from 'react';
-
-export function GoogleAuthButton({ mode, onError }: Props) {
+function GoogleAuthButtonInner({ mode, onError }: Props) {
   const navigate = useNavigate();
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const [loading, setLoading] = useState(false);
 
   const login = useGoogleLogin({
@@ -24,18 +23,10 @@ export function GoogleAuthButton({ mode, onError }: Props) {
           error?: string;
           accessToken?: string;
           refreshToken?: string;
-          code?: string;
-          verificationEmail?: string;
+          user?: ApiUser;
         };
 
         if (!res.ok) {
-          if (res.status === 403 && data.code === 'EMAIL_NOT_VERIFIED') {
-            if (data.verificationEmail) {
-              localStorage.setItem('pendingVerificationEmail', data.verificationEmail);
-            }
-            navigate('/verify-email-otp');
-            return;
-          }
           onError?.(data.error || 'Google sign-in failed.');
           return;
         }
@@ -46,7 +37,11 @@ export function GoogleAuthButton({ mode, onError }: Props) {
           localStorage.removeItem('pendingVerificationEmail');
         }
 
-        navigate('/dashboard');
+        if (data.user) {
+          navigate(getPostAuthPath(data.user), { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
       } catch (err) {
         console.error('Google login error:', err);
         onError?.('Failed to connect to authentication server.');
@@ -57,14 +52,6 @@ export function GoogleAuthButton({ mode, onError }: Props) {
       onError?.('Google sign-in was cancelled or failed.');
     },
   });
-
-  if (!clientId) {
-    return (
-      <p className="auth-hint">
-        Set <code>VITE_GOOGLE_CLIENT_ID</code> in <code>.env</code>.
-      </p>
-    );
-  }
 
   return (
     <div className="auth-google-container">
@@ -93,6 +80,21 @@ export function GoogleAuthButton({ mode, onError }: Props) {
       </button>
     </div>
   );
+}
+
+export function GoogleAuthButton({ mode, onError }: Props) {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  if (!clientId) {
+    return (
+      <p className="auth-hint">
+        Set <code>VITE_GOOGLE_CLIENT_ID</code> in <code>.env</code> (same value as{' '}
+        <code>GOOGLE_CLIENT_ID</code>), then restart <code>pnpm dev</code>.
+      </p>
+    );
+  }
+
+  return <GoogleAuthButtonInner mode={mode} onError={onError} />;
 }
 
 export default GoogleAuthButton;

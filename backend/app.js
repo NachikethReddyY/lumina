@@ -9,9 +9,30 @@ function createApp() {
   const app = express();
   app.disable('x-powered-by');
 
-  const origins = process.env.FRONTEND_URL
+  const configuredOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map((s) => s.trim()).filter(Boolean)
-    : true;
+    : [];
+
+  const profile = String(process.env.LUMINA_PROFILE || '').toLowerCase();
+  const allowLocalhostOrigins =
+    profile === 'development' || profile === 'local';
+
+  const corsOrigin = allowLocalhostOrigins
+    ? (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+          return callback(null, origin);
+        }
+        if (configuredOrigins.includes(origin)) {
+          return callback(null, origin);
+        }
+        return callback(new Error(`CORS blocked origin: ${origin}`));
+      }
+    : configuredOrigins.length > 0
+      ? configuredOrigins
+      : true;
+
+  const requestContext = require('./lib/requestContext');
 
   const requestContext = require('./lib/requestContext');
 
@@ -31,7 +52,7 @@ function createApp() {
 
   app.use(
     cors({
-      origin: origins,
+      origin: corsOrigin,
       credentials: true,
     })
   );

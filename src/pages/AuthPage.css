@@ -19,9 +19,11 @@
   background-image:
     linear-gradient(var(--color-hairline-soft) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-hairline-soft) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.5;
+  background-size: 40px 40px;
+  background-position: center;
+  opacity: 0.35;
   pointer-events: none;
+  mask-image: radial-gradient(ellipse 85% 70% at 50% 45%, #000 20%, transparent 72%);
 }
 
 /* Card */
@@ -142,37 +144,51 @@
   text-align: center;
 }
 
-/* Buttons fill full width inside form */
-.auth-form button {
+/* Full-width Lumina buttons only — not inline text actions */
+.auth-form .btn {
   width: 100%;
 }
 
 /* Base button styles for auth pages */
 .auth-form .btn {
-  padding: 11px 14px !important;
-  border-radius: 8px !important;
+  padding: 12px 18px !important;
+  border-radius: 10px !important;
   font-family: var(--font-body) !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
   cursor: pointer !important;
-  transition: background 0.15s, border-color 0.15s, color 0.15s !important;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s !important;
   border: 1px solid transparent !important;
 }
 
-/* Primary variant (Sign In) */
+/* Primary CTA — design tokens, strong contrast */
 .auth-form .btn--primary {
-  background: #3b82f6 !important;
-  color: #fff !important;
-  border-color: #3b82f6 !important;
+  background: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 8%, transparent);
 }
 
 .auth-form .btn--primary:hover:not(:disabled) {
-  background: #2563eb !important;
-  border-color: #2563eb !important;
+  background: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+}
+
+.auth-form .btn--primary:active:not(:disabled) {
+  background: var(--color-primary-active) !important;
+  border-color: var(--color-primary-active) !important;
+}
+
+.auth-form .btn--primary:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 32%, transparent) !important;
 }
 
 .auth-form .btn--primary:disabled {
-  opacity: 0.5 !important;
+  background: color-mix(in srgb, var(--color-primary) 55%, var(--color-surface-card)) !important;
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-hairline)) !important;
+  color: var(--color-on-primary) !important;
+  opacity: 1 !important;
   cursor: not-allowed !important;
 }
 
@@ -206,33 +222,38 @@
   text-align: center;
 }
 
-/* Resend row */
+/* Resend row — centered inline pair (not full-width) */
 .auth-resend-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--color-muted);
-  margin-top: 2px;
-  flex-wrap: nowrap;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 4px 0 0;
+  padding-top: 4px;
+  text-align: center;
 }
 
-.auth-resend-row .auth-hint {
+.auth-resend-row__hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--color-muted);
 }
 
 .auth-resend-btn {
+  width: auto !important;
   background: none;
   border: none;
   color: var(--color-primary);
-  font-size: 13px;
-  font-weight: 500;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
-  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
   transition: color 0.15s, text-decoration-color 0.15s;
 }
 
@@ -337,13 +358,40 @@
 /* Footer */
 .auth-footer {
   text-align: center;
-  margin-top: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-hairline-soft);
 }
 
 .auth-footer p {
   font-size: 14px;
   color: var(--color-body);
   margin: 0;
+}
+
+.auth-footer--otp {
+  margin-top: 0;
+  padding-top: 20px;
+}
+
+.auth-footer-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.auth-footer-nav__sep {
+  color: var(--color-muted-soft);
+  font-size: 14px;
+  line-height: 1;
+  user-select: none;
+}
+
+.auth-footer-nav .auth-link {
+  font-size: 14px;
+  font-weight: 600;
 }
 
 /* Page-level link (underlined) */
@@ -415,6 +463,86 @@
   color: var(--color-body);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+/* ── Verify email OTP page ── */
+.auth-card--otp .auth-form--otp {
+  gap: 20px;
+}
+
+.auth-otp-email {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
+  text-align: center;
+}
+
+.auth-otp-email__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.auth-otp-email__address {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  word-break: break-all;
+}
+
+.auth-otp-group {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 12px;
+}
+
+.auth-otp-input {
+  justify-content: center;
+  width: 100%;
+}
+
+.auth-otp-slots {
+  gap: 10px !important;
+}
+
+.auth-otp-slots [data-slot='input-otp-slot'] {
+  height: 3.25rem;
+  width: 2.75rem;
+  border-width: 1.5px;
+  border-color: var(--color-hairline-strong);
+  background: var(--color-surface-card);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-ink) 4%, transparent);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 10px;
+}
+
+.auth-otp-slots [data-slot='input-otp-slot'][data-active='true'],
+.auth-otp-slots [data-slot='input-otp-slot']:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+@media (max-width: 480px) {
+  .auth-otp-slots {
+    gap: 6px !important;
+  }
+
+  .auth-otp-slots [data-slot='input-otp-slot'] {
+    height: 2.875rem;
+    width: 2.375rem;
+    font-size: 1.125rem;
+    border-radius: 8px;
+  }
 }
 
 /* Responsive */

@@ -113,9 +113,11 @@ export function SignUpPage() {
           setErrors({
             form:
               data.error ||
-              (res.status === 503 && data.code === 'MAIL_FAILED'
-                ? 'Account may exist but the verification email failed.'
-                : 'Failed to create account. Please try again.'),
+              (res.status === 503 && data.code === 'MAIL_NOT_CONFIGURED'
+                ? 'Sign-up needs SMTP on the server. For local dev, run `pnpm dev` (development profile) or add SMTP vars to `.env.development`.'
+                : res.status === 503 && data.code === 'MAIL_FAILED'
+                  ? 'Account may exist but the verification email failed.'
+                  : 'Failed to create account. Please try again.'),
           });
         }
         return;

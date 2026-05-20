@@ -150,6 +150,14 @@ pnpm db:init
 
 Runs `psql "$DATABASE_URL" -f backend/db/DDL.sql` — creates schema, seeds demo users, categories, tickets, assignments, and ratings.
 
+### Reset local database (wipe + re-seed)
+
+```bash
+pnpm db:reset
+```
+
+Drops the `public` schema and reapplies `backend/db/DDL.sql` (fresh schema + demo seeds). **Local only** — refuses `DATABASE_URL` values that are not `localhost` / `127.0.0.1`, and blocks common hosted providers (`neon.tech`, `supabase`, etc.). Loads `DATABASE_URL` from `.env` if it is not already exported. Override with `FORCE_DB_RESET=1` only when you mean to wipe a non-local database.
+
 ### Manual / fresh reset
 
 ```bash

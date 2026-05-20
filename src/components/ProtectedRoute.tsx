@@ -1,16 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-
-function needsNameCompletion(user: { first_name: string; last_name: string } | null | undefined): boolean {
-  if (!user) return false;
-  const first = user.first_name.trim().toLowerCase();
-  const last = user.last_name.trim().toLowerCase();
-  return (
-    !first ||
-    !last ||
-    (last === 'user' && (first === 'new' || first === 'google'))
-  );
-}
+import { needsNameCompletion } from '../utils/authRedirect';
 
 type Props = {
   children: React.ReactNode;
@@ -26,15 +16,17 @@ export function ProtectedRoute({ children, roles }: Props) {
     return <div style={{ minHeight: '100vh', background: '#0b0c0e' }} />;
   }
 
-  // Step 1: Check authentication
+  // Step 1 — Must be signed in
   if (!token || !user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   const onCompleteProfilePage = location.pathname === '/complete-profile';
+  const onOnboardingPage = location.pathname === '/onboarding';
+  const onVerifyEmailPage = location.pathname === '/verify-email-otp';
+  const onPendingApprovalPage = location.pathname === '/pending-approval';
 
-  // Step 2: If this is a Google placeholder account, collect the real name first.
-  // Allow the complete-profile page itself to render so the user can fix the name.
+  // Step 2 — Google placeholder name (complete-profile) before anything else
   if (needsNameCompletion(user)) {
     if (!onCompleteProfilePage) {
       return <Navigate to="/complete-profile" replace />;
@@ -42,37 +34,36 @@ export function ProtectedRoute({ children, roles }: Props) {
     return <>{children}</>;
   }
 
-  // Step 3: Check email verification (required for all users)
-  if (!user.email_is_verified && location.pathname !== '/verify-email-otp') {
-    return <Navigate to="/verify-email-otp" replace />;
-  }
-
-  // Step 4: Check onboarding completion (skip for super_admin)
+  // Step 3 — Onboarding before email verification or approval (super_admin skips)
   if (!user.onboarding_completed && user.role !== 'super_admin') {
-    if (location.pathname !== '/onboarding') {
+    if (!onOnboardingPage) {
       return <Navigate to="/onboarding" replace />;
     }
-    // Allow viewing onboarding page
     return <>{children}</>;
   }
 
-  // Step 5: Check approval status (after onboarding is complete)
+  // Step 4 — Email verification (only after onboarding is done)
+  if (!user.email_is_verified) {
+    if (!onVerifyEmailPage) {
+      return <Navigate to="/verify-email-otp" replace />;
+    }
+    return <>{children}</>;
+  }
+
+  // Step 5 — Super-admin approval (only after onboarding + verified email)
   if (user.status !== 'active') {
-    if (location.pathname !== '/pending-approval') {
+    if (!onPendingApprovalPage) {
       return <Navigate to="/pending-approval" replace />;
     }
-    // Allow viewing pending approval page
     return <>{children}</>;
   }
 
-  // Step 5: Check role-based access (only for dashboard pages)
+  // Step 6 — Role gate for admin-only routes
   if (roles && !roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // All checks passed - render the component
   return <>{children}</>;
 }
 
 export default ProtectedRoute;
-

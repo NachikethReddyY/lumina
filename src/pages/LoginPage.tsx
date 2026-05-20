@@ -6,7 +6,8 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Container from '../components/Container';
 import { GoogleAuthButton } from '../components/GoogleAuthButton';
-import { authApi, type AuthValidationErrorBody } from '../utils/apiClient';
+import { authApi, type ApiUser, type AuthValidationErrorBody } from '../utils/apiClient';
+import { getPostAuthPath } from '../utils/authRedirect';
 import './AuthPage.css';
 
 export function LoginPage() {
@@ -71,6 +72,7 @@ export function LoginPage() {
       const data = (await res.json().catch(() => ({}))) as AuthValidationErrorBody & {
         accessToken?: string;
         refreshToken?: string;
+        user?: ApiUser;
       };
       if (!res.ok) {
         const code = (data as { code?: string }).code;
@@ -100,7 +102,7 @@ export function LoginPage() {
         localStorage.setItem('refreshToken', data.refreshToken || '');
         localStorage.removeItem('pendingVerificationEmail');
       }
-      navigate('/dashboard');
+      navigate(data.user ? getPostAuthPath(data.user) : '/dashboard', { replace: true });
     } catch {
       setErrors({ form: 'Failed to sign in. Please check your connection and try again.' });
     } finally {
