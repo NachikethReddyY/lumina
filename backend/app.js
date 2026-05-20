@@ -1,9 +1,9 @@
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { apiVersionHeader } = require('./middleware/apiVersion');
+const { getUploadsRoot } = require('./lib/uploads');
 
 function createApp() {
   const app = express();
@@ -34,6 +34,8 @@ function createApp() {
 
   const requestContext = require('./lib/requestContext');
 
+  const requestContext = require('./lib/requestContext');
+
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -56,7 +58,7 @@ function createApp() {
   );
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+  app.use('/uploads', express.static(getUploadsRoot()));
 
   app.get('/', (req, res) => {
     res.json({

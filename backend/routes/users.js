@@ -4,11 +4,14 @@ const multer = require('multer');
 const db = require('../db');
 const { requireAuth, requireAuthAny, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
+const { ensureUploadDir } = require('../lib/uploads');
 
 const router = express.Router();
 
 const avatarStorage = multer.diskStorage({
-  destination: path.join(__dirname, '../uploads/avatars'),
+  destination: (_req, _file, cb) => {
+    cb(null, ensureUploadDir('avatars'));
+  },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
