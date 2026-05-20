@@ -2,7 +2,6 @@ const express = require('express');
 const auditLogsRoutes = require('./auditLogs');
 const authRoutes = require('./auth');
 const categoriesRoutes = require('./categories');
-const chatRoutes = require('./chat');
 const commentsRoutes = require('./comments');
 const notificationsRoutes = require('./notifications');
 const ticketsRoutes = require('./tickets');
@@ -15,7 +14,6 @@ router.get('/health', (req, res) => {
 });
 
 router.use('/auth', authRoutes);
-router.use('/chat', chatRoutes);
 router.use('/audit-logs', auditLogsRoutes);
 router.use('/categories', categoriesRoutes);
 router.use('/tickets/:ticketId/comments', commentsRoutes);
