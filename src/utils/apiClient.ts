@@ -300,49 +300,6 @@ export const ticketsApi = {
   getActivity: (ticketId: string) => apiRequest(`/tickets/${ticketId}/activity`),
 };
 
-export type ApiChatConversation = {
-  id: string;
-  status: string;
-  created_at: string;
-  last_message_at: string;
-  // admin list view extras
-  user_id?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  avatar_url?: string | null;
-  last_body?: string | null;
-  last_image?: string | null;
-  unread_count?: number;
-};
-
-export type ApiChatMessage = {
-  id: string;
-  body: string | null;
-  image_url: string | null;
-  is_read: boolean;
-  created_at: string;
-  sender_id: string;
-  first_name: string;
-  last_name: string;
-  role: ApiUser['role'];
-  avatar_url?: string | null;
-};
-
-export const chatApi = {
-  getConversations: () => apiRequest('/chat/conversations'),
-  getMessages: (convId: string) => apiRequest(`/chat/conversations/${convId}/messages`),
-  sendMessage: (convId: string, body: string) =>
-    apiRequest(`/chat/conversations/${convId}/messages`, { method: 'POST', body: { body } }),
-  sendImage: (convId: string, formData: FormData) => {
-    const url = `${API_BASE_URL}${API_PREFIX}/chat/conversations/${convId}/messages/image`;
-    const token = localStorage.getItem('authToken');
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return fetch(url, { method: 'POST', headers, body: formData });
-  },
-  getUnread: () => apiRequest('/chat/unread'),
-};
 
 export const notificationsApi = {
   list: () => apiRequest('/notifications'),

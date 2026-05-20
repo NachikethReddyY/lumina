@@ -1,6 +1,5 @@
 import { ReactNode, useState } from "react"
 import { AppSidebar } from "./AppSidebar"
-import { SideChat } from "./SideChat"
 import { PanelLeft, PanelLeftClose } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -59,9 +58,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </main>
       </div>
-
-      {/* Global side chat — available on every page */}
-      <SideChat />
     </div>
   )
 }

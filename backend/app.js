@@ -13,11 +13,20 @@ function createApp() {
     ? process.env.FRONTEND_URL.split(',').map((s) => s.trim()).filter(Boolean)
     : true;
 
+  const requestContext = require('./lib/requestContext');
+
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    next();
+    
+    const context = {
+      method: req.method,
+      url: req.originalUrl || req.url,
+    };
+    requestContext.run(context, () => {
+      next();
+    });
   });
 
   app.use(

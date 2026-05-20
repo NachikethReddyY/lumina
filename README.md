@@ -342,17 +342,68 @@ If the Gemini call fails (no key, quota hit, timeout), the backend **falls back 
 
 ## Deployment
 
-See `docs/production.md` for a full deployment guide covering Vercel Hobby (frontend), Supabase Free (PostgreSQL), and Gmail SMTP for email.
+This section details how to perform both a **local deployment** (connecting to your local PostgreSQL/PG Admin instance) and a **hosted production deployment** (Vercel + Supabase).
+
+### 1. Local Deployment (Local Postgres / PG Admin)
+
+To deploy the application fully on your local machine using your own PostgreSQL instance:
+
+#### Step 1: PostgreSQL Setup
+1. Ensure **PostgreSQL** is installed and running on your system (default port `5432`).
+2. Open PG Admin, `psql`, or any database client and create a new database named `lumina`:
+   ```sql
+   CREATE DATABASE lumina;
+   ```
+
+#### Step 2: Configure Environment Variables
+1. Under the root of your project, ensure you have a `.env.development` file configured.
+2. Update the `DATABASE_URL` to point to your local PostgreSQL database (e.g., using PG Admin credentials):
+   ```ini
+   DATABASE_URL=postgresql://postgres:your_password@localhost:5432/lumina
+   PORT=5001
+   VITE_API_URL=http://localhost:5001
+   NODE_ENV=development
+
+   # JWT Secrets
+   JWT_SECRET=your_jwt_access_secret_key
+   JWT_REFRESH_SECRET=your_jwt_refresh_secret_key
+
+   # SMTP Setup (for OTP and emails)
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your_email@gmail.com
+   SMTP_PASSWORD="your_gmail_app_password"
+   SMTP_FROM_EMAIL=your_email@gmail.com
+
+   FRONTEND_URL=http://localhost:5173
+   ```
+
+#### Step 3: Initialize Database Schema and Seeds
+Run the following script command to import the base tables, audit logs, and seed demo accounts:
+```bash
+pnpm db:init
+```
+*(This maps directly to running `psql "$DATABASE_URL" -f backend/db/DDL.sql`)*
+
+#### Step 4: Launch Dev Server
+Start both the backend API server and Vite frontend dev server concurrently:
+```bash
+pnpm run dev
+```
+- **Backend API Logs**: Running `pnpm run dev` displays clean, consolidated database logs detailing exactly what route/query action occurred without raw SQL noise.
+- **Accessing the App**: Open [http://localhost:5173](http://localhost:5173) in your browser to interact with the application.
+
+---
+
+### 2. Hosted Production Deployment (Vercel + Supabase)
+
+See your `supabase_vercel_guide.md` guide for a full deployment guide covering Vercel (frontend & serverless backend) and Supabase (PostgreSQL hosting).
 
 In short:
-
-- push to `git push hosting main` to deploy to Vercel.
-- Leave `VITE_API_URL` empty/unset in hosted production so browser calls go through same-origin `/api/v1` rewrites to API handlers.
-- `DATABASE_URL`, `JWT_*`, `SMTP_*`, `GOOGLE_CLIENT_ID`, and `GEMINI_API_KEY` are all managed as Vercel environment variables.
-
-### Vercel config
-
-`vercel.json` rewrites all `/api/*` and `/uploads/*` to `backend/server.js`. All other paths serve the Vite build output from `dist/`.
+- **Database Hosting**: Create a Supabase project and get the Connection Pooler URL (usually port `6543` with `pgbouncer=true`). Update your production `DATABASE_URL` environment variable.
+- **Frontend/Backend Deployment**: Push your production branch to Vercel.
+- **VITE_API_URL**: Leave `VITE_API_URL` empty or unset in the hosted Vercel environment so the browser routes API requests through same-origin `/api/v1` rewrites.
+- **Vercel Config**: `vercel.json` (on the production side) handles path rewrites, forwarding all `/api/*` and `/uploads/*` requests to the Express backend serverless function (`backend/server.js`), while routing other paths to Vite's compiled SPA bundle.
 
 ---
 
