@@ -7,13 +7,8 @@ import Container from '../components/Container';
 import Input from '../components/Input';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usersApi } from '../utils/apiClient';
+import { getPostAuthPath, needsNameCompletion } from '../utils/authRedirect';
 import './OAuthNamePage.css';
-
-function needsNameCompletion(firstName: string, lastName: string): boolean {
-  const first = firstName.trim().toLowerCase();
-  const last = lastName.trim().toLowerCase();
-  return !first || !last || (last === 'user' && (first === 'new' || first === 'google'));
-}
 
 export function OAuthNamePage() {
   const navigate = useNavigate();
@@ -25,22 +20,14 @@ export function OAuthNamePage() {
 
   useEffect(() => {
     if (!user) return;
-    if (!needsNameCompletion(user.first_name, user.last_name)) {
-      if (!user.email_is_verified) {
-        navigate('/verify-email-otp', { replace: true });
-      } else if (!user.onboarding_completed && user.role !== 'super_admin') {
-        navigate('/onboarding', { replace: true });
-      } else if (user.status !== 'active') {
-        navigate('/pending-approval', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+    if (!needsNameCompletion(user)) {
+      navigate(getPostAuthPath(user), { replace: true });
     }
   }, [navigate, user]);
 
   useEffect(() => {
     if (!user) return;
-    if (needsNameCompletion(user.first_name, user.last_name)) {
+    if (needsNameCompletion(user)) {
       setFirstName(user.first_name === 'New' || user.first_name === 'Google' ? '' : user.first_name);
       setLastName(user.last_name === 'User' ? '' : user.last_name);
     }

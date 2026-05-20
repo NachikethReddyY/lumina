@@ -123,7 +123,7 @@ export function VerifyEmailOtpPage() {
       <div className="auth-decoration" />
       <Container maxWidth="sm">
         <motion.div
-          className="auth-card"
+          className="auth-card auth-card--otp"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -145,22 +145,23 @@ export function VerifyEmailOtpPage() {
             <p className="auth-notice auth-notice--error">{message}</p>
           )}
 
-          <div className="auth-form">
+          <div className="auth-form auth-form--otp">
             {pendingEmail && (
-              <p className="auth-notice auth-notice--info" style={{ marginBottom: '24px' }}>
-                Verifying <strong>{pendingEmail}</strong>
+              <p className="auth-otp-email">
+                <span className="auth-otp-email__label">Verifying</span>
+                <strong className="auth-otp-email__address">{pendingEmail}</strong>
               </p>
             )}
 
-            <div className="form-group" style={{ alignItems: 'center', marginBottom: '32px' }}>
+            <div className="auth-otp-group">
               <InputOTP
                 maxLength={6}
                 pattern={REGEXP_ONLY_DIGITS}
                 value={otp}
                 onChange={handleOtpChange}
-                containerClassName="justify-center"
+                containerClassName="auth-otp-input"
               >
-                <InputOTPGroup style={{ gap: '8px' }}>
+                <InputOTPGroup className="auth-otp-slots">
                   <InputOTPSlot index={0} />
                   <InputOTPSlot index={1} />
                   <InputOTPSlot index={2} />
@@ -172,18 +173,19 @@ export function VerifyEmailOtpPage() {
             </div>
 
             <Button
+              variant="primary"
               onClick={() => submitOtp(otp)}
               size="lg"
               loading={status === 'loading'}
               disabled={!pendingEmail || otp.length !== 6 || status === 'loading'}
             >
-              Verify Account
+              Verify account
             </Button>
 
-            <div className="auth-resend-row" style={{ marginTop: '24px' }}>
-              <span className="auth-hint">Didn't receive a code?</span>
+            <div className="auth-resend-row">
+              <span className="auth-resend-row__hint">Didn&apos;t receive a code?</span>
               <button
-                className="auth-link auth-resend-btn"
+                className="auth-resend-btn"
                 type="button"
                 onClick={handleResend}
                 disabled={resendBusy || resendCooldown > 0 || !pendingEmail}
@@ -197,12 +199,14 @@ export function VerifyEmailOtpPage() {
             </div>
           </div>
 
-          <motion.div className="auth-footer" variants={itemVariants}>
-            <p>
-              <Link to="/signup" className="auth-link">Back to Sign Up</Link>
-              {' · '}
-              <Link to="/login" className="auth-link">Sign In</Link>
-            </p>
+          <motion.div className="auth-footer auth-footer--otp" variants={itemVariants}>
+            <nav className="auth-footer-nav" aria-label="Authentication">
+              <Link to="/signup" className="auth-link">Back to sign up</Link>
+              <span className="auth-footer-nav__sep" aria-hidden="true">
+                ·
+              </span>
+              <Link to="/login" className="auth-link">Sign in</Link>
+            </nav>
           </motion.div>
         </motion.div>
       </Container>

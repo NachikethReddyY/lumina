@@ -33,6 +33,8 @@ function resolveEnvPath() {
   if (rawProfile) {
     const p = String(rawProfile).toLowerCase();
     const isHosting = p === 'hosting' || p === 'production';
+    // Prefer repo-root `.env` for local dev so one file holds DATABASE_URL, SMTP, Google, VITE_*.
+    if (!isHosting && fs.existsSync(legacy)) return legacy;
     const named = isHosting ? hosting : development;
     if (fs.existsSync(named)) return named;
     if (fs.existsSync(legacy)) return legacy;

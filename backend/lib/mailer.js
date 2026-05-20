@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { getLuminaLogoAttachment } = require('./emailLogo');
 
 function isMailConfigured() {
   return Boolean(
@@ -31,7 +32,7 @@ function createTransport() {
   });
 }
 
-async function sendMail({ to, subject, text, html }) {
+async function sendMail({ to, subject, text, html, attachments = [] }) {
   const transporter = createTransport();
   if (!transporter) {
     const err = new Error(
@@ -41,12 +42,16 @@ async function sendMail({ to, subject, text, html }) {
     throw err;
   }
   const from = process.env.SMTP_FROM_EMAIL;
+  const htmlBody = html || `<pre style="font-family:sans-serif">${escapeHtml(text)}</pre>`;
+  const inlineLogo = html ? getLuminaLogoAttachment() : null;
+
   await transporter.sendMail({
     from: `"Lumina" <${from}>`,
     to,
     subject,
     text,
-    html: html || `<pre style="font-family:sans-serif">${escapeHtml(text)}</pre>`,
+    html: htmlBody,
+    attachments: [...(inlineLogo ? [inlineLogo] : []), ...attachments],
   });
 }
 
