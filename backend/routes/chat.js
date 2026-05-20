@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { ensureUploadDir } = require('../lib/uploads');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -11,7 +12,7 @@ router.use(requireAuth);
 // Multer for chat image uploads
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    cb(null, path.join(__dirname, '../uploads/chat'));
+    cb(null, ensureUploadDir('chat'));
   },
   filename(req, file, cb) {
     const ext = path.extname(file.originalname) || '.jpg';
@@ -26,10 +27,6 @@ const upload = multer({
     cb(null, true);
   },
 });
-
-// Ensure upload dir exists
-const fs = require('fs');
-fs.mkdirSync(path.join(__dirname, '../uploads/chat'), { recursive: true });
 
 const isAdmin = (user) => user.role === 'admin' || user.role === 'super_admin';
 
