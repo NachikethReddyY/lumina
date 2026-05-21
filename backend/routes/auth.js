@@ -495,17 +495,33 @@ router.post('/forgot-password', otpLimiter, async (req, res, next) => {
 
     let emailSent = false;
     let devResetLink;
+
+    console.log(`[FORGOT-PASSWORD] SMTP configured: ${isMailConfigured()}`);
+    console.log(`[FORGOT-PASSWORD] Attempting to send password reset email to ${user.email}`);
+
     if (isMailConfigured()) {
       try {
         await sendPasswordResetEmail(user.email, token);
         emailSent = true;
+        console.log(`[FORGOT-PASSWORD] Password reset email successfully sent to ${user.email}`);
       } catch (mailErr) {
-        console.error('Password reset email failed:', mailErr.message);
+        console.error('[FORGOT-PASSWORD] Password reset email failed:', {
+          message: mailErr.message,
+          code: mailErr.code,
+          stack: mailErr.stack,
+        });
+        // Don't silently fail - return error to client so they know something went wrong
+        return res.status(503).json({
+          error: 'Could not send password reset email. Please try again later or contact support.',
+          code: 'MAIL_FAILED'
+        });
       }
-    }
-    if (!emailSent && process.env.NODE_ENV !== 'production') {
-      const base = getFrontendBaseUrl();
-      devResetLink = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+    } else {
+      console.log('[FORGOT-PASSWORD] SMTP not configured, generating dev reset link');
+      if (process.env.NODE_ENV !== 'production') {
+        const base = getFrontendBaseUrl();
+        devResetLink = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+      }
     }
 
     return res.json({
