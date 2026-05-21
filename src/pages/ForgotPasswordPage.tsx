@@ -14,7 +14,6 @@ export function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [devResetLink, setDevResetLink] = useState<string | null>(null);
-  const [emailSent, setEmailSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +33,6 @@ export function ForgotPasswordPage() {
       const res = await authApi.forgotPassword(email);
       const data = (await res.json().catch(() => ({}))) as AuthValidationErrorBody & {
         devResetLink?: string;
-        emailSent?: boolean;
       };
       if (!res.ok) {
         setError(
@@ -45,7 +43,6 @@ export function ForgotPasswordPage() {
         return;
       }
       setDevResetLink(data.devResetLink || null);
-      setEmailSent(Boolean(data.emailSent));
       setSubmitted(true);
     } catch {
       setError('Failed to send reset email. Please try again.');
@@ -105,14 +102,8 @@ export function ForgotPasswordPage() {
                 sent when email delivery is configured.
               </p>
               <p className="success-subtext">
-                Check your inbox and spam folder. If nothing arrives, confirm SMTP settings in
-                backend <code className="auth-inline-code">.env</code> (Gmail app password).
+                Check your inbox and spam folder for the reset link.
               </p>
-              {emailSent && (
-                <p className="auth-notice auth-notice--info">
-                  A reset link was emailed from your server (when SMTP succeeded).
-                </p>
-              )}
               {devResetLink && (
                 <p className="auth-dev-link">
                   <span className="auth-dev-label">Development only:</span>{' '}
