@@ -44,10 +44,15 @@ CREATE TABLE IF NOT EXISTS users (
   avatar_url VARCHAR(255),
   approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
   approved_at TIMESTAMP,
+  job_title VARCHAR(255),
+  department VARCHAR(100),
+  onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  name_set BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at TIMESTAMP
 );
 
+-- Upgrade path for databases created before columns were folded into CREATE TABLE above.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title VARCHAR(255);
@@ -169,7 +174,6 @@ CREATE TABLE IF NOT EXISTS email_verifications (
   used_at TIMESTAMP
 );
 
--- If the table already exists (from an older init.sql), ensure the OTP column exists too.
 ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS otp_hash TEXT;
 ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
 
@@ -178,11 +182,12 @@ CREATE TABLE IF NOT EXISTS password_reset (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token VARCHAR(255) UNIQUE NOT NULL,
+  otp_hash TEXT,
+  otp_expires_at TIMESTAMP,
   expires_at TIMESTAMP NOT NULL,
   used_at TIMESTAMP
 );
 
--- If the table already exists (from an older init), ensure the OTP columns exist too.
 ALTER TABLE password_reset ADD COLUMN IF NOT EXISTS otp_hash TEXT;
 ALTER TABLE password_reset ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
 
