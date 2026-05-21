@@ -114,7 +114,7 @@ function verificationEmailHtml({ url, otp }) {
     intro: 'Welcome to Lumina. Please confirm your email address to activate your account.',
     buttonText: 'Verify email',
     url,
-    footer: 'This link expires in 48 hours. If you did not sign up, you can ignore this email.',
+    footer: 'This link expires in 10 minutes. If you did not sign up, you can ignore this email.',
     extraHtml: otpBlock,
   });
 }

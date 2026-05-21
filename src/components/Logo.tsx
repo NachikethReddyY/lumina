@@ -9,9 +9,9 @@ interface LogoProps {
 // TODO: When auth is implemented, wrap Logo in Link to /dashboard/tickets if logged in
 export function Logo({ size = 'md', showText = true, vertical = false }: LogoProps) {
   const sizeMap = {
-    sm: 28,
-    md: 44,
-    lg: 64,
+    sm: 32,
+    md: 56,
+    lg: 72,
   };
 
   const iconSize = sizeMap[size];

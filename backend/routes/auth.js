@@ -26,7 +26,7 @@ const otpLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, key: (req) => `
 
 router.use(authLimiter);
 
-const VERIFY_TTL_MS = 48 * 60 * 60 * 1000;
+const VERIFY_TTL_MS = 10 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
 
 function generateOtp() {
@@ -63,7 +63,7 @@ async function sendVerificationEmail(toEmail, token, otp) {
     subject: 'Activate your Lumina account',
     text:
       `Welcome to Lumina.\n\n` +
-      `Option 1: Open this link to activate your account (expires in 48 hours):\n${url}\n\n` +
+      `Option 1: Open this link to activate your account (expires in 10 minutes):\n${url}\n\n` +
       `Option 2: Enter this one-time code in the app (expires in 10 minutes):\n${otp}\n\n` +
       `If you did not sign up, you can ignore this email.`,
     html: verificationEmailHtml({ url, otp }),
