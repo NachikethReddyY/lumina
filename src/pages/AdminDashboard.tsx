@@ -8,7 +8,6 @@ import DashboardLayout from '../components/DashboardLayout';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { ticketsApi, type AdminWorkload, type ApiTicket } from '../utils/apiClient';
 import './Dashboard.css';
-
 const STATUS_COLOR: Record<string, string> = {
   open: '#ff6b6b', assigned: '#60a5fa', in_progress: '#fbbf24',
   resolved: '#34c759', closed: '#6b7280', on_hold: '#9ca3af', pending_routing: '#d97706',
@@ -109,7 +108,6 @@ export function AdminDashboard() {
     })();
     return () => { cancelled = true; };
   }, [user?.role]);
-
 
   const counts = useMemo(() => ({
     p1: tickets.filter((t) => t.priority === 'P1').length,

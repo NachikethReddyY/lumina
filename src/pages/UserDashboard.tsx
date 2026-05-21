@@ -81,7 +81,6 @@ export function UserDashboard() {
     replicationSteps: '',
   });
 
-  // Cmd+N / Ctrl+N to open new ticket modal
   const openNewTicket = useCallback(() => setShowNewTicket(true), []);
   useEffect(() => {
     function handler(e: KeyboardEvent) {

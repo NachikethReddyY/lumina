@@ -4,14 +4,11 @@ const multer = require('multer');
 const db = require('../db');
 const { requireAuth, requireAuthAny, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
-const { ensureUploadDir } = require('../lib/uploads');
 
 const router = express.Router();
 
 const avatarStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, ensureUploadDir('avatars'));
-  },
+  destination: path.join(__dirname, '../uploads/avatars'),
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
@@ -49,7 +46,7 @@ router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
        SET job_title = $2, department = $3, onboarding_completed = TRUE
        WHERE id = $1
        RETURNING id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
-                 approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed`,
+                 approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed, name_set`,
       [req.user.id, jobTitle, department]
     );
     const user = result.rows[0];
@@ -133,10 +130,10 @@ router.patch('/me', requireAuthAny, async (req, res, next) => {
   try {
     const result = await db.query(
       `UPDATE users
-       SET first_name = $2, last_name = $3
+       SET first_name = $2, last_name = $3, name_set = TRUE
        WHERE id = $1
        RETURNING id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
-                 approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed`,
+                 approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed, name_set`,
       [req.user.id, firstName, lastName]
     );
     const user = result.rows[0];

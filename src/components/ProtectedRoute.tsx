@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useUserContext } from '../context/UserContext';
 
 type Props = {
   children: React.ReactNode;
@@ -8,7 +8,7 @@ type Props = {
 
 export function ProtectedRoute({ children, roles }: Props) {
   const location = useLocation();
-  const { user, loading } = useCurrentUser();
+  const { user, loading } = useUserContext();
   const token = localStorage.getItem('authToken');
 
   // Wait for the single shared fetch to complete before evaluating any route.

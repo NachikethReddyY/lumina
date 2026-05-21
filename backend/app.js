@@ -1,36 +1,17 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { apiVersionHeader } = require('./middleware/apiVersion');
-const { getUploadsRoot } = require('./lib/uploads');
 
 function createApp() {
   const app = express();
   app.disable('x-powered-by');
 
-  const configuredOrigins = process.env.FRONTEND_URL
+  const origins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map((s) => s.trim()).filter(Boolean)
-    : [];
-
-  const profile = String(process.env.LUMINA_PROFILE || '').toLowerCase();
-  const allowLocalhostOrigins =
-    profile === 'development' || profile === 'local';
-
-  const corsOrigin = allowLocalhostOrigins
-    ? (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-          return callback(null, origin);
-        }
-        if (configuredOrigins.includes(origin)) {
-          return callback(null, origin);
-        }
-        return callback(new Error(`CORS blocked origin: ${origin}`));
-      }
-    : configuredOrigins.length > 0
-      ? configuredOrigins
-      : true;
+    : true;
 
   const requestContext = require('./lib/requestContext');
 
@@ -50,13 +31,13 @@ function createApp() {
 
   app.use(
     cors({
-      origin: corsOrigin,
+      origin: origins,
       credentials: true,
     })
   );
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use('/uploads', express.static(getUploadsRoot()));
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   app.get('/', (req, res) => {
     res.json({

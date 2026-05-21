@@ -16,7 +16,6 @@ export type ApiUser = {
   role: 'user' | 'admin' | 'super_admin';
   status: 'pending' | 'active' | 'suspended';
   email_is_verified: boolean;
-  name_set: boolean;
   avatar_url?: string | null;
   approved_by?: string | null;
   approved_at?: string | null;
@@ -25,6 +24,7 @@ export type ApiUser = {
   job_title?: string | null;
   department?: string | null;
   onboarding_completed: boolean;
+  name_set: boolean;
 };
 
 export type ApiTicket = {

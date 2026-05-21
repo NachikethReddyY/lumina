@@ -1,5 +1,4 @@
 const nodemailer = require('nodemailer');
-const { getLuminaLogoAttachment } = require('./emailLogo');
 
 function isMailConfigured() {
   return Boolean(
@@ -32,12 +31,13 @@ function createTransport() {
   });
 }
 
-async function sendMail({ to, subject, text, html, attachments = [] }) {
+async function sendMail({ to, subject, text, html }) {
   console.log('[MAILER] sendMail called:', {
     to,
     subject: subject.substring(0, 60),
     smtpConfigured: isMailConfigured(),
   });
+
   const transporter = createTransport();
   if (!transporter) {
     console.error('[MAILER] SMTP transporter creation failed - not configured');
@@ -52,15 +52,12 @@ async function sendMail({ to, subject, text, html, attachments = [] }) {
   console.log('[MAILER] Sending mail from:', from, 'via SMTP host:', process.env.SMTP_HOST);
 
   try {
-    const htmlBody = html || `<pre style="font-family:sans-serif">${escapeHtml(text)}</pre>`;
-    const inlineLogo = html ? getLuminaLogoAttachment() : null;
     const result = await transporter.sendMail({
       from: `"Lumina" <${from}>`,
       to,
       subject,
       text,
-      html: htmlBody,
-      attachments: [...(inlineLogo ? [inlineLogo] : []), ...attachments],
+      html: html || `<pre style="font-family:sans-serif">${escapeHtml(text)}</pre>`,
     });
     console.log('[MAILER] Email sent successfully:', {
       to,

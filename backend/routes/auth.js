@@ -17,16 +17,11 @@ const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, key: (req) => req.ip });
-
-function isLocalDevProfile() {
-  const p = String(process.env.LUMINA_PROFILE || '').toLowerCase();
-  return p === 'development' || p === 'local';
-}
 const otpLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, key: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}` });
 
 router.use(authLimiter);
 
-const VERIFY_TTL_MS = 10 * 60 * 1000;
+const VERIFY_TTL_MS = 48 * 60 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
 
 function generateOtp() {
@@ -63,7 +58,7 @@ async function sendVerificationEmail(toEmail, token, otp) {
     subject: 'Activate your Lumina account',
     text:
       `Welcome to Lumina.\n\n` +
-      `Option 1: Open this link to activate your account (expires in 10 minutes):\n${url}\n\n` +
+      `Option 1: Open this link to activate your account (expires in 48 hours):\n${url}\n\n` +
       `Option 2: Enter this one-time code in the app (expires in 10 minutes):\n${otp}\n\n` +
       `If you did not sign up, you can ignore this email.`,
     html: verificationEmailHtml({ url, otp }),
@@ -90,7 +85,7 @@ router.post('/login', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT id, email, first_name, last_name, role, status, email_is_verified, onboarding_completed, created_at
+      `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
        FROM users
        WHERE lower(email) = lower($1)
          AND password_hash IS NOT NULL
@@ -155,9 +150,7 @@ router.post('/signup', async (req, res, next) => {
   }
 
   const mailConfigured = isMailConfigured();
-  const devSignupWithoutMail = !mailConfigured && isLocalDevProfile();
-
-  if (!mailConfigured && !devSignupWithoutMail) {
+  if (!mailConfigured) {
     return res.status(503).json({
       error: 'Email verification is required, but SMTP is not configured on the server.',
       code: 'MAIL_NOT_CONFIGURED',
@@ -169,32 +162,9 @@ router.post('/signup', async (req, res, next) => {
       `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
        VALUES ($1, crypt($2, gen_salt('bf')), $3, $4, 'user'::user_role, $5::user_status, $6)
        RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
-      [
-        email,
-        password,
-        firstName,
-        lastName,
-        'pending',
-        devSignupWithoutMail,
-      ]
+      [email, password, firstName, lastName, 'pending', false]
     );
     const user = result.rows[0];
-
-    if (devSignupWithoutMail) {
-      console.warn(
-        `[auth] Dev signup for ${user.email} — SMTP skipped; email marked verified. Sign in, then wait for super-admin approval.`
-      );
-      const accessToken = signAccessToken(user);
-      return res.status(201).json({
-        user,
-        accessToken,
-        refreshToken: '',
-        requiresEmailVerification: false,
-        message:
-          'Development account created (email auto-verified). Sign in is enabled; a super admin must approve your account.',
-      });
-    }
-
     const { token: vToken, otp } = await createVerificationChallenge(user.id);
 
     try {
@@ -399,7 +369,7 @@ router.post('/google', async (req, res, next) => {
   try {
     let userRow;
     const existingOAuth = await db.query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.email_is_verified, u.onboarding_completed, u.created_at
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.email_is_verified, u.created_at
        FROM oauth_accounts o
        JOIN users u ON u.id = o.user_id
        WHERE o.provider = 'google'::oauth_provider AND o.provider_user_id = $1`,
@@ -410,7 +380,7 @@ router.post('/google', async (req, res, next) => {
       userRow = existingOAuth.rows[0];
     } else {
       const byEmail = await db.query(
-        `SELECT id, email, first_name, last_name, role, status, email_is_verified, onboarding_completed, created_at
+        `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
          FROM users WHERE lower(email) = lower($1)`,
         [email]
       );
@@ -426,10 +396,16 @@ router.post('/google', async (req, res, next) => {
       } else {
         const first = payload.given_name || (payload.name ? payload.name.split(' ')[0] : 'New');
         const last  = payload.family_name || (payload.name ? payload.name.split(' ').slice(1).join(' ') : 'User');
+        if (!isMailConfigured()) {
+          return res.status(503).json({
+            error: 'Email verification is required, but SMTP is not configured on the server.',
+            code: 'MAIL_NOT_CONFIGURED',
+          });
+        }
         const ins = await db.query(
           `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
-           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'pending'::user_status, TRUE)
-           RETURNING id, email, first_name, last_name, role, status, email_is_verified, onboarding_completed, created_at`,
+           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'pending'::user_status, FALSE)
+           RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
           [email, first, last]
         );
         userRow = ins.rows[0];
@@ -438,17 +414,34 @@ router.post('/google', async (req, res, next) => {
            VALUES ($1, 'google'::oauth_provider, $2)`,
           [userRow.id, sub]
         );
+        const { token: vToken, otp } = await createVerificationChallenge(userRow.id);
+        try {
+          await sendVerificationEmail(userRow.email, vToken, otp);
+        } catch (mailErr) {
+          console.error('OAuth verification email failed:', mailErr.message);
+          return res.status(503).json({
+            error: 'Account was created but the verification email could not be sent.',
+            code: 'MAIL_FAILED',
+          });
+        }
       }
     }
 
-    // Google has already verified the email — trust it; OTP is only for password sign-up.
-    if (!userRow.email_is_verified) {
-      const verified = await db.query(
-        `UPDATE users SET email_is_verified = TRUE WHERE id = $1
-         RETURNING id, email, first_name, last_name, role, status, email_is_verified, onboarding_completed, created_at`,
-        [userRow.id]
-      );
-      userRow = verified.rows[0] || userRow;
+    if (userRow.status === 'pending' && !userRow.email_is_verified) {
+      // Always issue a fresh OTP so the user never lands on the OTP page with an expired code
+      if (isMailConfigured()) {
+        try {
+          const { token: vToken, otp } = await createVerificationChallenge(userRow.id);
+          await sendVerificationEmail(userRow.email, vToken, otp);
+        } catch (mailErr) {
+          console.error('OAuth re-verification email failed:', mailErr.message);
+        }
+      }
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        code: 'EMAIL_NOT_VERIFIED',
+        verificationEmail: userRow.email,
+      });
     }
     if (userRow.status === 'suspended') {
       return res.status(403).json({

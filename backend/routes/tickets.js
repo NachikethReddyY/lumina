@@ -101,7 +101,16 @@ router.get('/', async (req, res, next) => {
     if (req.user.role === 'user') {
       values.push(req.user.id);
       clauses.push(`t.submitted_by = $${values.length}`);
-    } else if (req.query.scope === 'assigned') {
+    } else if (req.user.role === 'admin') {
+      values.push(req.user.id);
+      clauses.push(
+        `EXISTS (
+          SELECT 1
+          FROM ticket_assignment ta
+          WHERE ta.ticket_id = t.id AND ta.assigned_to = $${values.length} AND ta.is_active = TRUE
+        )`
+      );
+    } else if (req.user.role === 'super_admin' && req.query.scope === 'assigned') {
       values.push(req.user.id);
       clauses.push(
         `EXISTS (
@@ -223,7 +232,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireRole('user'), async (req, res, next) => {
   const parsed = validateTicketCreateBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));

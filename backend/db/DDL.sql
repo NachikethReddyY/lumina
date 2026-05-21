@@ -53,6 +53,15 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS name_set BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Backfill: mark existing users with real names as having completed the name step.
+-- Google OAuth placeholders have first_name='New'/'Google' and last_name='User'.
+UPDATE users SET name_set = TRUE
+WHERE NOT (lower(last_name) = 'user' AND lower(first_name) IN ('new', 'google'))
+  AND first_name <> ''
+  AND last_name <> ''
+  AND name_set = FALSE;
 
 -- Categories
 CREATE TABLE IF NOT EXISTS categories (
@@ -172,6 +181,10 @@ CREATE TABLE IF NOT EXISTS password_reset (
   expires_at TIMESTAMP NOT NULL,
   used_at TIMESTAMP
 );
+
+-- If the table already exists (from an older init), ensure the OTP columns exist too.
+ALTER TABLE password_reset ADD COLUMN IF NOT EXISTS otp_hash TEXT;
+ALTER TABLE password_reset ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
 
 -- Sessions
 CREATE TABLE IF NOT EXISTS sessions (
