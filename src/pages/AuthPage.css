@@ -1,8 +1,8 @@
-/* Auth Pages — Lumina Design System (newdesign.md) */
+/* Auth Pages — Lumina Design System (hardcoded values for reliability) */
 
 .auth-page {
   min-height: 100vh;
-  background-color: var(--color-canvas);
+  background-color: #f7f7f4;
   color-scheme: only light;
   display: flex;
   flex-direction: column;
@@ -12,24 +12,22 @@
   position: relative;
 }
 
-/* Subtle hairline grid decoration — editorial, not glowy */
+/* Subtle hairline grid decoration */
 .auth-decoration {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(var(--color-hairline-soft) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-hairline-soft) 1px, transparent 1px);
-  background-size: 40px 40px;
-  background-position: center;
-  opacity: 0.35;
+    linear-gradient(#efeee8 1px, transparent 1px),
+    linear-gradient(90deg, #efeee8 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.5;
   pointer-events: none;
-  mask-image: radial-gradient(ellipse 85% 70% at 50% 45%, #000 20%, transparent 72%);
 }
 
 /* Card */
 .auth-card {
-  background: var(--color-surface-card);
-  border: 1px solid var(--color-hairline);
+  background: #ffffff;
+  border: 1px solid #e6e5e0;
   border-radius: 12px;
   padding: 48px 40px;
   width: 100%;
@@ -54,7 +52,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-ink);
+  color: #26251e;
   transition: opacity 0.2s;
 }
 
@@ -71,21 +69,21 @@
 }
 
 .auth-title {
-  font-family: var(--font-display);
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 28px;
   font-weight: 400;
   line-height: 1.2;
   letter-spacing: -0.4px;
   margin: 0;
-  color: var(--color-ink);
+  color: #26251e;
 }
 
 .auth-subtitle {
-  font-family: var(--font-body);
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.6;
-  color: var(--color-ink); /* Max contrast override */
+  color: #26251e;
   margin: 0;
 }
 
@@ -119,83 +117,79 @@
   margin: 0;
 }
 
-/* Inline link — Lumina Blue */
+/* Inline link */
 .auth-link-small {
-  font-family: var(--font-body);
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 13px;
-  color: var(--color-primary);
+  color: #2563eb;
   text-decoration: none;
   transition: color 0.15s;
 }
 
 .auth-link-small:hover {
-  color: var(--color-primary-hover);
+  color: #1d4ed8;
 }
 
 /* Error banner */
 .auth-error {
-  background-color: color-mix(in srgb, var(--color-semantic-error) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-semantic-error) 20%, transparent);
+  background-color: rgba(207, 45, 86, 0.10);
+  border: 1px solid rgba(207, 45, 86, 0.20);
   border-radius: 8px;
   padding: 11px 14px;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--color-semantic-error);
+  color: #cf2d56;
   text-align: center;
 }
 
-/* Full-width Lumina buttons only — not inline text actions */
-.auth-form .btn {
+/* Buttons fill full width inside form */
+.auth-form button {
   width: 100%;
 }
 
 /* Base button styles for auth pages */
 .auth-form .btn {
-  padding: 12px 18px !important;
-  border-radius: 10px !important;
-  font-family: var(--font-body) !important;
-  font-size: 15px !important;
-  font-weight: 600 !important;
+  padding: 11px 14px !important;
+  border-radius: 8px !important;
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
   cursor: pointer !important;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s !important;
+  transition: background 0.15s, border-color 0.15s, color 0.15s !important;
   border: 1px solid transparent !important;
 }
 
-/* Primary CTA — design tokens, strong contrast */
+/* Primary variant */
 .auth-form .btn--primary {
-  background: var(--color-primary) !important;
-  color: var(--color-on-primary) !important;
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 8%, transparent);
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
 }
 
 .auth-form .btn--primary:hover:not(:disabled) {
-  background: var(--color-primary-hover) !important;
-  border-color: var(--color-primary-hover) !important;
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
 }
 
 .auth-form .btn--primary:active:not(:disabled) {
-  background: var(--color-primary-active) !important;
-  border-color: var(--color-primary-active) !important;
+  background: #1e40af !important;
+  border-color: #1e40af !important;
 }
 
 .auth-form .btn--primary:focus-visible {
   outline: none !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 32%, transparent) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
 }
 
 .auth-form .btn--primary:disabled {
-  background: color-mix(in srgb, var(--color-primary) 55%, var(--color-surface-card)) !important;
-  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-hairline)) !important;
-  color: var(--color-on-primary) !important;
-  opacity: 1 !important;
+  opacity: 0.5 !important;
   cursor: not-allowed !important;
 }
 
-/* Secondary variant (Resend email, Enter 6-digit code) */
+/* Secondary variant */
 .auth-form .btn--secondary {
   background: #f3f4f6 !important;
-  color: var(--color-ink) !important;
+  color: #26251e !important;
   border: 1px solid #d1d5db !important;
 }
 
