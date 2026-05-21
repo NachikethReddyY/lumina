@@ -34,8 +34,6 @@ function createApp() {
 
   const requestContext = require('./lib/requestContext');
 
-  const requestContext = require('./lib/requestContext');
-
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
