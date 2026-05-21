@@ -26,6 +26,24 @@ router.get('/', async (req, res, next) => {
          LIMIT 30`,
         [req.user.id]
       );
+    } else if (req.user.role === 'admin') {
+      result = await db.query(
+        `SELECT a.id, a.action, a.metadata, a.created_at,
+                u.first_name, u.last_name, u.email AS actor_email
+         FROM audit_logs a
+         JOIN users u ON u.id = a.actor_id
+         WHERE a.metadata->>'ticket_id' IN (
+           SELECT id::text FROM tickets t
+           WHERE EXISTS (
+             SELECT 1 FROM ticket_assignment ta
+             WHERE ta.ticket_id = t.id AND ta.assigned_to = $1 AND ta.is_active = TRUE
+           )
+         )
+         OR a.actor_id = $1
+         ORDER BY a.created_at DESC
+         LIMIT 50`,
+        [req.user.id]
+      );
     } else {
       result = await db.query(
         `SELECT a.id, a.action, a.metadata, a.created_at,

@@ -45,6 +45,17 @@ function buildStatusBar(tickets: ApiTicket[]) {
   }));
 }
 
+function buildPriorityBar(tickets: ApiTicket[]) {
+  const map: Record<string, number> = { P1: 0, P2: 0, P3: 0, P4: 0 };
+  tickets.forEach((t) => { map[t.priority] = (map[t.priority] || 0) + 1; });
+  const labels = ['P1', 'P2', 'P3', 'P4'];
+  return labels.map((priority) => ({
+    priority,
+    count: map[priority],
+    fill: PRIORITY_COLOR[priority],
+  }));
+}
+
 const PAGE_SIZE = 10;
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
@@ -139,6 +150,7 @@ export function UserDashboard() {
 
   const dailyLine = useMemo(() => buildDailyLine(tickets), [tickets]);
   const statusBar = useMemo(() => buildStatusBar(tickets), [tickets]);
+  const priorityBar = useMemo(() => buildPriorityBar(tickets), [tickets]);
 
   return (
     <DashboardLayout>
@@ -189,6 +201,23 @@ export function UserDashboard() {
                     <Tooltip content={<CustomTooltip />} />
                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                       {statusBar.map((entry, i) => (
+                        <Cell key={i} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="chart-card">
+                <h4 className="chart-card-title">Tickets by Priority</h4>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={priorityBar} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis dataKey="priority" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                      {priorityBar.map((entry, i) => (
                         <Cell key={i} fill={entry.fill} />
                       ))}
                     </Bar>
@@ -298,117 +327,6 @@ export function UserDashboard() {
             )}
           </AnimatePresence>
 
-          {/* Ticket History Table */}
-          <motion.div className="tickets-section" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}>
-            <div className="tickets-table-header">
-              <h2>Ticket History</h2>
-              <div className="tickets-filters">
-                <select value={filterPriority} onChange={(e) => { setFilterPriority(e.target.value); setPage(1); }}>
-                  <option value="all">All Priorities</option>
-                  <option value="P1">P1 Critical</option>
-                  <option value="P2">P2 High</option>
-                  <option value="P3">P3 Medium</option>
-                  <option value="P4">P4 Low</option>
-                </select>
-                <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}>
-                  <option value="all">All Statuses</option>
-                  <option value="open">Open</option>
-                  <option value="assigned">Assigned</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
-                  <option value="pending_routing">Pending Routing</option>
-                </select>
-              </div>
-            </div>
-
-            {loading ? (
-              <p className="ticket-description">Loading…</p>
-            ) : (
-              <div className="ticket-table-wrap">
-                <table className="ticket-table">
-                  <thead>
-                    <tr>
-                      <th>Priority</th>
-                      <th>Title</th>
-                      <th>Status</th>
-                      <th>Category</th>
-                      <th>Support Owner</th>
-                      <th>Created</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginated.map((t) => (
-                      <tr key={t.id} className="ticket-table-row" onClick={() => navigate(`/tickets/${t.id}`)}>
-                        <td>
-                          <span className="tbl-priority" style={{ color: PRIORITY_COLOR[t.priority] }}>
-                            <span className="tbl-priority-dot" style={{ background: PRIORITY_COLOR[t.priority] }} />
-                            {t.priority}
-                          </span>
-                        </td>
-                        <td className="tbl-title">{t.title}</td>
-                        <td>
-                          <span className="tbl-status" style={{ color: STATUS_COLOR[t.status], background: `${STATUS_COLOR[t.status]}18` }}>
-                            {t.status.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-                        <td className="tbl-muted">{t.category_name}</td>
-                        <td className="tbl-muted">{t.assigned_to_name || '—'}</td>
-                        <td className="tbl-muted tbl-mono">{new Date(t.created_at).toLocaleDateString()}</td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          {t.status === 'in_progress' ? (
-                            <button
-                              className="tbl-resolve-btn"
-                              onClick={() => handleResolve(t.id)}
-                              title="Mark resolved"
-                            >
-                              <CheckCircle2 size={13} />
-                              Resolve
-                            </button>
-                          ) : (
-                            <ExternalLink size={13} className="tbl-link-icon" />
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {paginated.length === 0 && (
-                      <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
-                          No tickets match your filters
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="ticket-pagination">
-                    <span className="pagination-info">
-                      {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-                    </span>
-                    <div className="pagination-controls">
-                      <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-                        <ChevronLeft size={14} />
-                      </button>
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
-                        return (
-                          <button key={p} onClick={() => setPage(p)} className={page === p ? 'active' : ''}>
-                            {p}
-                          </button>
-                        );
-                      })}
-                      <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-                        <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </motion.div>
         </Container>
       </div>
     </DashboardLayout>

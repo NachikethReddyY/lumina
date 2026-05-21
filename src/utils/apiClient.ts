@@ -24,6 +24,7 @@ export type ApiUser = {
   job_title?: string | null;
   department?: string | null;
   onboarding_completed: boolean;
+  name_set: boolean;
 };
 
 export type ApiTicket = {
@@ -198,6 +199,9 @@ export const authApi = {
 
   forgotPassword: (email: string) =>
     apiRequest('/auth/forgot-password', { method: 'POST', body: { email } }),
+
+  verifyResetOtp: (email: string, otp: string) =>
+    apiRequest('/auth/verify-reset-otp', { method: 'POST', body: { email, otp } }),
 
   resetPassword: (token: string, password: string) =>
     apiRequest('/auth/reset-password', { method: 'POST', body: { token, password } }),

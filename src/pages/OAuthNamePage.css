@@ -124,10 +124,10 @@
 }
 .oauth-name-continue-btn:hover:not(:disabled),
 .oauth-name-continue-btn:focus-visible {
-  background: var(--color-primary-hover);
+  background: #1d4ed8;
 }
 .oauth-name-continue-btn:active:not(:disabled) {
-  background: var(--color-primary-active);
+  background: #1e40af;
 }
 .oauth-name-continue-btn:disabled {
   opacity: 0.55;

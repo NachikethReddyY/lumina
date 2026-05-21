@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts';
-import { ExternalLink, Play, CheckCircle2, RotateCcw, Trash2 } from 'lucide-react';
+import { ExternalLink, Play, CheckCircle2, RotateCcw } from 'lucide-react';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
@@ -103,8 +103,6 @@ export function AdminDashboard() {
   const [filterPriority, setFilterPriority] = useState('all');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -144,34 +142,20 @@ export function AdminDashboard() {
   }), [tickets]);
 
   const myLoad = workload.find((e) => e.id === user?.id);
+  const myTickets = useMemo(() => tickets.filter((t) => t.assigned_to === user?.id), [tickets, user?.id]);
+  const myActiveCount = useMemo(() => myTickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length, [myTickets]);
+  const myResolvedCount = useMemo(() => myTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length, [myTickets]);
+
   const weeklyLine = useMemo(() => buildWeeklyLine(tickets), [tickets]);
   const statusMix = useMemo(() => buildStatusMix(tickets), [tickets]);
   const ageBuckets = useMemo(() => buildAgeBuckets(tickets), [tickets]);
   const priorityWorkload = useMemo(() => buildPriorityWorkload(workload), [workload]);
   const completionPct = tickets.length ? Math.round((counts.resolved / tickets.length) * 100) : 0;
 
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmEmail !== user?.email) {
-      alert('Email does not match. Please try again.');
-      return;
-    }
-
-    if (!confirm(`Are you absolutely sure? This will permanently delete your account and cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const res = await usersApi.delete(user!.id);
-      if (res.ok) {
-        localStorage.removeItem('authToken');
-        navigate('/login', { replace: true });
-      } else {
-        alert('Failed to delete account. Please try again.');
-      }
-    } catch {
-      alert('Error deleting account. Please try again.');
-    }
-  };
+  const myPriorityCounts = useMemo(() => ({
+    p1: myTickets.filter((t) => t.priority === 'P1').length,
+    p2: myTickets.filter((t) => t.priority === 'P2').length,
+  }), [myTickets]);
 
   return (
     <DashboardLayout>
@@ -195,23 +179,23 @@ export function AdminDashboard() {
 
           {/* Priority workload mini cards */}
           <div className="workload-grid" style={{ marginBottom: '32px' }}>
-            {[
-              { label: 'P1 Critical', val: counts.p1, color: '#ff3b30', pct: tickets.length ? (counts.p1 / tickets.length) * 100 : 0 },
-              { label: 'P2 High', val: counts.p2, color: '#ff9500', pct: tickets.length ? (counts.p2 / tickets.length) * 100 : 0 },
-              { label: 'Your Load Score', val: myLoad?.load_score ?? 0, color: '#3b82f6', pct: Math.min(100, ((myLoad?.load_score ?? 0) / 20) * 100) },
-            ].map((item) => (
-              <div key={item.label} className="workload-card">
-                <h4>{item.label}</h4>
-                <div className="workload-value">{item.val}</div>
-                <div className="workload-bar">
-                  <div className="workload-fill" style={{ width: `${item.pct}%`, background: item.color }} />
-                </div>
+                {[
+                  { label: 'P1 Critical', val: counts.p1, color: '#ff3b30', pct: tickets.length ? (counts.p1 / tickets.length) * 100 : 0 },
+                  { label: 'P2 High', val: counts.p2, color: '#ff9500', pct: tickets.length ? (counts.p2 / tickets.length) * 100 : 0 },
+                  { label: 'Your Load Score', val: myLoad?.load_score ?? 0, color: '#3b82f6', pct: Math.min(100, ((myLoad?.load_score ?? 0) / 20) * 100) },
+                ].map((item) => (
+                  <div key={item.label} className="workload-card">
+                    <h4>{item.label}</h4>
+                    <div className="workload-value">{item.val}</div>
+                    <div className="workload-bar">
+                      <div className="workload-fill" style={{ width: `${item.pct}%`, background: item.color }} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Charts */}
-          <motion.div className="charts-grid" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              {/* Charts */}
+              <motion.div className="charts-grid" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <div className="chart-card">
               <h4 className="chart-card-title">Throughput: Created vs Resolved</h4>
               <ResponsiveContainer width="100%" height={200}>
@@ -283,223 +267,6 @@ export function AdminDashboard() {
             </div>
           </motion.div>
 
-          {/* Queue Table */}
-          <section className="tickets-section">
-            <div className="tickets-table-header">
-              <h2>Active Queue</h2>
-              <div className="tickets-filters">
-                <select value={filterPriority} onChange={(e) => { setFilterPriority(e.target.value); setPage(1); }}>
-                  <option value="all">All Priorities</option>
-                  <option value="P1">P1</option>
-                  <option value="P2">P2</option>
-                  <option value="P3">P3</option>
-                  <option value="P4">P4</option>
-                </select>
-                <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}>
-                  <option value="all">All Statuses</option>
-                  <option value="open">Open</option>
-                  <option value="assigned">Assigned</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
-                  <option value="pending_routing">Pending Routing</option>
-                </select>
-              </div>
-            </div>
-
-            {loading ? <p className="ticket-description">Loading queue…</p> : (
-              <div className="ticket-table-wrap">
-                <table className="ticket-table">
-                  <thead>
-                    <tr>
-                      <th>Priority</th>
-                      <th>Title</th>
-                      <th>Status</th>
-                      <th>Category</th>
-                      <th>Assignee</th>
-                      <th>Created</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginated.map((t) => (
-                      <tr key={t.id} className="ticket-table-row">
-                        <td>
-                          <span className="tbl-priority" style={{ color: PRIORITY_COLOR[t.priority] }}>
-                            <span className="tbl-priority-dot" style={{ background: PRIORITY_COLOR[t.priority] }} />
-                            {t.priority}
-                          </span>
-                        </td>
-                        <td
-                          className="tbl-title"
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => navigate(`/tickets/${t.id}`)}
-                        >
-                          {t.title} <ExternalLink size={11} style={{ opacity: 0.4, display: 'inline', verticalAlign: 'middle' }} />
-                        </td>
-                        <td>
-                          <span className="tbl-status" style={{ color: STATUS_COLOR[t.status], background: `${STATUS_COLOR[t.status]}18` }}>
-                            {t.status.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-                        <td className="tbl-muted">{t.category_name}</td>
-                        <td className="tbl-muted">{t.assigned_to_name || '—'}</td>
-                        <td className="tbl-muted tbl-mono">{new Date(t.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            {(t.status === 'open' || t.status === 'assigned') && (
-                              <Button variant="secondary" onClick={async () => {
-                                const res = await ticketsApi.updateStatus(t.id, 'in_progress');
-                                if (res.ok) setTickets((prev) => prev.map((item) => item.id === t.id ? { ...item, status: 'in_progress' } : item));
-                              }}>
-                                <Play size={11} />
-                              </Button>
-                            )}
-                            {t.status === 'in_progress' && (
-                              <Button variant="secondary" onClick={async () => {
-                                const res = await ticketsApi.updateStatus(t.id, 'resolved');
-                                if (res.ok) setTickets((prev) => prev.map((item) => item.id === t.id ? { ...item, status: 'resolved' } : item));
-                              }}>
-                                <CheckCircle2 size={11} />
-                              </Button>
-                            )}
-                            <Button variant="secondary" onClick={async () => {
-                              const res = await ticketsApi.reroute(t.id);
-                              if (res.ok) {
-                                const refreshed = await ticketsApi.list({ scope: user?.role === 'admin' ? 'assigned' : undefined });
-                                const body = await refreshed.json().catch(() => []);
-                                setTickets(Array.isArray(body) ? body : []);
-                              }
-                            }}>
-                              <RotateCcw size={11} />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {paginated.length === 0 && (
-                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>No tickets</td></tr>
-                    )}
-                  </tbody>
-                </table>
-                {totalPages > 1 && (
-                  <div className="ticket-pagination">
-                    <span className="pagination-info">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
-                    <div className="pagination-controls">
-                      <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>‹</button>
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
-                        return <button key={p} onClick={() => setPage(p)} className={page === p ? 'active' : ''}>{p}</button>;
-                      })}
-                      <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>›</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Delete Account Section */}
-          <section className="admin-danger-zone">
-            <div className="danger-zone-header">
-              <h3 style={{ margin: 0, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Trash2 size={18} />
-                Danger Zone
-              </h3>
-              <p style={{ margin: '4px 0 0 0', color: '#9ca3af', fontSize: '13px' }}>
-                Permanent actions that cannot be undone
-              </p>
-            </div>
-
-            {!showDeleteConfirm ? (
-              <div style={{ padding: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.05)' }}>
-                <p style={{ margin: '0 0 12px 0', color: '#d1d5db', fontSize: '13px' }}>
-                  Once you delete your account, there is no going back. Please be certain.
-                </p>
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  style={{
-                    padding: '10px 16px',
-                    background: '#ef4444',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <Trash2 size={14} />
-                  Delete My Account
-                </button>
-              </div>
-            ) : (
-              <div style={{ padding: '16px', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)' }}>
-                <p style={{ margin: '0 0 12px 0', color: '#d1d5db', fontSize: '13px', fontWeight: '600' }}>
-                  To confirm deletion, please type your email address:
-                </p>
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={deleteConfirmEmail}
-                  onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: '6px',
-                    background: 'rgba(31, 34, 40, 0.6)',
-                    color: '#f7f8f8',
-                    fontSize: '13px',
-                    marginBottom: '12px',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => {
-                      setShowDeleteConfirm(false);
-                      setDeleteConfirmEmail('');
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '10px 12px',
-                      background: 'rgba(59, 130, 246, 0.1)',
-                      color: '#60a5fa',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDeleteAccount}
-                    disabled={deleteConfirmEmail !== user?.email}
-                    style={{
-                      flex: 1,
-                      padding: '10px 12px',
-                      background: deleteConfirmEmail === user?.email ? '#ef4444' : 'rgba(239, 68, 68, 0.5)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: deleteConfirmEmail === user?.email ? 'pointer' : 'not-allowed',
-                      opacity: deleteConfirmEmail === user?.email ? 1 : 0.5,
-                    }}
-                  >
-                    Permanently Delete
-                  </button>
-                </div>
-              </div>
-            )}
-          </section>
         </Container>
       </div>
     </DashboardLayout>

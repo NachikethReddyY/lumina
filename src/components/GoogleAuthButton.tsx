@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../utils/apiClient';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import './GoogleAuthButton.css';
 
 type Props = {
@@ -8,16 +10,14 @@ type Props = {
   onError?: (message: string) => void;
 };
 
-import { useState } from 'react';
-
 export function GoogleAuthButton({ mode, onError }: Props) {
   const navigate = useNavigate();
+  const { refetch } = useCurrentUser();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const [loading, setLoading] = useState(false);
 
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse: { access_token: string }) => {
-      setLoading(false);
       try {
         const res = await authApi.google({ accessToken: tokenResponse.access_token });
         const data = (await res.json().catch(() => ({}))) as {
@@ -29,6 +29,7 @@ export function GoogleAuthButton({ mode, onError }: Props) {
         };
 
         if (!res.ok) {
+          setLoading(false);
           if (res.status === 403 && data.code === 'EMAIL_NOT_VERIFIED') {
             if (data.verificationEmail) {
               localStorage.setItem('pendingVerificationEmail', data.verificationEmail);
@@ -44,10 +45,12 @@ export function GoogleAuthButton({ mode, onError }: Props) {
           localStorage.setItem('authToken', data.accessToken);
           localStorage.setItem('refreshToken', data.refreshToken || '');
           localStorage.removeItem('pendingVerificationEmail');
+          await refetch();
         }
 
         navigate('/dashboard');
       } catch (err) {
+        setLoading(false);
         console.error('Google login error:', err);
         onError?.('Failed to connect to authentication server.');
       }
@@ -78,7 +81,10 @@ export function GoogleAuthButton({ mode, onError }: Props) {
         disabled={loading}
       >
         {loading ? (
-          <span className="google-btn-loading">Connecting…</span>
+          <>
+            <span className="google-btn-spinner" aria-hidden="true" />
+            <span>Connecting…</span>
+          </>
         ) : (
           <>
             <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">

@@ -8,6 +8,7 @@ import Container from '../components/Container';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
 import { useToast } from '../context/useToast';
 import { authApi } from '../utils/apiClient';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import './AuthPage.css';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
@@ -16,6 +17,7 @@ export function VerifyEmailOtpPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { refetch } = useCurrentUser();
   const emailFromQuery = searchParams.get('email') || '';
   const storedEmail =
     typeof window !== 'undefined' ? localStorage.getItem('pendingVerificationEmail') || '' : '';
@@ -71,6 +73,7 @@ export function VerifyEmailOtpPage() {
       if (data.accessToken) {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', '');
+        await refetch();
       }
       localStorage.removeItem('pendingVerificationEmail');
       setStatus('success');

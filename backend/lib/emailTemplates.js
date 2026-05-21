@@ -1,14 +1,26 @@
-const { getFrontendBaseUrl } = require('./frontendUrl');
-
-function luminaLogoUrl() {
-  // Vite/React typically serves this from the app root.
-  // In production you should host this on your public HTTPS domain.
-  return `${getFrontendBaseUrl()}/favicon.svg`;
-}
+// SVG logo embedded as a data URI so it renders in all email clients
+// without needing an external network request (works locally and in prod).
+const LUMINA_LOGO_DATA_URI =
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDIiIGhlaWdodD0iNDIiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0ibGciIHgxPSI2NCIgeTE9IjAiIHgyPSI2NCIgeTI9IjEyOCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNGRjhBNUIiLz48c3RvcCBvZmZzZXQ9IjM0JSIgc3RvcC1jb2xvcj0iI0ZGN0FBRSIvPjxzdG9wIG9mZnNldD0iNjglIiBzdG9wLWNvbG9yPSIjQzA4NEZDIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjQTc4QkZBIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHBhdGggZD0iTTY0IDBRNjQgNjQgMTI4IDY0UTY0IDY0IDY0IDEyOFE2NCA2NCAwIDY0UTY0IDY0IDY0IDBaIiBmaWxsPSJ1cmwoI2xnKSIvPjwvc3ZnPg==';
 
 function card({ title, preview, intro, buttonText, url, footer, extraHtml }) {
-  const safeUrl = String(url);
-  const logo = luminaLogoUrl();
+  const safeUrl = url ? String(url) : '';
+
+  const buttonBlock = (buttonText && safeUrl) ? `
+        <div style="padding:24px 0 0 0;">
+          <a href="${escapeHtmlAttr(safeUrl)}"
+             style="background:#111827;border-radius:6px;color:#ffffff;display:inline-block;font-size:15px;font-weight:600;line-height:1;text-decoration:none;padding:12px 16px;">
+            ${escapeHtml(buttonText)}
+          </a>
+        </div>` : '';
+
+  const fallbackBlock = safeUrl ? `
+        <p style="margin:16px 0 0 0;font-size:12px;line-height:1.4;color:#6b7280;">
+          If the button doesn't work, copy and paste this link:
+        </p>
+        <p style="margin:8px 0 0 0;font-size:12px;line-height:1.4;color:#6b7280;word-break:break-all;">
+          ${escapeHtml(safeUrl)}
+        </p>` : '';
 
   return `<!doctype html>
 <html>
@@ -23,7 +35,7 @@ function card({ title, preview, intro, buttonText, url, footer, extraHtml }) {
     </div>
     <div style="padding:20px 0;">
       <div style="max-width:560px;margin:0 auto;padding:0 20px;">
-        <img src="${escapeHtmlAttr(logo)}" width="42" height="42" alt="Lumina" style="display:block;border-radius:16px;width:42px;height:42px;" />
+        <img src="${LUMINA_LOGO_DATA_URI}" width="42" height="42" alt="Lumina" style="display:block;border-radius:16px;width:42px;height:42px;" />
         <h2 style="margin:18px 0 0 0;font-size:24px;line-height:1.3;font-weight:600;color:#111827;">
           ${escapeHtml(title)}
         </h2>
@@ -31,21 +43,11 @@ function card({ title, preview, intro, buttonText, url, footer, extraHtml }) {
           ${escapeHtml(intro)}
         </p>
 
-        <div style="padding:24px 0 0 0;">
-          <a href="${escapeHtmlAttr(safeUrl)}"
-             style="background:#111827;border-radius:6px;color:#ffffff;display:inline-block;font-size:15px;font-weight:600;line-height:1;text-decoration:none;padding:12px 16px;">
-            ${escapeHtml(buttonText)}
-          </a>
-        </div>
+        ${buttonBlock}
 
         ${extraHtml || ''}
 
-        <p style="margin:16px 0 0 0;font-size:12px;line-height:1.4;color:#6b7280;">
-          If the button doesn’t work, copy and paste this link:
-        </p>
-        <p style="margin:8px 0 0 0;font-size:12px;line-height:1.4;color:#6b7280;word-break:break-all;">
-          ${escapeHtml(safeUrl)}
-        </p>
+        ${fallbackBlock}
 
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0 16px 0;" />
         <p style="margin:0;font-size:12px;line-height:1.4;color:#9ca3af;">
@@ -91,6 +93,29 @@ function passwordResetEmailHtml({ url }) {
   });
 }
 
+function passwordResetOtpEmailHtml({ url, otp }) {
+  const otpBlock = otp
+    ? `<p style="margin:16px 0 0 0;font-size:15px;line-height:1.4;color:#374151;">
+         Or enter this one-time code on the reset page (expires in 10 minutes):
+       </p>
+       <div style="margin:10px 0 0 0;">
+         <span style="display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-weight:700;background:#f3f4f6;color:#111827;border-radius:6px;padding:10px 12px;font-size:28px;letter-spacing:4px;">
+           ${escapeHtml(otp)}
+         </span>
+       </div>`
+    : '';
+
+  return card({
+    title: 'Reset your Lumina password',
+    preview: 'Your Lumina password reset code',
+    intro: 'We received a request to reset your Lumina password. Use the button or code below — do not share either with anyone.',
+    buttonText: url ? 'Set a new password' : null,
+    url: url || null,
+    footer: 'The link expires in 1 hour; the code expires in 10 minutes. If you did not request this, you can ignore this email.',
+    extraHtml: otpBlock,
+  });
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -104,4 +129,4 @@ function escapeHtmlAttr(s) {
   return escapeHtml(s).replace(/'/g, '&#39;');
 }
 
-module.exports = { verificationEmailHtml, passwordResetEmailHtml };
+module.exports = { verificationEmailHtml, passwordResetEmailHtml, passwordResetOtpEmailHtml };

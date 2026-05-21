@@ -5,6 +5,7 @@ import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import { authApi } from '../utils/apiClient';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import './AuthPage.css';
 
 type Status = 'loading' | 'success' | 'error' | 'missing';
@@ -12,6 +13,7 @@ type Status = 'loading' | 'success' | 'error' | 'missing';
 export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { refetch } = useCurrentUser();
   const token = searchParams.get('token') || '';
   const [status, setStatus] = useState<Status>(token ? 'loading' : 'missing');
   const [message, setMessage] = useState('');
@@ -39,7 +41,9 @@ export function VerifyEmailPage() {
       if (data.accessToken) {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', '');
+        await refetch();
       }
+      if (cancelled) return;
       setStatus('success');
       setMessage(data.message || 'Your account is active.');
     })();
@@ -47,7 +51,7 @@ export function VerifyEmailPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, refetch]);
 
   const itemVariants = {
     hidden: { opacity: 0, y: 10 },

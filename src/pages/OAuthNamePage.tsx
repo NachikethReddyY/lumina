@@ -9,12 +9,6 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usersApi } from '../utils/apiClient';
 import './OAuthNamePage.css';
 
-function needsNameCompletion(firstName: string, lastName: string): boolean {
-  const first = firstName.trim().toLowerCase();
-  const last = lastName.trim().toLowerCase();
-  return !first || !last || (last === 'user' && (first === 'new' || first === 'google'));
-}
-
 export function OAuthNamePage() {
   const navigate = useNavigate();
   const { user, refetch } = useCurrentUser();
@@ -25,7 +19,7 @@ export function OAuthNamePage() {
 
   useEffect(() => {
     if (!user) return;
-    if (!needsNameCompletion(user.first_name, user.last_name)) {
+    if (user.name_set) {
       if (!user.email_is_verified) {
         navigate('/verify-email-otp', { replace: true });
       } else if (!user.onboarding_completed && user.role !== 'super_admin') {
@@ -39,11 +33,9 @@ export function OAuthNamePage() {
   }, [navigate, user]);
 
   useEffect(() => {
-    if (!user) return;
-    if (needsNameCompletion(user.first_name, user.last_name)) {
-      setFirstName(user.first_name === 'New' || user.first_name === 'Google' ? '' : user.first_name);
-      setLastName(user.last_name === 'User' ? '' : user.last_name);
-    }
+    if (!user || user.name_set) return;
+    setFirstName(user.first_name === 'New' || user.first_name === 'Google' ? '' : user.first_name);
+    setLastName(user.last_name === 'User' ? '' : user.last_name);
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,7 +59,7 @@ export function OAuthNamePage() {
       }
 
       await refetch();
-      navigate('/onboarding', { replace: true });
+      // useEffect handles navigation once user state reflects the updated name
     } catch {
       setError('Network error. Please try again.');
       setSaving(false);

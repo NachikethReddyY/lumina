@@ -20,11 +20,13 @@ import AccountSettingsPage from './pages/AccountSettingsPage';
 import TicketHistoryPage from './pages/TicketHistoryPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastProvider } from './context/ToastContext';
+import { UserProvider } from './context/UserContext';
 import './App.css';
 
 function App() {
   return (
     <ToastProvider>
+      <UserProvider>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -58,6 +60,7 @@ function App() {
         <Route path="/500" element={<ServerErrorPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </UserProvider>
     </ToastProvider>
   );
 }

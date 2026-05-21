@@ -109,24 +109,14 @@
   background: none;
   border: none;
   font-size: 24px;
-  color: var(--color-body);
+  color: #000000;
   cursor: pointer;
   transition: color 0.2s ease;
   padding: 0;
 }
 
-.btn--primary{
-    background-color: #2663EB;
-    color: var(--color-on-primary);
-    border: 1px solid transparent;    
-}
-.btn--secondary{
-    background-color: rgb(38, 99, 235, 0.08);
-    color: var(--color-ink);
-    border: 1px solid var(--color-hairline);
-}
 .close-btn:hover {
-  color: var(--color-ink);
+  color: #26251e;
 }
 
 .ticket-form {
@@ -842,9 +832,9 @@
   min-width: 30px;
   height: 30px;
   border-radius: 6px;
-  background: var(--color-surface-card);
-  border: 1px solid var(--color-hairline);
-  color: var(--color-body);
+  background: #ffffff;
+  border: 1px solid #e6e5e0;
+  color: #000000;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -855,15 +845,15 @@
 }
 
 .pagination-controls button:hover:not(:disabled) {
-  background: var(--color-canvas-soft);
-  color: var(--color-ink);
-  border-color: var(--color-hairline-strong);
+  background: #fafaf7;
+  color: #26251e;
+  border-color: #cfcdc4;
 }
 
 .pagination-controls button.active {
-  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface-card));
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  background: #eef3fd;
+  border-color: #2563eb;
+  color: #2563eb;
 }
 
 .pagination-controls button:disabled {
@@ -880,9 +870,9 @@
 }
 
 .auth-notice--info {
-  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface-card));
-  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-hairline));
-  color: var(--color-primary);
+  background: #eef3fd;
+  border: 1px solid #b8cef7;
+  color: #2563eb;
 }
 
 /* Responsive */
@@ -1042,16 +1032,16 @@
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  background: var(--color-canvas-soft);
-  border: 1px solid var(--color-hairline);
-  color: var(--color-muted);
+  background: #fafaf7;
+  border: 1px solid #e6e5e0;
+  color: #3a3832;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s;
 }
-.nt-close-btn:hover { background: var(--color-hairline-soft); color: var(--color-body); }
+.nt-close-btn:hover { background: #efeee8; color: #000000; }
 
 .nt-form {
   display: flex;

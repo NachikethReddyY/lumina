@@ -1,7 +1,7 @@
-/* Button Component — Lumina Design System (newdesign.md) */
+/* Button Component — Lumina Design System */
 
 .btn {
-  font-family: var(--font-body);
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   border: none;
   cursor: pointer;
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, opacity 140ms ease;
@@ -42,72 +42,71 @@
   border-radius: 10px;
 }
 
-/* ── Primary — Lumina Green ── */
+/* ── Primary ── */
 .btn--primary {
-  background-color: #2663EB;
-  color: var(--color-on-primary);
+  background-color: #2563eb;
+  color: #ffffff;
   border: 1px solid transparent;
 }
 
-
 .btn--primary:hover:not(:disabled) {
-  background-color: var(--color-primary-hover);
+  background-color: #1d4ed8;
 }
 
 .btn--primary:active:not(:disabled) {
-  background-color: var(--color-primary-active);
+  background-color: #1e40af;
 }
 
 .btn--primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 28%, transparent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
 }
 
-/* ── Secondary — White pill on cream ── */
+/* ── Secondary ── */
 .btn--secondary {
   background-color: rgba(38, 99, 235, 0.08);
-  color: var(--color-ink);
-  border: 1px solid var(--color-hairline);
+  color: #26251e;
+  border: 1px solid #e6e5e0;
 }
 
 .btn--secondary:hover:not(:disabled),
 .btn--secondary:focus-visible {
   background-color: rgba(29, 79, 215, 0.13);
-  color: var(--color-ink);
-  border-color: var(--color-primary);
+  color: #26251e;
+  border-color: #2563eb;
 }
 
 .btn--secondary:active:not(:disabled) {
   background-color: rgba(25, 66, 170, 0.20);
-  color: var(--color-ink);
-  border-color: var(--color-primary-active);
+  color: #26251e;
+  border-color: #1e40af;
 }
 
-/* ── Secondary Dark — Ink on cream (hero CTA) ── */
+/* ── Secondary Dark ── */
 .btn--secondary-dark {
-  background-color: var(--color-ink);
-  color: var(--color-canvas);
+  background-color: #26251e;
+  color: #f7f7f4;
   border: 1px solid transparent;
 }
 
 .btn--secondary-dark:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--color-ink) 88%, var(--color-canvas));
+  background-color: #3f3e38;
 }
 
 .btn--secondary-dark:active:not(:disabled) {
-  background-color: var(--color-ink);
+  background-color: #26251e;
   opacity: 0.9;
 }
 
 .btn--secondary-dark:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ink) 20%, transparent);
+  box-shadow: 0 0 0 3px rgba(38, 37, 30, 0.20);
 }
 
 /* ── Text Link ── */
 .btn--text-link {
   background-color: transparent;
-  color: var(--color-body);
+  color: #000000;
   border: none;
   padding: 0;
   height: auto;
@@ -115,7 +114,7 @@
 }
 
 .btn--text-link:hover:not(:disabled) {
-  color: var(--color-primary);
+  color: #2563eb;
   text-decoration: underline;
 }
 

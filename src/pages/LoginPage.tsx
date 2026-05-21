@@ -7,11 +7,13 @@ import Input from '../components/Input';
 import Container from '../components/Container';
 import { GoogleAuthButton } from '../components/GoogleAuthButton';
 import { authApi, type AuthValidationErrorBody } from '../utils/apiClient';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import './AuthPage.css';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { refetch } = useCurrentUser();
   const [step, setStep] = useState<'email' | 'password'>('email');
   const [formData, setFormData] = useState({
     email: '',
@@ -99,6 +101,7 @@ export function LoginPage() {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken || '');
         localStorage.removeItem('pendingVerificationEmail');
+        await refetch();
       }
       navigate('/dashboard');
     } catch {

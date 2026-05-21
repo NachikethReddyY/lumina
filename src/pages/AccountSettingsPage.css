@@ -96,14 +96,14 @@
   right: 12px;
   background: none;
   border: none;
-  color: var(--color-muted);
+  color: #3a3832;
   cursor: pointer;
   display: flex;
   align-items: center;
   padding: 4px;
   transition: color 0.15s;
 }
-.as-show-btn:hover { color: var(--color-ink); }
+.as-show-btn:hover { color: #26251e; }
 
 .as-strength {
   display: flex;
@@ -157,15 +157,15 @@
 .as-submit-btn {
   margin-top: 8px;
   padding: 12px 24px;
-  background: var(--color-primary);
+  background: #2563eb;
   border: none;
   border-radius: 10px;
-  color: #fff;
+  color: #ffffff;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s, transform 0.2s;
   align-self: flex-start;
 }
-.as-submit-btn:hover:not(:disabled) { background: var(--color-primary-hover); transform: translateY(-1px); }
+.as-submit-btn:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); }
 .as-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
