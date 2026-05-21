@@ -160,7 +160,7 @@ export function UserDashboard() {
             <div className="header-content">
               <div>
                 <h1 className="dashboard-title">Welcome, {user?.first_name || 'User'}</h1>
-                <p className="dashboard-subtitle">Submit issues, track progress, and follow your support path.</p>
+                <p className="dashboard-subtitle">Report issues, test software & hardware, track resolution.</p>
               </div>
               <Button variant="primary" size="lg" onClick={() => setShowNewTicket(true)}>
                 New Ticket

@@ -164,8 +164,8 @@ export function AdminDashboard() {
           <motion.div className="dashboard-header" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="header-content">
               <div>
-                <h1 className="dashboard-title">Admin Dashboard</h1>
-                <p className="dashboard-subtitle">Monitor load, resolve the queue, and reroute when needed.</p>
+                <h1 className="dashboard-title">Developer Dashboard</h1>
+                <p className="dashboard-subtitle">Review reported issues, manage resolution queue, optimize workflow.</p>
               </div>
             </div>
           </motion.div>

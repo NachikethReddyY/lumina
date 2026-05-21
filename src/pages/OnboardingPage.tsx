@@ -38,7 +38,10 @@ const getRoleColor = (role: string) => {
 };
 
 const getRoleLabel = (role: string) => {
-  return role === 'super_admin' ? 'Super Admin' : role.charAt(0).toUpperCase() + role.slice(1);
+  if (role === 'super_admin') return 'Super Admin';
+  if (role === 'admin') return 'Developer';
+  if (role === 'user') return 'QA Tester';
+  return role.charAt(0).toUpperCase() + role.slice(1);
 };
 
 async function cropImageToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
@@ -309,21 +312,25 @@ export function OnboardingPage() {
                   </div>
                 ) : (
                   <div className="role-selection">
-                    <label>Role</label>
+                    <label>Your Role</label>
                     <div className="role-options">
                       <button
                         type="button"
                         className={`role-option ${selectedRole === 'user' ? 'active' : ''}`}
                         onClick={() => setSelectedRole('user')}
+                        title="Test software and hardware, report bugs and issues"
                       >
-                        User
+                        <div>QA Tester</div>
+                        <small>Report issues & bugs</small>
                       </button>
                       <button
                         type="button"
                         className={`role-option ${selectedRole === 'admin' ? 'active' : ''}`}
                         onClick={() => setSelectedRole('admin')}
+                        title="Review and resolve reported issues"
                       >
-                        Admin
+                        <div>Developer</div>
+                        <small>Review & resolve issues</small>
                       </button>
                     </div>
                   </div>
