@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts';
-import { ExternalLink, Play, CheckCircle2, RotateCcw } from 'lucide-react';
-import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { ticketsApi, usersApi, type AdminWorkload, type ApiTicket } from '../utils/apiClient';
+import { ticketsApi, type AdminWorkload, type ApiTicket } from '../utils/apiClient';
 import './Dashboard.css';
 
-const PRIORITY_COLOR: Record<string, string> = { P1: '#ff3b30', P2: '#ff9500', P3: '#34c759', P4: '#6b7280' };
 const STATUS_COLOR: Record<string, string> = {
   open: '#ff6b6b', assigned: '#60a5fa', in_progress: '#fbbf24',
   resolved: '#34c759', closed: '#6b7280', on_hold: '#9ca3af', pending_routing: '#d97706',
@@ -92,17 +88,10 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   );
 };
 
-const PAGE_SIZE = 8;
-
 export function AdminDashboard() {
   const { user } = useCurrentUser();
-  const navigate = useNavigate();
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
   const [workload, setWorkload] = useState<AdminWorkload[]>([]);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterPriority, setFilterPriority] = useState('all');
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,24 +103,13 @@ export function AdminDashboard() {
         if (cancelled) return;
         setTickets(Array.isArray(ticketsBody) ? ticketsBody : []);
         setWorkload(Array.isArray(workloadBody) ? workloadBody : []);
-      } finally {
-        if (!cancelled) setLoading(false);
+      } catch {
+        // Error fetching data
       }
     })();
     return () => { cancelled = true; };
   }, [user?.role]);
 
-  const filtered = useMemo(() =>
-    tickets.filter((t) => {
-      const s = filterStatus === 'all' || t.status === filterStatus;
-      const p = filterPriority === 'all' || t.priority === filterPriority;
-      return s && p;
-    }),
-    [tickets, filterStatus, filterPriority]
-  );
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const counts = useMemo(() => ({
     p1: tickets.filter((t) => t.priority === 'P1').length,
@@ -142,20 +120,12 @@ export function AdminDashboard() {
   }), [tickets]);
 
   const myLoad = workload.find((e) => e.id === user?.id);
-  const myTickets = useMemo(() => tickets.filter((t) => t.assigned_to === user?.id), [tickets, user?.id]);
-  const myActiveCount = useMemo(() => myTickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length, [myTickets]);
-  const myResolvedCount = useMemo(() => myTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length, [myTickets]);
 
   const weeklyLine = useMemo(() => buildWeeklyLine(tickets), [tickets]);
   const statusMix = useMemo(() => buildStatusMix(tickets), [tickets]);
   const ageBuckets = useMemo(() => buildAgeBuckets(tickets), [tickets]);
   const priorityWorkload = useMemo(() => buildPriorityWorkload(workload), [workload]);
   const completionPct = tickets.length ? Math.round((counts.resolved / tickets.length) * 100) : 0;
-
-  const myPriorityCounts = useMemo(() => ({
-    p1: myTickets.filter((t) => t.priority === 'P1').length,
-    p2: myTickets.filter((t) => t.priority === 'P2').length,
-  }), [myTickets]);
 
   return (
     <DashboardLayout>

@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { ChevronLeft, ChevronRight, ExternalLink, X, CheckCircle2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
@@ -56,8 +55,6 @@ function buildPriorityBar(tickets: ApiTicket[]) {
   }));
 }
 
-const PAGE_SIZE = 10;
-
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -70,16 +67,11 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export function UserDashboard() {
   const { user } = useCurrentUser();
-  const navigate = useNavigate();
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [showNewTicket, setShowNewTicket] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [formError, setFormError] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
-  const [page, setPage] = useState(1);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterPriority, setFilterPriority] = useState('all');
   const [newTicket, setNewTicket] = useState({
     title: '',
     description: '',
@@ -119,31 +111,14 @@ export function UserDashboard() {
             ? prev.categoryId
             : defaultCategory?.id || '',
         }));
-      } finally {
-        if (!cancelled) setLoading(false);
+      } catch {
+        // Error fetching data
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const filtered = useMemo(() => {
-    return tickets.filter((t) => {
-      const statusOk = filterStatus === 'all' || t.status === filterStatus;
-      const priorityOk = filterPriority === 'all' || t.priority === filterPriority;
-      return statusOk && priorityOk;
-    });
-  }, [tickets, filterStatus, filterPriority]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const activeCategories = useMemo(() => categories.filter((category) => category.is_active), [categories]);
-
-  const handleResolve = async (ticketId: string) => {
-    const res = await ticketsApi.updateStatus(ticketId, 'resolved');
-    if (res.ok) {
-      setTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, status: 'resolved' } : t));
-    }
-  };
 
   const openCount = tickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
   const resolvedCount = tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
@@ -273,9 +248,6 @@ export function UserDashboard() {
                           return;
                         }
                         setTickets((prev) => [body as ApiTicket, ...prev]);
-                        setFilterStatus('all');
-                        setFilterPriority('all');
-                        setPage(1);
                         setNewTicket({ title: '', description: '', categoryId: activeCategories[0]?.id || '', type: 'software', priority: 'P2', replicationSteps: '' });
                         setShowNewTicket(false);
                       } catch {
