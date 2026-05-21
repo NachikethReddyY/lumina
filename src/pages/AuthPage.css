@@ -1,4 +1,4 @@
-/* Auth Pages — Lumina Design System (hardcoded values for reliability) */
+/* Auth Pages — Lumina Design System (all values hardcoded, no CSS variables) */
 
 .auth-page {
   min-height: 100vh;
@@ -171,16 +171,6 @@
   border-color: #1d4ed8 !important;
 }
 
-.auth-form .btn--primary:active:not(:disabled) {
-  background: #1e40af !important;
-  border-color: #1e40af !important;
-}
-
-.auth-form .btn--primary:focus-visible {
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
-}
-
 .auth-form .btn--primary:disabled {
   opacity: 0.5 !important;
   cursor: not-allowed !important;
@@ -212,69 +202,64 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--color-muted);
+  color: #3a3832;
   text-align: center;
 }
 
-/* Resend row — centered inline pair (not full-width) */
+/* Resend row */
 .auth-resend-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-  margin: 4px 0 0;
-  padding-top: 4px;
-  text-align: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #3a3832;
+  margin-top: 2px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
-.auth-resend-row__hint {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-muted);
+.auth-resend-row .auth-hint {
+  color: #3a3832;
 }
 
 .auth-resend-btn {
-  width: auto !important;
   background: none;
   border: none;
-  color: var(--color-primary);
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 600;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  text-decoration-color: transparent;
   transition: color 0.15s, text-decoration-color 0.15s;
 }
 
 .auth-resend-btn:hover:not(:disabled) {
-  color: var(--color-primary-hover);
-  text-decoration-color: var(--color-primary-hover);
+  color: #1d4ed8;
+  text-decoration-color: #1d4ed8;
 }
 
 .auth-resend-btn:disabled {
-  color: var(--color-muted-soft);
+  color: #5f5c54;
   cursor: not-allowed;
   text-decoration: none;
 }
 
 .auth-hint code {
-  font-family: var(--font-mono);
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 12px;
-  color: var(--color-body);
-  background: var(--color-surface-strong);
+  color: #000000;
+  background: #e6e5e0;
   padding: 1px 5px;
   border-radius: 4px;
 }
 
-/* Dev-only link (reset password in dev mode) */
+/* Dev-only link */
 .auth-dev-link {
   font-size: 13px;
-  color: var(--color-muted);
+  color: #3a3832;
   margin: 0;
   text-align: center;
 }
@@ -283,7 +268,7 @@
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: #c08532; /* timeline-done warm gold */
+  color: #c08532;
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -302,29 +287,29 @@
 .auth-notice--info {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  color: var(--color-primary-active);
+  color: #1e40af;
 }
 
 .auth-notice--error {
   background: #fef2f2;
   border: 1px solid #fecaca;
-  color: var(--color-semantic-error);
+  color: #cf2d56;
 }
 
 .auth-notice--success {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  color: var(--color-semantic-success);
+  color: #1f8a65;
 }
 
 /* Inline code in notices */
 .auth-inline-code {
-  font-family: var(--font-mono);
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 12px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: var(--color-surface-strong);
-  color: var(--color-body);
+  background: #e6e5e0;
+  color: #000000;
 }
 
 /* Divider */
@@ -334,17 +319,17 @@
   align-items: center;
   justify-content: center;
   height: 1px;
-  background: var(--color-hairline);
+  background: #e6e5e0;
   margin: 12px 0;
 }
 
 .auth-divider span {
   position: relative;
-  background: var(--color-surface-card);
+  background: #ffffff;
   padding: 0 12px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-body);
+  color: #000000;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -352,56 +337,29 @@
 /* Footer */
 .auth-footer {
   text-align: center;
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid var(--color-hairline-soft);
+  margin-top: 8px;
 }
 
 .auth-footer p {
   font-size: 14px;
-  color: var(--color-body);
+  color: #000000;
   margin: 0;
 }
 
-.auth-footer--otp {
-  margin-top: 0;
-  padding-top: 20px;
-}
-
-.auth-footer-nav {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px 10px;
-}
-
-.auth-footer-nav__sep {
-  color: var(--color-muted-soft);
-  font-size: 14px;
-  line-height: 1;
-  user-select: none;
-}
-
-.auth-footer-nav .auth-link {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-/* Page-level link (underlined) */
+/* Page-level link */
 .auth-link {
-  color: var(--color-primary);
+  color: #2563eb;
   text-decoration: none;
   font-weight: 500;
   transition: color 0.15s;
 }
 
 .auth-link:hover {
-  color: var(--color-primary-hover);
+  color: #1d4ed8;
   text-decoration: underline;
 }
 
-/* Success / email-sent state */
+/* Success / done state */
 .reset-success {
   display: flex;
   flex-direction: column;
@@ -410,40 +368,44 @@
   align-items: center;
 }
 
+.reset-success .btn {
+  width: 100%;
+}
+
+.reset-success a {
+  width: 100%;
+}
+
 .success-icon {
   width: 56px;
   height: 56px;
-  background-color: color-mix(in srgb, var(--color-semantic-success) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-semantic-success) 20%, transparent);
+  background-color: rgba(31, 138, 101, 0.12);
+  border: 1px solid rgba(31, 138, 101, 0.20);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
   font-weight: 600;
-  color: var(--color-semantic-success);
+  color: #1f8a65;
 }
 
 .success-text {
   font-size: 18px;
   font-weight: 600;
-  color: var(--color-ink);
+  color: #26251e;
   margin: 0;
   line-height: 1.4;
 }
 
 .success-subtext {
   font-size: 14px;
-  color: var(--color-body);
+  color: #000000;
   margin: 0;
   line-height: 1.6;
 }
 
-.reset-success button {
-  width: 100%;
-}
-
-/* OTP form group (VerifyEmailOtpPage) */
+/* OTP form group */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -451,92 +413,12 @@
 }
 
 .form-group label {
-  font-family: var(--font-body);
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-body);
+  color: #000000;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-}
-
-/* ── Verify email OTP page ── */
-.auth-card--otp .auth-form--otp {
-  gap: 20px;
-}
-
-.auth-otp-email {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: var(--color-canvas-soft);
-  border: 1px solid var(--color-hairline);
-  text-align: center;
-}
-
-.auth-otp-email__label {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-}
-
-.auth-otp-email__address {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-ink);
-  word-break: break-all;
-}
-
-.auth-otp-group {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0 12px;
-}
-
-.auth-otp-input {
-  justify-content: center;
-  width: 100%;
-}
-
-.auth-otp-slots {
-  gap: 10px !important;
-}
-
-.auth-otp-slots [data-slot='input-otp-slot'] {
-  height: 3.25rem;
-  width: 2.75rem;
-  border-width: 1.5px;
-  border-color: var(--color-hairline-strong);
-  background: var(--color-surface-card);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-ink) 4%, transparent);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  border-radius: 10px;
-}
-
-.auth-otp-slots [data-slot='input-otp-slot'][data-active='true'],
-.auth-otp-slots [data-slot='input-otp-slot']:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
-}
-
-@media (max-width: 480px) {
-  .auth-otp-slots {
-    gap: 6px !important;
-  }
-
-  .auth-otp-slots [data-slot='input-otp-slot'] {
-    height: 2.875rem;
-    width: 2.375rem;
-    font-size: 1.125rem;
-    border-radius: 8px;
-  }
 }
 
 /* Responsive */

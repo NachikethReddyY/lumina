@@ -10,10 +10,10 @@
   justify-content: center;
   gap: 12px;
   background-color: #ffffff;
-  border: 1px solid var(--color-hairline-strong);
-  border-radius: var(--radius-md);
-  color: var(--color-ink);
-  font-family: var(--font-body);
+  border: 1px solid #cfcdc4;
+  border-radius: 8px;
+  color: #26251e;
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -22,19 +22,33 @@
 }
 
 .google-btn-custom:hover {
-  background-color: var(--color-canvas-soft);
-  border-color: var(--color-hairline-strong);
+  background-color: #fafaf7;
+  border-color: #cfcdc4;
 }
 
 .google-btn-custom:active {
-  background-color: var(--color-surface-strong);
+  background-color: #e6e5e0;
 }
 
 .google-btn-custom:focus {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 .google-btn-custom svg {
   flex-shrink: 0;
+}
+
+.google-btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cfcdc4;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: google-btn-spin 0.65s linear infinite;
+}
+
+@keyframes google-btn-spin {
+  to { transform: rotate(360deg); }
 }

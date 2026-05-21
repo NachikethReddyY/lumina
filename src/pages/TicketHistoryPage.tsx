@@ -567,14 +567,11 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
 
   useEffect(() => {
     if (!selectedTicketId) return;
-    if (!scopedTickets.length) {
-      if (selectedTicketId) setSelectedTicketId('');
-      return;
-    }
+    if (loading) return; // don't clear selection before tickets have loaded
     if (!scopedTickets.some((ticket) => ticket.id === selectedTicketId)) {
       setSelectedTicketId('');
     }
-  }, [scopedTickets, selectedTicketId]);
+  }, [scopedTickets, selectedTicketId, loading]);
 
   const selectedTicket = selectedTicketId
     ? scopedTickets.find((ticket) => ticket.id === selectedTicketId) || null

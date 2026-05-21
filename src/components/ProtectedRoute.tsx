@@ -1,6 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { needsNameCompletion } from '../utils/authRedirect';
 
 type Props = {
   children: React.ReactNode;
@@ -12,53 +11,50 @@ export function ProtectedRoute({ children, roles }: Props) {
   const { user, loading } = useCurrentUser();
   const token = localStorage.getItem('authToken');
 
+  // Wait for the single shared fetch to complete before evaluating any route.
+  // Because user state is shared, this only blocks once on initial load — not
+  // on every navigation. Once loaded, all ProtectedRoutes evaluate instantly.
   if (loading && token) {
     return <div style={{ minHeight: '100vh', background: '#0b0c0e' }} />;
   }
 
-  // Step 1 — Must be signed in
+  // Step 1: Must be authenticated
   if (!token || !user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   const onCompleteProfilePage = location.pathname === '/complete-profile';
-  const onOnboardingPage = location.pathname === '/onboarding';
-  const onVerifyEmailPage = location.pathname === '/verify-email-otp';
-  const onPendingApprovalPage = location.pathname === '/pending-approval';
 
-  // Step 2 — Google placeholder name (complete-profile) before anything else
-  if (needsNameCompletion(user)) {
+  // Step 2: Google OAuth — must confirm real name before proceeding
+  if (!user.name_set) {
     if (!onCompleteProfilePage) {
       return <Navigate to="/complete-profile" replace />;
     }
     return <>{children}</>;
   }
 
-  // Step 3 — Onboarding before email verification or approval (super_admin skips)
+  // Step 3: Email must be verified
+  if (!user.email_is_verified && location.pathname !== '/verify-email-otp') {
+    return <Navigate to="/verify-email-otp" replace />;
+  }
+
+  // Step 4: Onboarding must be completed (super_admin is exempt)
   if (!user.onboarding_completed && user.role !== 'super_admin') {
-    if (!onOnboardingPage) {
+    if (location.pathname !== '/onboarding') {
       return <Navigate to="/onboarding" replace />;
     }
     return <>{children}</>;
   }
 
-  // Step 4 — Email verification (only after onboarding is done)
-  if (!user.email_is_verified) {
-    if (!onVerifyEmailPage) {
-      return <Navigate to="/verify-email-otp" replace />;
-    }
-    return <>{children}</>;
-  }
-
-  // Step 5 — Super-admin approval (only after onboarding + verified email)
+  // Step 5: Account must be approved
   if (user.status !== 'active') {
-    if (!onPendingApprovalPage) {
+    if (location.pathname !== '/pending-approval') {
       return <Navigate to="/pending-approval" replace />;
     }
     return <>{children}</>;
   }
 
-  // Step 6 — Role gate for admin-only routes
+  // Step 6: Role-based access check
   if (roles && !roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }

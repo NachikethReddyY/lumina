@@ -60,9 +60,9 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--color-primary);
-  border: 2px solid var(--color-canvas);
-  color: #fff;
+  background: #2563eb;
+  border: 2px solid #f7f7f4;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -71,7 +71,7 @@
 }
 
 .profile-avatar-edit-btn:hover {
-  background: var(--color-primary-hover);
+  background: #1d4ed8;
 }
 
 .profile-hero-info {
@@ -324,9 +324,9 @@
 .crop-btn-save {
   padding: 10px 24px;
   border-radius: 8px;
-  background: var(--color-primary);
+  background: #2563eb;
   border: none;
-  color: #fff;
+  color: #ffffff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -334,7 +334,7 @@
 }
 
 .crop-btn-save:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: #1d4ed8;
 }
 
 .crop-btn-save:disabled {

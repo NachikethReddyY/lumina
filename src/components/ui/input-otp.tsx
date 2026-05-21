@@ -35,11 +35,9 @@ function InputOTPSlot({
   return (
     <div
       data-slot="input-otp-slot"
-      data-active={slot.isActive ? 'true' : undefined}
       className={cn(
-        'relative flex h-14 w-12 items-center justify-center rounded-[10px] border-[1.5px] border-[var(--color-hairline-strong)] bg-[var(--color-surface-card)] text-lg font-semibold text-[var(--color-ink)] shadow-[0_1px_0_color-mix(in_srgb,var(--color-ink)_4%,transparent)] transition-[border-color,box-shadow] duration-150',
-        slot.isActive &&
-          'z-10 border-[var(--color-primary)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-primary)_18%,transparent)]',
+        'relative flex h-14 w-12 items-center justify-center rounded-lg border border-[var(--color-hairline-strong)] bg-[var(--color-surface-card)] text-lg font-semibold text-[var(--color-ink)] transition-all',
+        slot.isActive && 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/10',
         className
       )}
       {...props}

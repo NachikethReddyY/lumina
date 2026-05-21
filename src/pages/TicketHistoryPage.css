@@ -605,7 +605,7 @@
   flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid var(--color-hairline);
-  border-radius: 10px;
+  border-radius: 50%;
   background: #e3ded8;
   color: var(--color-ink);
   font-family: var(--font-mono);
@@ -1557,7 +1557,7 @@
   height: 34px;
   overflow: hidden;
   border: 1px solid rgba(38, 37, 30, 0.08);
-  border-radius: 11px;
+  border-radius: 50%;
   background: rgba(230, 229, 224, 0.78);
   color: var(--th-text);
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1845,7 +1845,7 @@
 .th-person-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 14px;
+  border-radius: 50%;
   background: linear-gradient(135deg, #f8fafc, #e8eef9);
 }
 

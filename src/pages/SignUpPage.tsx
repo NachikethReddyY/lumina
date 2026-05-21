@@ -9,11 +9,13 @@ import Container from '../components/Container';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
 import { GoogleAuthButton } from '../components/GoogleAuthButton';
 import { authApi, type AuthValidationErrorBody } from '../utils/apiClient';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import { getNewPasswordError, PASSWORD_REQUIREMENTS_TEXT } from '../utils/passwordPolicy';
 import './AuthPage.css';
 
 export function SignUpPage() {
   const navigate = useNavigate();
+  const { refetch } = useCurrentUser();
   const [step, setStep] = useState<'email' | 'details'>('email');
   const [formData, setFormData] = useState({
     email: '',
@@ -113,11 +115,9 @@ export function SignUpPage() {
           setErrors({
             form:
               data.error ||
-              (res.status === 503 && data.code === 'MAIL_NOT_CONFIGURED'
-                ? 'Sign-up needs SMTP on the server. For local dev, run `pnpm dev` (development profile) or add SMTP vars to `.env.development`.'
-                : res.status === 503 && data.code === 'MAIL_FAILED'
-                  ? 'Account may exist but the verification email failed.'
-                  : 'Failed to create account. Please try again.'),
+              (res.status === 503 && data.code === 'MAIL_FAILED'
+                ? 'Account may exist but the verification email failed.'
+                : 'Failed to create account. Please try again.'),
           });
         }
         return;
@@ -160,6 +160,7 @@ export function SignUpPage() {
       if (data.accessToken) {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', '');
+        await refetch();
       }
       localStorage.removeItem('pendingVerificationEmail');
       navigate('/onboarding');

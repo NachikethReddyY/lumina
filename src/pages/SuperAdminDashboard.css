@@ -198,7 +198,9 @@
 .queue-avatar {
   width: 36px;
   height: 36px;
+  border-radius: 50%;
   background-color: #A39E98;
+  overflow: hidden;
 }
 
 .sa-role-badge {

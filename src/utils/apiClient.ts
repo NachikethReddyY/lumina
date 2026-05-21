@@ -16,6 +16,7 @@ export type ApiUser = {
   role: 'user' | 'admin' | 'super_admin';
   status: 'pending' | 'active' | 'suspended';
   email_is_verified: boolean;
+  name_set: boolean;
   avatar_url?: string | null;
   approved_by?: string | null;
   approved_at?: string | null;
@@ -198,6 +199,9 @@ export const authApi = {
 
   forgotPassword: (email: string) =>
     apiRequest('/auth/forgot-password', { method: 'POST', body: { email } }),
+
+  verifyResetOtp: (email: string, otp: string) =>
+    apiRequest('/auth/verify-reset-otp', { method: 'POST', body: { email, otp } }),
 
   resetPassword: (token: string, password: string) =>
     apiRequest('/auth/reset-password', { method: 'POST', body: { token, password } }),

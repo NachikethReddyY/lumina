@@ -839,7 +839,7 @@
 .avatar {
   width: 42px;
   height: 42px;
-  border-radius: 15px;
+  border-radius: 50%;
   background: linear-gradient(135deg, #94a3b8, #6b7280);
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255,255,255,0.24);
 }
@@ -1000,7 +1000,7 @@
 .avatar {
   width: 38px;
   height: 38px;
-  border-radius: 13px;
+  border-radius: 50%;
   background: linear-gradient(135deg, #a09c92, #807d72);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
 }

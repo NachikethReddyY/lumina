@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback, type CSSProperties } from "re
 import {
   LayoutDashboard,
   History,
-  Grid3X3,
   ListTree,
   Settings,
   LogOut,
@@ -75,7 +74,6 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin"
   const isSuperAdmin = user?.role === "super_admin"
 
   const fetchNotifications = useCallback(async () => {
@@ -120,16 +118,6 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, color: "#2563eb" },
     { title: "Ticket Queue", url: "/tickets", icon: Inbox, color: "#1f8a65" },
     { title: "Ticket History", url: "/tickets/history", icon: History, color: "#8b5cf6" },
-    ...(isAdmin && !isSuperAdmin
-      ? [
-          {
-            title: "Admin Dashboard",
-            url: "/admin/dashboard",
-            icon: Grid3X3,
-            color: "#0ea5e9",
-          },
-        ]
-      : []),
     ...(isSuperAdmin
       ? [
           {
