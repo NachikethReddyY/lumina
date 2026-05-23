@@ -1,23 +1,32 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, X, CheckCircle2 } from 'lucide-react';
 import {
-  HiUser,
-  HiClipboardDocumentList,
-  HiComputerDesktop,
-  HiMagnifyingGlass,
-} from 'react-icons/hi2';
-import type { IconType } from 'react-icons';
+  Upload,
+  X,
+  CheckCircle2,
+  User,
+  ClipboardList,
+  Monitor,
+  Search,
+  type LucideIcon,
+} from 'lucide-react';
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
+import { SetupLoading } from '../components/SetupLoading';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../context/useToast';
-import { usersApi } from '../utils/apiClient';
+import { usersApi, type ApiUser } from '../utils/apiClient';
 import { apiAssetUrl } from '../utils/apiBase';
+import { getSetupStepNumber, needsProfileName } from '../utils/authFlow';
+import {
+  clearOnboardingDraft,
+  loadOnboardingDraft,
+  saveOnboardingDraft,
+} from '../utils/onboardingDraft';
 import './OnboardingPage.css';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
@@ -26,14 +35,14 @@ type Category = {
   id: string;
   label: string;
   subtitles: string[];
-  Icon: IconType;
+  Icon: LucideIcon;
 };
 
 const CATEGORIES: Category[] = [
-  { id: 'HR', label: 'HR', subtitles: ['HR'], Icon: HiUser },
-  { id: 'Managers', label: 'Managers', subtitles: ['Product Manager', 'Product Owner', 'Program / Project Manager', 'Head of Product / VP Product'], Icon: HiClipboardDocumentList },
-  { id: 'Developers', label: 'Developers', subtitles: ['Software Engineer / Developer', 'Tech Lead / Lead Engineer', 'Architect', 'Platform / Infrastructure Engineer', 'DevOps / Site Reliability Engineer'], Icon: HiComputerDesktop },
-  { id: 'QA', label: 'QA', subtitles: ['Product Designer / UX Designer', 'UI / Visual Designer', 'UX Researcher', 'Content Designer / UX Writer', 'QA Engineer / Test Engineer', 'Automation Engineer', 'Security Engineer / AppSec', 'Compliance / Privacy Specialist', 'Release Manager'], Icon: HiMagnifyingGlass },
+  { id: 'HR', label: 'HR', subtitles: ['HR'], Icon: User },
+  { id: 'Managers', label: 'Managers', subtitles: ['Product Manager', 'Product Owner', 'Program / Project Manager', 'Head of Product / VP Product'], Icon: ClipboardList },
+  { id: 'Developers', label: 'Developers', subtitles: ['Software Engineer / Developer', 'Tech Lead / Lead Engineer', 'Architect', 'Platform / Infrastructure Engineer', 'DevOps / Site Reliability Engineer'], Icon: Monitor },
+  { id: 'QA', label: 'QA', subtitles: ['Product Designer / UX Designer', 'UI / Visual Designer', 'UX Researcher', 'Content Designer / UX Writer', 'QA Engineer / Test Engineer', 'Automation Engineer', 'Security Engineer / AppSec', 'Compliance / Privacy Specialist', 'Release Manager'], Icon: Search },
 ];
 
 async function cropImageToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
@@ -71,7 +80,7 @@ async function cropImageToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<
 
 export function OnboardingPage() {
   const navigate = useNavigate();
-  const { user, refetch } = useCurrentUser();
+  const { user, loading, refetch, setUser } = useCurrentUser();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropImgRef = useRef<HTMLImageElement>(null);
@@ -86,17 +95,36 @@ export function OnboardingPage() {
   const [showCropModal, setShowCropModal] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [restored, setRestored] = useState(false);
+
+  // Hardwired: never show onboarding until name step is complete
+  useEffect(() => {
+    if (!user || loading) return;
+    if (needsProfileName(user)) {
+      navigate('/complete-profile', { replace: true });
+    }
+  }, [user, loading, navigate]);
+
+  // Restore role selections from local draft or partial server data
+  useEffect(() => {
+    if (!user) return;
+    const draft = loadOnboardingDraft(user.id);
+    const category =
+      draft.category ??
+      (user.department && CATEGORIES.some((c) => c.id === user.department) ? user.department : null);
+    const subtitle = draft.subtitle ?? user.job_title ?? null;
+    if (category) setSelectedCategory(category);
+    if (subtitle) setSelectedSubtitle(subtitle);
+    setRestored(true);
+  }, [user?.id, user?.department, user?.job_title]);
 
   useEffect(() => {
-    // After onboarding is complete, always check approval status:
-    if (user?.onboarding_completed) {
-      if (user.status === 'active') {
-        navigate('/dashboard', { replace: true });
-      } else {
-        navigate('/pending-approval', { replace: true });
-      }
-    }
-  }, [user?.onboarding_completed, user?.status, navigate]);
+    if (!user || !restored) return;
+    saveOnboardingDraft(user.id, {
+      category: selectedCategory,
+      subtitle: selectedSubtitle,
+    });
+  }, [user?.id, selectedCategory, selectedSubtitle, restored]);
 
   const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { width, height } = e.currentTarget;
@@ -191,7 +219,11 @@ export function OnboardingPage() {
 
       // Save onboarding info — subtitle becomes job title, category becomes department
       const res = await usersApi.saveOnboarding(selectedSubtitle!, selectedCategory!);
-      const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        error?: string;
+        user?: ApiUser;
+      };
 
       if (!res.ok) {
         setStatus('error');
@@ -200,8 +232,12 @@ export function OnboardingPage() {
         return;
       }
 
+      const nextUser = data.user ?? (await refetch());
+      if (nextUser) {
+        setUser(nextUser);
+        clearOnboardingDraft(nextUser.id);
+      }
       setStatus('success');
-      await refetch();
     } catch {
       setStatus('error');
       setShowConfirmation(false);
@@ -213,6 +249,12 @@ export function OnboardingPage() {
     hidden: { opacity: 0, y: 10 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
   };
+
+  if (loading || !user) {
+    return <SetupLoading message="Loading profile setup…" />;
+  }
+
+  const step = getSetupStepNumber(user);
 
   return (
     <div className="onboarding-page">
@@ -235,8 +277,7 @@ export function OnboardingPage() {
             </p>
           </motion.div>
 
-          {user && (
-            <motion.div className="onboarding-user-section" variants={itemVariants}>
+          <motion.div className="onboarding-user-section" variants={itemVariants}>
               {/* Avatar Section */}
               <div className="onboarding-avatar-wrapper">
                 <div className="onboarding-avatar-container">
@@ -343,8 +384,7 @@ export function OnboardingPage() {
                 </div>
               </div>
 
-            </motion.div>
-          )}
+          </motion.div>
 
           <form className="onboarding-form" onSubmit={handleSubmit}>
             <Button
@@ -359,7 +399,7 @@ export function OnboardingPage() {
           </form>
 
           <motion.div className="onboarding-footer" variants={itemVariants}>
-            <p className="onboarding-step-counter">Step 2 of 3</p>
+            <p className="onboarding-step-counter">Step {step} of 3</p>
           </motion.div>
         </motion.div>
       </Container>

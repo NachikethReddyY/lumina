@@ -25,13 +25,15 @@ export type ApiUser = {
   department?: string | null;
   onboarding_completed: boolean;
   name_set: boolean;
+  needs_profile_name?: boolean;
+  is_google_account?: boolean;
 };
 
 export type ApiTicket = {
   id: string;
   title: string;
   description: string;
-  type: 'hardware' | 'software' | 'bug';
+  type: 'software' | 'bug' | 'incident';
   priority: 'P1' | 'P2' | 'P3' | 'P4';
   status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed' | 'on_hold' | 'pending_routing';
   created_at: string;
@@ -257,7 +259,7 @@ export const categoriesApi = {
 };
 
 export const ticketsApi = {
-  list: (params?: { scope?: string; status?: string }) => {
+  list: (params?: { scope?: 'org' | 'team' | 'assigned'; status?: string }) => {
     const query = new URLSearchParams();
     if (params?.scope) query.set('scope', params.scope);
     if (params?.status) query.set('status', params.status);
@@ -271,7 +273,7 @@ export const ticketsApi = {
     title: string;
     description: string;
     categoryId: string;
-    type: 'hardware' | 'software' | 'bug';
+    type: 'software' | 'bug' | 'incident';
     priority: 'P1' | 'P2' | 'P3' | 'P4';
     replicationSteps?: string;
   }) => apiRequest('/tickets', { method: 'POST', body }),

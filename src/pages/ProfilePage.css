@@ -10,10 +10,10 @@
   gap: 32px;
   align-items: flex-start;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-hairline);
   border-radius: 20px;
-  backdrop-filter: none;
+  box-shadow: 0 1px 2px rgba(38, 37, 30, 0.04);
 }
 
 @media (max-width: 640px) {
@@ -28,41 +28,60 @@
 .profile-avatar-wrap {
   position: relative;
   flex-shrink: 0;
+  width: 100px;
+  height: 100px;
 }
 
 .profile-avatar-img,
 .profile-avatar-placeholder {
   width: 100px;
   height: 100px;
+  min-width: 100px;
+  min-height: 100px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
-  color: #fff;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .profile-avatar-img {
   object-fit: cover;
-  border: 2px solid rgba(59, 130, 246, 0.3);
+  border: 2px solid #2563eb;
+  background: var(--color-surface-strong);
 }
 
 .profile-avatar-placeholder {
-  background: linear-gradient(135deg, var(--color-primary) 0%, #c084fc 100%);
-  box-shadow: none;
+  /* Solid fallback + gradient so initials stay visible on light canvas */
+  background-color: #2563eb;
+  background-image: linear-gradient(145deg, #2563eb 0%, #1d4ed8 52%, #4f46e5 100%);
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  box-shadow:
+    0 0 0 1px var(--color-hairline-strong),
+    0 4px 14px rgba(37, 99, 235, 0.28);
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
+  user-select: none;
 }
 
 .profile-avatar-edit-btn {
   position: absolute;
-  bottom: 4px;
-  right: 4px;
+  bottom: 2px;
+  right: 2px;
   width: 28px;
   height: 28px;
   border-radius: 50%;
   background: #2563eb;
-  border: 2px solid #f7f7f4;
+  border: 2px solid var(--color-surface-card);
   color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -148,8 +167,8 @@
 }
 
 .profile-stat-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(17, 124, 253, 0.2);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-hairline);
   border-radius: 16px;
   padding: 24px 20px;
   display: flex;
@@ -159,8 +178,8 @@
 }
 
 .profile-stat-card:hover {
-  border-color: rgba(59, 130, 246, 0.6);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: color-mix(in srgb, #2563eb 40%, var(--color-hairline));
+  background: var(--color-canvas-soft);
 }
 
 .psc-icon {
@@ -232,7 +251,7 @@
 .pri-title {
   font-size: 14px;
   font-weight: 500;
-  color: #e0e0e0;
+  color: var(--color-ink);
 }
 
 .pri-meta {

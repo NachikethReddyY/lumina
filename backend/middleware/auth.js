@@ -1,5 +1,6 @@
 const db = require('../db');
 const { verifyAccessToken } = require('../lib/jwt');
+const { needsProfileName } = require('../lib/userProfile');
 
 const USER_SELECT = `id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
               approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed, name_set`;
@@ -89,7 +90,7 @@ function requireOnboarding(req, res, next) {
 
   const user = req.user;
 
-  if (!user.name_set) {
+  if (needsProfileName(user)) {
     return res.status(403).json({
       error: 'Please complete your profile before continuing.',
       code: 'NAME_NOT_SET',

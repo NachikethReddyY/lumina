@@ -10,7 +10,7 @@ BEGIN
     CREATE TYPE user_status AS ENUM ('pending', 'active', 'suspended');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_type') THEN
-    CREATE TYPE ticket_type AS ENUM ('hardware', 'software', 'bug');
+    CREATE TYPE ticket_type AS ENUM ('software', 'bug', 'incident');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_priority') THEN
     CREATE TYPE ticket_priority AS ENUM ('P1', 'P2', 'P3', 'P4');
@@ -271,7 +271,8 @@ GROUP BY u.id, u.email, u.first_name, u.last_name;
 
 -- Seed users for local development and demos.
 INSERT INTO users (
-  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, name_set, approved_at
+  email, password_hash, first_name, last_name, role, status, email_is_verified,
+  onboarding_completed, name_set, approved_at, job_title, department
 )
 VALUES (
   lower('ynrdevs@gmail.com'),
@@ -283,7 +284,9 @@ VALUES (
   TRUE,
   TRUE,
   TRUE,
-  NOW()
+  NOW(),
+  'HR',
+  'HR'
 )
 ON CONFLICT (email) DO UPDATE
 SET first_name = EXCLUDED.first_name,
@@ -293,10 +296,13 @@ SET first_name = EXCLUDED.first_name,
     email_is_verified = EXCLUDED.email_is_verified,
     onboarding_completed = EXCLUDED.onboarding_completed,
     name_set = EXCLUDED.name_set,
-    approved_at = COALESCE(users.approved_at, NOW());
+    approved_at = COALESCE(users.approved_at, NOW()),
+    job_title = EXCLUDED.job_title,
+    department = EXCLUDED.department;
 
 INSERT INTO users (
-  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, name_set, approved_by, approved_at
+  email, password_hash, first_name, last_name, role, status, email_is_verified,
+  onboarding_completed, name_set, approved_by, approved_at, job_title, department
 )
 SELECT
   lower(seed.email),
@@ -306,29 +312,35 @@ SELECT
   seed.role::user_role,
   seed.status::user_status,
   seed.email_is_verified,
-  seed.status = 'active',
+  TRUE,
   TRUE,
   (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')),
-  CASE WHEN seed.status = 'active' THEN NOW() ELSE NULL END
+  CASE WHEN seed.status = 'active' THEN NOW() ELSE NULL END,
+  seed.job_title,
+  seed.department
 FROM (
   VALUES
-    ('admin.hardware@lumina.test', 'Testpass1', 'Harper', 'Hardware', 'admin', 'active', TRUE),
-    ('admin.software@lumina.test', 'Testpass1', 'Sage', 'Software', 'admin', 'active', TRUE),
-    ('admin.bugs@lumina.test', 'Testpass1', 'Bianca', 'Bugs', 'admin', 'active', TRUE),
-    ('admin.ops@lumina.test', 'Testpass1', 'Opal', 'Ops', 'admin', 'active', TRUE),
-    ('admin.qa@lumina.test', 'Testpass1', 'Quinn', 'Assurance', 'admin', 'active', TRUE),
-    ('lumina.ai@lumina.test', 'Testpass1', 'Lumina', 'AI', 'admin', 'active', TRUE),
-    ('alice.user@lumina.test', 'Testpass1', 'Alice', 'User', 'user', 'active', TRUE),
-    ('bob.user@lumina.test', 'Testpass1', 'Bob', 'User', 'user', 'active', TRUE),
-    ('carol.user@lumina.test', 'Testpass1', 'Carol', 'User', 'user', 'active', TRUE),
-    ('dan.user@lumina.test', 'Testpass1', 'Dan', 'User', 'user', 'active', TRUE),
-    ('eve.user@lumina.test', 'Testpass1', 'Eve', 'User', 'user', 'active', TRUE),
-    ('pending.user1@lumina.test', 'Testpass1', 'Pending', 'UserOne', 'user', 'pending', TRUE),
-    ('pending.user2@lumina.test', 'Testpass1', 'Pending', 'UserTwo', 'user', 'pending', TRUE),
-    ('pending.user3@lumina.test', 'Testpass1', 'Pending', 'UserThree', 'user', 'pending', TRUE),
-    ('pending.admin1@lumina.test', 'Testpass1', 'Pending', 'AdminOne', 'admin', 'pending', TRUE),
-    ('pending.admin2@lumina.test', 'Testpass1', 'Pending', 'AdminTwo', 'admin', 'pending', TRUE)
-) AS seed(email, password, first_name, last_name, role, status, email_is_verified)
+    ('admin.platform@lumina.test', 'Testpass1', 'Harper', 'Platform', 'user', 'active', TRUE, 'Platform / Infrastructure Engineer', 'Developers'),
+    ('admin.software@lumina.test', 'Testpass1', 'Sage', 'Software', 'user', 'active', TRUE, 'Software Engineer / Developer', 'Developers'),
+    ('admin.bugs@lumina.test', 'Testpass1', 'Bianca', 'Bugs', 'user', 'active', TRUE, 'QA Engineer / Test Engineer', 'QA'),
+    ('admin.ops@lumina.test', 'Testpass1', 'Opal', 'Ops', 'user', 'active', TRUE, 'DevOps / Site Reliability Engineer', 'Developers'),
+    ('admin.qa@lumina.test', 'Testpass1', 'Quinn', 'Assurance', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
+    ('lumina.ai@lumina.test', 'Testpass1', 'Lumina', 'AI', 'admin', 'active', TRUE, 'Release Manager', 'QA'),
+    ('alice.user@lumina.test', 'Testpass1', 'Alice', 'User', 'user', 'active', TRUE, 'Software Engineer / Developer', 'Developers'),
+    ('qa.tester@lumina.test', 'Testpass1', 'Taylor', 'Tester', 'user', 'active', TRUE, 'QA Engineer / Test Engineer', 'QA'),
+    ('qa.auto@lumina.test', 'Testpass1', 'Jordan', 'Auto', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
+    ('bob.user@lumina.test', 'Testpass1', 'Bob', 'User', 'user', 'active', TRUE, 'Product Designer / UX Designer', 'QA'),
+    ('carol.user@lumina.test', 'Testpass1', 'Carol', 'User', 'user', 'active', TRUE, 'Security Engineer / AppSec', 'QA'),
+    ('dan.user@lumina.test', 'Testpass1', 'Dan', 'User', 'user', 'active', TRUE, 'Architect', 'Developers'),
+    ('eve.user@lumina.test', 'Testpass1', 'Eve', 'Owner', 'admin', 'active', TRUE, 'Product Owner', 'Managers'),
+    ('manager.priya@lumina.test', 'Testpass1', 'Priya', 'Shah', 'admin', 'active', TRUE, 'Product Manager', 'Managers'),
+    ('manager.ian@lumina.test', 'Testpass1', 'Ian', 'Brooks', 'admin', 'active', TRUE, 'Program / Project Manager', 'Managers'),
+    ('pending.user1@lumina.test', 'Testpass1', 'Pending', 'UserOne', 'user', 'pending', TRUE, 'Tech Lead / Lead Engineer', 'Developers'),
+    ('pending.user2@lumina.test', 'Testpass1', 'Pending', 'UserTwo', 'user', 'pending', TRUE, 'UX Researcher', 'QA'),
+    ('pending.user3@lumina.test', 'Testpass1', 'Pending', 'UserThree', 'user', 'pending', TRUE, 'Content Designer / UX Writer', 'QA'),
+    ('pending.admin1@lumina.test', 'Testpass1', 'Pending', 'AdminOne', 'admin', 'pending', TRUE, 'Program / Project Manager', 'Managers'),
+    ('pending.admin2@lumina.test', 'Testpass1', 'Pending', 'AdminTwo', 'admin', 'pending', TRUE, 'Product Owner', 'Managers')
+) AS seed(email, password, first_name, last_name, role, status, email_is_verified, job_title, department)
 ON CONFLICT (email) DO UPDATE
 SET first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
@@ -338,14 +350,16 @@ SET first_name = EXCLUDED.first_name,
     onboarding_completed = EXCLUDED.onboarding_completed,
     name_set = EXCLUDED.name_set,
     approved_by = EXCLUDED.approved_by,
-    approved_at = COALESCE(users.approved_at, EXCLUDED.approved_at);
+    approved_at = COALESCE(users.approved_at, EXCLUDED.approved_at),
+    job_title = EXCLUDED.job_title,
+    department = EXCLUDED.department;
 
 INSERT INTO categories (name, description, created_by, is_active)
 SELECT *
 FROM (
-  SELECT 'Hardware Support', 'Device issues, peripherals, and workstation setup', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
+  SELECT 'Platform & Infrastructure', 'Production incidents, deployments, and cloud infrastructure', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
   UNION ALL
-  SELECT 'Software Support', 'Application access, account tooling, and configuration help', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
+  SELECT 'Software Support', 'Application access, integrations, and configuration help', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
   UNION ALL
   SELECT 'Bug Reports', 'Crashes, defects, and reproducible product issues', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
 ) AS seeded_categories(name, description, created_by, is_active)
@@ -366,73 +380,40 @@ SELECT
   seed.metadata::jsonb
 FROM (
   VALUES
-    ('Laptop screen flickering', 'The display flickers whenever I open design software.', 'Hardware Support', 'hardware', 'P2', 'assigned', 'alice.user@lumina.test', 'Open Illustrator and resize the window.', '{"source":"seed","routing":{"source":"seed","reasoning":"Balanced to least-loaded admin."}}'),
+    ('API latency spike in production', 'P95 response time doubled after the latest API release.', 'Platform & Infrastructure', 'incident', 'P2', 'assigned', 'alice.user@lumina.test', 'Open Grafana dashboard and compare last 24h.', '{"source":"seed","routing":{"source":"seed","reasoning":"Balanced to least-loaded admin."}}'),
     ('VPN login blocked', 'The VPN rejects my password after the latest reset.', 'Software Support', 'software', 'P1', 'in_progress', 'bob.user@lumina.test', 'Open VPN client and attempt login.', '{"source":"seed","routing":{"source":"seed","reasoning":"Critical auth issue routed to active admin."}}'),
     ('App crashes on startup', 'The app closes instantly after showing the splash screen.', 'Bug Reports', 'bug', 'P1', 'assigned', 'carol.user@lumina.test', 'Launch app on Windows 11 after fresh install.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
-    ('Keyboard replacement request', 'Several keys are sticking and no longer register.', 'Hardware Support', 'hardware', 'P3', 'resolved', 'dan.user@lumina.test', 'Issue persists across multiple reboots.', '{"source":"seed"}'),
+    ('Kubernetes pod crash loop', 'Checkout service pods restart every 30 seconds in staging.', 'Platform & Infrastructure', 'incident', 'P3', 'resolved', 'dan.user@lumina.test', 'kubectl describe pod checkout-api in staging.', '{"source":"seed"}'),
     ('Reporting export timeout', 'CSV export times out after around 30 seconds.', 'Software Support', 'software', 'P2', 'assigned', 'eve.user@lumina.test', 'Run export from finance dashboard.', '{"source":"seed"}'),
-    ('Blue screen after update', 'Laptop hits a blue screen after the latest driver patch.', 'Hardware Support', 'hardware', 'P1', 'assigned', 'alice.user@lumina.test', 'Occurs during boot.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
+    ('Production outage after deploy', 'Users cannot log in after v2.4.1 was deployed to production.', 'Platform & Infrastructure', 'incident', 'P1', 'assigned', 'alice.user@lumina.test', 'Rollback deploy and check error logs.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
     ('Notification emails delayed', 'Password reset emails arrive after 15 minutes.', 'Software Support', 'software', 'P2', 'closed', 'bob.user@lumina.test', 'Triggered from forgot password page.', '{"source":"seed"}'),
     ('Search results missing records', 'Two recent tickets do not appear in search results.', 'Bug Reports', 'bug', 'P2', 'in_progress', 'carol.user@lumina.test', 'Search by ticket title after creating a ticket.', '{"source":"seed"}'),
-    ('Docking station not detected', 'The docking station is not recognized after reconnecting.', 'Hardware Support', 'hardware', 'P3', 'assigned', 'dan.user@lumina.test', 'Reconnect dock after wake from sleep.', '{"source":"seed"}'),
+    ('Redis cache cluster unreachable', 'Application cannot connect to Redis after maintenance window.', 'Platform & Infrastructure', 'incident', 'P3', 'assigned', 'dan.user@lumina.test', 'Verify Redis endpoint and TLS certs.', '{"source":"seed"}'),
     ('SSO callback loop', 'Logging in with SSO keeps redirecting back to the login page.', 'Software Support', 'software', 'P1', 'resolved', 'eve.user@lumina.test', 'Happens in Chrome and Edge.', '{"source":"seed"}'),
     ('Attachment upload fails', 'PNG attachments fail with a 500 error.', 'Bug Reports', 'bug', 'P2', 'assigned', 'alice.user@lumina.test', 'Upload 2MB PNG to a new ticket.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
-    ('Monitor color calibration issue', 'External monitor colors shifted after reconnect.', 'Hardware Support', 'hardware', 'P4', 'closed', 'bob.user@lumina.test', 'Reconnect HDMI after sleep.', '{"source":"seed"}'),
+    ('Staging environment config drift', 'Staging API returns different schema than documented OpenAPI spec.', 'Software Support', 'software', 'P4', 'closed', 'bob.user@lumina.test', 'Compare staging vs production env vars.', '{"source":"seed"}'),
     ('License activation stuck', 'Activation spinner never completes for a desktop tool.', 'Software Support', 'software', 'P3', 'assigned', 'carol.user@lumina.test', 'Click activate after entering key.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}'),
     ('Mobile UI overlaps buttons', 'Action buttons overlap on iPhone Safari.', 'Bug Reports', 'bug', 'P3', 'in_progress', 'dan.user@lumina.test', 'Open settings on iPhone 14.', '{"source":"seed"}'),
-    ('Printer queue jam', 'The office printer queue stalls after one successful print.', 'Hardware Support', 'hardware', 'P4', 'assigned', 'eve.user@lumina.test', 'Send multiple print jobs in sequence.', '{"source":"seed","routing":{"source":"seed","reasoning":"Routed to Lumina AI for routing trace review."}}')
+    ('Webhook delivery retry backlog', 'Partner webhooks are queuing and not delivering within SLA.', 'Software Support', 'software', 'P4', 'assigned', 'eve.user@lumina.test', 'Inspect webhook worker logs and queue depth.', '{"source":"seed","pending_lumina_routing":true}')
 ) AS seed(title, description, category_name, type, priority, status, submitter_email, replication_steps, metadata)
 JOIN categories c ON lower(c.name) = lower(seed.category_name)
 JOIN users u ON u.email = lower(seed.submitter_email)
 WHERE NOT EXISTS (SELECT 1 FROM tickets);
 
+-- Stage every seeded ticket with Lumina AI first (mirrors live create → route pipeline).
 INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assigned_at)
 SELECT
   t.id,
-  assignee.id,
+  lumina.id,
   approver.id,
   TRUE,
-  NOW() - (seed.days_ago * INTERVAL '1 day')
-FROM (
-  VALUES
-    ('Laptop screen flickering', 'admin.hardware@lumina.test', 7),
-    ('VPN login blocked', 'admin.software@lumina.test', 6),
-    ('Keyboard replacement request', 'admin.hardware@lumina.test', 10),
-    ('Reporting export timeout', 'admin.ops@lumina.test', 4),
-    ('Notification emails delayed', 'admin.qa@lumina.test', 8),
-    ('Search results missing records', 'admin.bugs@lumina.test', 5),
-    ('Docking station not detected', 'admin.hardware@lumina.test', 3),
-    ('SSO callback loop', 'admin.software@lumina.test', 9),
-    ('License activation stuck', 'admin.software@lumina.test', 2),
-    ('Mobile UI overlaps buttons', 'admin.bugs@lumina.test', 1),
-    ('App crashes on startup', 'admin.bugs@lumina.test', 1),
-    ('Blue screen after update', 'admin.hardware@lumina.test', 1),
-    ('Attachment upload fails', 'admin.bugs@lumina.test', 1),
-    ('Printer queue jam', 'admin.hardware@lumina.test', 1)
-) AS seed(ticket_title, assignee_email, days_ago)
-JOIN tickets t ON t.title = seed.ticket_title
-JOIN users assignee ON assignee.email = lower(seed.assignee_email)
+  t.created_at
+FROM tickets t
+JOIN users lumina ON lumina.email = lower('lumina.ai@lumina.test')
 JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
 WHERE NOT EXISTS (SELECT 1 FROM ticket_assignment);
 
-WITH pipeline_targets(ticket_title, assignee_email) AS (
-  VALUES
-    ('License activation stuck', 'admin.software@lumina.test'),
-    ('App crashes on startup', 'admin.bugs@lumina.test'),
-    ('Blue screen after update', 'admin.hardware@lumina.test'),
-    ('Attachment upload fails', 'admin.bugs@lumina.test'),
-    ('Printer queue jam', 'admin.hardware@lumina.test')
-)
-UPDATE ticket_assignment ta
-SET assigned_to = assignee.id,
-    assigned_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
-FROM tickets t
-JOIN pipeline_targets target ON target.ticket_title = t.title
-JOIN users assignee ON assignee.email = lower(target.assignee_email)
-WHERE ta.ticket_id = t.id
-  AND ta.is_active = TRUE
-  AND ta.assigned_to = (SELECT id FROM users WHERE email = lower('lumina.ai@lumina.test'));
-
+-- Lumina AI routes staged tickets to real admins (by type, category, and submitter department).
 WITH lumina_user AS (
   SELECT id FROM users WHERE email = lower('lumina.ai@lumina.test')
 ),
@@ -444,19 +425,20 @@ real_admin_targets AS (
   JOIN lumina_user lumina ON lumina.id = ta.assigned_to
   JOIN tickets t ON t.id = ta.ticket_id
   JOIN categories c ON c.id = t.category_id
+  JOIN users submitter ON submitter.id = t.submitted_by
   JOIN users assignee ON assignee.email = lower(
     CASE
-      WHEN t.type = 'hardware' OR c.name ILIKE '%hardware%' THEN 'admin.hardware@lumina.test'
-      WHEN t.type = 'bug' OR c.name ILIKE '%bug%' THEN 'admin.bugs@lumina.test'
-      WHEN t.type = 'software' OR c.name ILIKE '%software%' THEN 'admin.software@lumina.test'
-      ELSE 'admin.ops@lumina.test'
+      WHEN submitter.department = 'QA' THEN 'manager.priya@lumina.test'
+      WHEN submitter.department = 'Developers' THEN 'manager.ian@lumina.test'
+      WHEN submitter.department = 'Managers' THEN 'manager.priya@lumina.test'
+      ELSE 'manager.ian@lumina.test'
     END
   )
   WHERE ta.is_active = TRUE
 )
 UPDATE ticket_assignment ta
 SET assigned_to = real_admin_targets.assignee_id,
-    assigned_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
+    assigned_by = (SELECT id FROM users WHERE email = lower('lumina.ai@lumina.test'))
 FROM real_admin_targets
 WHERE ta.ticket_id = real_admin_targets.ticket_id
   AND ta.is_active = TRUE;
@@ -466,22 +448,153 @@ SET metadata = jsonb_set(
   COALESCE(metadata, '{}'::jsonb),
   '{routing}',
   jsonb_build_object(
-    'source', 'seed_pipeline',
+    'source', 'lumina_ai',
     'assigned_admin_id', assignee.id::text,
-    'reasoning', 'Lumina AI pipeline selected a real admin based on support area.',
+    'reasoning', 'Lumina AI routed this ticket from staging to the best-fit active admin.',
+    'staging', jsonb_build_object('assigned_to_lumina', true),
     'decision', jsonb_build_object(
       'assigned_admin_id', assignee.id::text,
       'assignee_name', CONCAT(assignee.first_name, ' ', assignee.last_name),
-      'source', 'seed_pipeline',
-      'confidence', 0.72,
+      'source', 'lumina_ai',
+      'confidence', 0.85,
       'steps', jsonb_build_array(
-        jsonb_build_object('phase', 'thinking', 'summary', 'Seeded ticket selected for routing visibility.'),
-        jsonb_build_object('phase', 'read', 'summary', 'Lumina AI read priority, category, and active workload.'),
-        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Ticket assigned to ', assignee.first_name, ' ', assignee.last_name, '.'))
+        jsonb_build_object('phase', 'thinking', 'summary', 'Classified priority, category, and submitter department.'),
+        jsonb_build_object('phase', 'read', 'summary', 'Compared active admin workloads.'),
+        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Routed to ', assignee.first_name, ' ', assignee.last_name, '.'))
       ),
       'ticket_note', jsonb_build_object(
         'summary', CONCAT('Route to ', assignee.first_name, ' ', assignee.last_name, '.'),
-        'rationale', 'Seeded routing decision finalized through the Lumina AI pipeline.',
+        'rationale', 'Lumina AI pipeline assignment based on support area and load.',
+        'next_step', 'Assignee reviews and starts work.'
+      )
+    )
+  ),
+  true
+),
+status = CASE
+  WHEN tickets.status = 'pending_routing'::ticket_status THEN 'assigned'::ticket_status
+  ELSE tickets.status
+END
+FROM ticket_assignment ta
+JOIN users assignee ON assignee.id = ta.assigned_to
+WHERE ta.ticket_id = tickets.id
+  AND ta.is_active = TRUE
+  AND lower(assignee.email) <> lower('lumina.ai@lumina.test');
+
+-- Additional QA / Developer tickets (idempotent by title; for existing databases).
+INSERT INTO tickets (
+  title, description, category_id, type, priority, status, submitted_by, replication_steps, metadata
+)
+SELECT
+  seed.title,
+  seed.description,
+  c.id,
+  seed.type::ticket_type,
+  seed.priority::ticket_priority,
+  seed.status::ticket_status,
+  u.id,
+  seed.replication_steps,
+  seed.metadata::jsonb
+FROM (
+  VALUES
+    ('Regression suite fails on checkout', 'Playwright suite fails on payment step after UI refresh.', 'Bug Reports', 'bug', 'P2', 'assigned', 'bob.user@lumina.test', 'Run npm run test:e2e on staging.', '{"source":"seed","pending_lumina_routing":true}'),
+    ('Accessibility contrast audit findings', 'WCAG contrast failures on primary buttons in dark mode.', 'Bug Reports', 'bug', 'P3', 'in_progress', 'carol.user@lumina.test', 'Run axe scan on settings page.', '{"source":"seed","pending_lumina_routing":true}'),
+    ('Load test spike on auth service', 'Auth service p99 doubled during load test window.', 'Platform & Infrastructure', 'incident', 'P2', 'assigned', 'alice.user@lumina.test', 'Re-run k6 profile with 500 RPS.', '{"source":"seed","pending_lumina_routing":true}'),
+    ('Database migration lock timeout', 'Deploy migration 018 hangs on users table lock.', 'Platform & Infrastructure', 'incident', 'P1', 'assigned', 'dan.user@lumina.test', 'Check pg_locks during migration.', '{"source":"seed","pending_lumina_routing":true}'),
+    ('Design tokens out of sync', 'Figma tokens differ from CSS variables in main branch.', 'Software Support', 'software', 'P3', 'assigned', 'bob.user@lumina.test', 'Compare tokens.json vs theme.css.', '{"source":"seed","pending_lumina_routing":true}'),
+    ('API pagination returns duplicates', 'Page 2 of /tickets returns overlapping records.', 'Bug Reports', 'bug', 'P2', 'assigned', 'alice.user@lumina.test', 'Call GET /tickets?page=2.', '{"source":"seed","pending_lumina_routing":true}'),
+    ('CI pipeline flaky on lint step', 'ESLint step fails intermittently on feature branches.', 'Software Support', 'software', 'P4', 'assigned', 'dan.user@lumina.test', 'Re-run failed GitHub Action twice.', '{"source":"seed","pending_lumina_routing":true}'),
+    ('Pen test medium finding on exports', 'CSV export endpoint missing rate limit per user.', 'Bug Reports', 'bug', 'P2', 'in_progress', 'carol.user@lumina.test', 'Attempt 50 exports in one minute.', '{"source":"seed","pending_lumina_routing":true}')
+) AS seed(title, description, category_name, type, priority, status, submitter_email, replication_steps, metadata)
+JOIN categories c ON lower(c.name) = lower(seed.category_name)
+JOIN users u ON u.email = lower(seed.submitter_email)
+WHERE NOT EXISTS (SELECT 1 FROM tickets t WHERE t.title = seed.title);
+
+INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assigned_at)
+SELECT
+  t.id,
+  lumina.id,
+  approver.id,
+  TRUE,
+  NOW()
+FROM tickets t
+JOIN users lumina ON lumina.email = lower('lumina.ai@lumina.test')
+JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
+WHERE t.title IN (
+  'Regression suite fails on checkout',
+  'Accessibility contrast audit findings',
+  'Load test spike on auth service',
+  'Database migration lock timeout',
+  'Design tokens out of sync',
+  'API pagination returns duplicates',
+  'CI pipeline flaky on lint step',
+  'Pen test medium finding on exports'
+)
+AND NOT EXISTS (
+  SELECT 1 FROM ticket_assignment ta WHERE ta.ticket_id = t.id AND ta.is_active = TRUE
+);
+
+WITH lumina_user AS (
+  SELECT id FROM users WHERE email = lower('lumina.ai@lumina.test')
+),
+extra_admin_targets AS (
+  SELECT
+    t.id AS ticket_id,
+    assignee.id AS assignee_id
+  FROM ticket_assignment ta
+  JOIN lumina_user lumina ON lumina.id = ta.assigned_to
+  JOIN tickets t ON t.id = ta.ticket_id
+  JOIN categories c ON c.id = t.category_id
+  JOIN users submitter ON submitter.id = t.submitted_by
+  JOIN users assignee ON assignee.email = lower(
+    CASE
+      WHEN submitter.department = 'QA' THEN 'manager.priya@lumina.test'
+      WHEN submitter.department = 'Developers' THEN 'manager.ian@lumina.test'
+      WHEN submitter.department = 'Managers' THEN 'manager.priya@lumina.test'
+      ELSE 'manager.ian@lumina.test'
+    END
+  )
+  WHERE ta.is_active = TRUE
+    AND t.title IN (
+      'Regression suite fails on checkout',
+      'Accessibility contrast audit findings',
+      'Load test spike on auth service',
+      'Database migration lock timeout',
+      'Design tokens out of sync',
+      'API pagination returns duplicates',
+      'CI pipeline flaky on lint step',
+      'Pen test medium finding on exports'
+    )
+)
+UPDATE ticket_assignment ta
+SET assigned_to = extra_admin_targets.assignee_id,
+    assigned_by = (SELECT id FROM users WHERE email = lower('lumina.ai@lumina.test'))
+FROM extra_admin_targets
+WHERE ta.ticket_id = extra_admin_targets.ticket_id
+  AND ta.is_active = TRUE;
+
+UPDATE tickets
+SET metadata = jsonb_set(
+  COALESCE(metadata, '{}'::jsonb),
+  '{routing}',
+  jsonb_build_object(
+    'source', 'lumina_ai',
+    'assigned_admin_id', assignee.id::text,
+    'reasoning', 'Lumina AI routed this ticket from staging to the best-fit active admin.',
+    'staging', jsonb_build_object('assigned_to_lumina', true),
+    'decision', jsonb_build_object(
+      'assigned_admin_id', assignee.id::text,
+      'assignee_name', CONCAT(assignee.first_name, ' ', assignee.last_name),
+      'source', 'lumina_ai',
+      'confidence', 0.85,
+      'steps', jsonb_build_array(
+        jsonb_build_object('phase', 'thinking', 'summary', 'Classified priority, category, and submitter department.'),
+        jsonb_build_object('phase', 'read', 'summary', 'Compared active admin workloads.'),
+        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Routed to ', assignee.first_name, ' ', assignee.last_name, '.'))
+      ),
+      'ticket_note', jsonb_build_object(
+        'summary', CONCAT('Route to ', assignee.first_name, ' ', assignee.last_name, '.'),
+        'rationale', 'Lumina AI pipeline assignment based on support area and load.',
         'next_step', 'Assignee reviews and starts work.'
       )
     )
@@ -490,20 +603,19 @@ SET metadata = jsonb_set(
 )
 FROM ticket_assignment ta
 JOIN users assignee ON assignee.id = ta.assigned_to
-WHERE (
-    title IN (
-      'App crashes on startup',
-      'Blue screen after update',
-      'Attachment upload fails',
-      'License activation stuck',
-      'Printer queue jam'
-    )
-    OR COALESCE(tickets.metadata->'routing'->>'assigned_admin_id', '') = (
-      SELECT id::text FROM users WHERE email = lower('lumina.ai@lumina.test')
-    )
-  )
-  AND ta.ticket_id = tickets.id
-  AND ta.is_active = TRUE;
+WHERE ta.ticket_id = tickets.id
+  AND ta.is_active = TRUE
+  AND lower(assignee.email) <> lower('lumina.ai@lumina.test')
+  AND tickets.title IN (
+    'Regression suite fails on checkout',
+    'Accessibility contrast audit findings',
+    'Load test spike on auth service',
+    'Database migration lock timeout',
+    'Design tokens out of sync',
+    'API pagination returns duplicates',
+    'CI pipeline flaky on lint step',
+    'Pen test medium finding on exports'
+  );
 
 INSERT INTO satisfaction_ratings (ticket_id, rated_by, rating, comment)
 SELECT
@@ -513,7 +625,7 @@ SELECT
   seed.comment
 FROM (
   VALUES
-    ('Keyboard replacement request', 'dan.user@lumina.test', 5, 'Fast turnaround and clear updates.'),
+    ('Kubernetes pod crash loop', 'dan.user@lumina.test', 5, 'Fast turnaround and clear updates.'),
     ('Notification emails delayed', 'bob.user@lumina.test', 4, 'Issue fixed after SMTP tuning.'),
     ('SSO callback loop', 'eve.user@lumina.test', 5, 'Resolved quickly with a clean workaround.')
 ) AS seed(ticket_title, user_email, rating, comment)
@@ -530,7 +642,7 @@ FROM (
   VALUES
     ('ynrdevs@gmail.com', 'seed_users_loaded', '{"source":"init.sql"}'),
     ('ynrdevs@gmail.com', 'seed_tickets_loaded', '{"source":"init.sql"}'),
-    ('admin.hardware@lumina.test', 'seed_assignment_reviewed', '{"source":"init.sql","area":"hardware"}')
+    ('admin.platform@lumina.test', 'seed_assignment_reviewed', '{"source":"init.sql","area":"platform"}')
 ) AS seed(actor_email, action, metadata)
 JOIN users actor ON actor.email = lower(seed.actor_email)
 WHERE NOT EXISTS (SELECT 1 FROM audit_logs);
@@ -542,12 +654,13 @@ SET created_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
 WHERE created_by = (SELECT id FROM users WHERE email = lower('admin@example.com'));
 
 UPDATE ticket_assignment
-SET assigned_to = (SELECT id FROM users WHERE email = lower('admin.hardware@lumina.test'))
+SET assigned_to = (SELECT id FROM users WHERE email = lower('admin.platform@lumina.test'))
 WHERE assigned_to IN (
   (SELECT id FROM users WHERE email = lower('admin@example.com')),
   (SELECT id FROM users WHERE email = lower('y.nachiketh.reddy@gmail.com')),
   (SELECT id FROM users WHERE email = lower('itsnachikethreddy@gmail.com')),
-  (SELECT id FROM users WHERE email = lower('ynrworks@gmail.com'))
+  (SELECT id FROM users WHERE email = lower('ynrworks@gmail.com')),
+  (SELECT id FROM users WHERE email = lower('rlasya005@gmail.com'))
 );
 
 UPDATE ticket_assignment
@@ -559,11 +672,41 @@ SET approved_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')
 WHERE approved_by = (SELECT id FROM users WHERE email = lower('admin@example.com'));
 
 UPDATE audit_logs
-SET actor_id = (SELECT id FROM users WHERE email = lower('admin.hardware@lumina.test'))
+SET actor_id = (SELECT id FROM users WHERE email = lower('admin.platform@lumina.test'))
 WHERE actor_id IN (
-  (SELECT id FROM users WHERE email = lower('y.nachiketh.reddy@gmail.com')),
-  (SELECT id FROM users WHERE email = lower('itsnachikethreddy@gmail.com')),
-  (SELECT id FROM users WHERE email = lower('ynrworks@gmail.com'))
+  SELECT id FROM users WHERE email IN (
+    lower('y.nachiketh.reddy@gmail.com'),
+    lower('itsnachikethreddy@gmail.com'),
+    lower('ynrworks@gmail.com'),
+    lower('rlasya005@gmail.com'),
+    lower('admin.hardware@lumina.test')
+  )
+);
+
+UPDATE tickets
+SET submitted_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
+WHERE submitted_by IN (
+  SELECT id FROM users WHERE email IN (
+    lower('rlasya005@gmail.com'),
+    lower('admin.hardware@lumina.test')
+  )
+);
+
+UPDATE ticket_assignment
+SET assigned_to = (SELECT id FROM users WHERE email = lower('admin.platform@lumina.test'))
+WHERE assigned_to = (SELECT id FROM users WHERE email = lower('admin.hardware@lumina.test'));
+
+UPDATE ticket_assignment
+SET assigned_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
+WHERE assigned_by = (SELECT id FROM users WHERE email = lower('admin.hardware@lumina.test'));
+
+UPDATE users
+SET approved_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
+WHERE approved_by IN (
+  SELECT id FROM users WHERE email IN (
+    lower('rlasya005@gmail.com'),
+    lower('admin.hardware@lumina.test')
+  )
 );
 
 DELETE FROM users
@@ -575,5 +718,144 @@ WHERE email IN (
   lower('itsnachikethreddyy@gmail.com'),
   lower('y.nachiketh.reddy@gmail.com'),
   lower('itsnachikethreddy@gmail.com'),
-  lower('ynrworks@gmail.com')
+  lower('ynrworks@gmail.com'),
+  lower('rlasya005@gmail.com'),
+  lower('admin.hardware@lumina.test')
 );
+
+-- Backfill onboarding job roles for any existing Lumina seed account (idempotent re-runs).
+UPDATE users u
+SET job_title = seed.job_title,
+    department = seed.department,
+    onboarding_completed = TRUE,
+    name_set = TRUE
+FROM (
+  VALUES
+    ('ynrdevs@gmail.com', 'HR', 'HR'),
+    ('admin.platform@lumina.test', 'Platform / Infrastructure Engineer', 'Developers'),
+    ('admin.software@lumina.test', 'Software Engineer / Developer', 'Developers'),
+    ('admin.bugs@lumina.test', 'QA Engineer / Test Engineer', 'QA'),
+    ('admin.ops@lumina.test', 'DevOps / Site Reliability Engineer', 'Developers'),
+    ('admin.qa@lumina.test', 'Automation Engineer', 'QA'),
+    ('eve.user@lumina.test', 'Product Owner', 'Managers'),
+    ('lumina.ai@lumina.test', 'Release Manager', 'QA'),
+    ('alice.user@lumina.test', 'Software Engineer / Developer', 'Developers'),
+    ('qa.tester@lumina.test', 'QA Engineer / Test Engineer', 'QA'),
+    ('qa.auto@lumina.test', 'Automation Engineer', 'QA'),
+    ('bob.user@lumina.test', 'Product Designer / UX Designer', 'QA'),
+    ('carol.user@lumina.test', 'Security Engineer / AppSec', 'QA'),
+    ('dan.user@lumina.test', 'Architect', 'Developers'),
+    ('manager.priya@lumina.test', 'Product Manager', 'Managers'),
+    ('manager.ian@lumina.test', 'Program / Project Manager', 'Managers'),
+    ('pending.user1@lumina.test', 'Tech Lead / Lead Engineer', 'Developers'),
+    ('pending.user2@lumina.test', 'UX Researcher', 'QA'),
+    ('pending.user3@lumina.test', 'Content Designer / UX Writer', 'QA'),
+    ('pending.admin1@lumina.test', 'Program / Project Manager', 'Managers'),
+    ('pending.admin2@lumina.test', 'Product Owner', 'Managers')
+) AS seed(email, job_title, department)
+WHERE u.email = lower(seed.email);
+
+-- Role model: system admin = PO, managers, HR (+ Lumina AI). System user = developers & testers.
+UPDATE users
+SET role = 'user'::user_role
+WHERE email IN (
+  lower('admin.platform@lumina.test'),
+  lower('admin.software@lumina.test'),
+  lower('admin.bugs@lumina.test'),
+  lower('admin.ops@lumina.test'),
+  lower('admin.qa@lumina.test')
+);
+
+UPDATE users
+SET role = 'admin'::user_role
+WHERE email IN (
+  lower('manager.priya@lumina.test'),
+  lower('manager.ian@lumina.test'),
+  lower('eve.user@lumina.test'),
+  lower('ynrdevs@gmail.com'),
+  lower('lumina.ai@lumina.test')
+);
+
+-- Tickets previously assigned to IC accounts should sit with managers (PO/manager triage).
+UPDATE ticket_assignment ta
+SET assigned_to = mgr.id,
+    assigned_by = COALESCE(lumina.id, ta.assigned_by)
+FROM tickets t
+JOIN users submitter ON submitter.id = t.submitted_by
+JOIN users mgr ON mgr.email = lower(
+  CASE
+    WHEN submitter.department = 'QA' THEN 'manager.priya@lumina.test'
+    WHEN submitter.department = 'Developers' THEN 'manager.ian@lumina.test'
+    ELSE 'manager.ian@lumina.test'
+  END
+)
+LEFT JOIN users lumina ON lumina.email = lower('lumina.ai@lumina.test')
+WHERE ta.ticket_id = t.id
+  AND ta.is_active = TRUE
+  AND ta.assigned_to IN (
+    SELECT id FROM users WHERE email IN (
+      lower('admin.platform@lumina.test'),
+      lower('admin.software@lumina.test'),
+      lower('admin.bugs@lumina.test'),
+      lower('admin.ops@lumina.test'),
+      lower('admin.qa@lumina.test')
+    )
+  );
+
+-- Software company: migrate legacy hardware ticket type and category away
+DO $add_incident_enum$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type t
+    JOIN pg_enum e ON t.oid = e.enumtypid
+    WHERE t.typname = 'ticket_type' AND e.enumlabel = 'incident'
+  ) THEN
+    ALTER TYPE ticket_type ADD VALUE 'incident';
+  END IF;
+END $add_incident_enum$;
+
+UPDATE tickets
+SET type = 'incident'::ticket_type
+WHERE type::text = 'hardware';
+
+UPDATE categories
+SET
+  name = 'Platform & Infrastructure',
+  description = 'Production incidents, deployments, and cloud infrastructure'
+WHERE name = 'Hardware Support'
+  AND NOT EXISTS (
+    SELECT 1 FROM categories c2
+    WHERE lower(c2.name) = lower('Platform & Infrastructure')
+      AND c2.id <> categories.id
+  );
+
+UPDATE users
+SET
+  email = lower('admin.platform@lumina.test'),
+  first_name = 'Harper',
+  last_name = 'Platform'
+WHERE email = lower('admin.hardware@lumina.test')
+  AND NOT EXISTS (
+    SELECT 1 FROM users u2 WHERE u2.email = lower('admin.platform@lumina.test')
+  );
+
+-- Google OAuth: require /complete-profile until user explicitly confirms name
+UPDATE users u
+SET name_set = FALSE
+FROM oauth_accounts o
+WHERE o.user_id = u.id
+  AND o.provider = 'google'::oauth_provider
+  AND u.onboarding_completed = FALSE
+  AND u.name_set = TRUE;
+
+-- Google OAuth: require email OTP like password signup (do not auto-verify from Google identity)
+UPDATE users u
+SET email_is_verified = FALSE
+FROM oauth_accounts o
+WHERE o.user_id = u.id
+  AND o.provider = 'google'::oauth_provider
+  AND u.email_is_verified = TRUE
+  AND (
+    u.status = 'pending'::user_status
+    OR NOT u.onboarding_completed
+  );

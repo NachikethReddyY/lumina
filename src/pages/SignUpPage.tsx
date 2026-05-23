@@ -9,7 +9,7 @@ import Container from '../components/Container';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
 import { GoogleAuthButton } from '../components/GoogleAuthButton';
 import { authApi, type ApiUser, type AuthValidationErrorBody } from '../utils/apiClient';
-import { getPostAuthPath } from '../utils/authFlow';
+import { getPostEmailVerifyPath } from '../utils/authFlow';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { getNewPasswordError, PASSWORD_REQUIREMENTS_TEXT } from '../utils/passwordPolicy';
 import './AuthPage.css';
@@ -162,7 +162,7 @@ export function SignUpPage() {
         nextUser = (await refetch()) ?? nextUser;
       }
       localStorage.removeItem('pendingVerificationEmail');
-      navigate(getPostAuthPath(nextUser), { replace: true });
+      navigate(getPostEmailVerifyPath(nextUser), { replace: true });
     } catch {
       setOtpError('Network error. Please try again.');
     } finally {

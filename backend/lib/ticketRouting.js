@@ -324,10 +324,20 @@ async function chooseAssignee(ticket, admins) {
   }
 }
 
+async function getLuminaAiUserId(client = db) {
+  const result = await client.query(
+    `SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+    [LUMINA_AI_EMAIL]
+  );
+  return result.rows[0]?.id || null;
+}
+
 module.exports = {
+  LUMINA_AI_EMAIL,
   chooseAssignee,
   deterministicRoute,
   eligibleRoutingAdmins,
   getAdminWorkloads,
+  getLuminaAiUserId,
   isLuminaAIUser,
 };

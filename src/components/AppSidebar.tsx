@@ -21,6 +21,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import Logo from "./Logo"
 import { useCurrentUser } from "../hooks/useCurrentUser"
 import { notificationsApi, usersApi, type ApiNotification, type ApiUser } from "../utils/apiClient"
+import { getUserRoleLabel } from "../utils/userDisplay"
 import { apiAssetUrl } from "../utils/apiBase"
 import "./Sidebar.css"
 
@@ -335,7 +336,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
           )}
           <div className="user-info">
             <span className="user-name">{user ? `${user.first_name} ${user.last_name}` : "Lumina User"}</span>
-            <span className="user-email">{user?.email || "not-signed-in"}</span>
+            <span className="user-email">{getUserRoleLabel(user) || user?.email || "not-signed-in"}</span>
           </div>
         </button>
       </div>

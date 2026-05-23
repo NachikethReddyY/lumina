@@ -9,6 +9,8 @@ import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { getUserRoleLabel } from '../utils/userDisplay';
+import { getTicketListScope, isTeamManager } from '../utils/orgRoles';
 import { ticketsApi, usersApi, type AdminWorkload, type ApiTicket } from '../utils/apiClient';
 import './Dashboard.css';
 
@@ -108,8 +110,10 @@ export function AdminDashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const scope = user?.role === 'admin' ? 'assigned' : undefined;
-        const [ticketsRes, workloadRes] = await Promise.all([ticketsApi.list({ scope }), ticketsApi.workload()]);
+        const [ticketsRes, workloadRes] = await Promise.all([
+          ticketsApi.list(getTicketListScope(user)),
+          ticketsApi.workload(),
+        ]);
         const [ticketsBody, workloadBody] = await Promise.all([ticketsRes.json(), workloadRes.json()]);
         if (cancelled) return;
         setTickets(Array.isArray(ticketsBody) ? ticketsBody : []);
@@ -119,7 +123,7 @@ export function AdminDashboard() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.role]);
+  }, [user?.id, user?.role, user?.department]);
 
   const filtered = useMemo(() =>
     tickets.filter((t) => {
@@ -164,8 +168,18 @@ export function AdminDashboard() {
           <motion.div className="dashboard-header" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="header-content">
               <div>
-                <h1 className="dashboard-title">Admin Dashboard</h1>
-                <p className="dashboard-subtitle">Review reported issues, manage resolution queue, optimize workflow.</p>
+                <h1 className="dashboard-title">Dashboard</h1>
+                <p className="dashboard-subtitle">
+                  {getUserRoleLabel(user) ? (
+                    <>
+                      <span className="dashboard-role-label">{getUserRoleLabel(user)}</span>
+                      {' · '}
+                    </>
+                  ) : null}
+                  {isTeamManager(user)
+                    ? 'Team progress across Developers and QA — read-only workload view.'
+                    : 'Review reported issues, manage resolution queue, optimize workflow.'}
+                </p>
               </div>
             </div>
           </motion.div>

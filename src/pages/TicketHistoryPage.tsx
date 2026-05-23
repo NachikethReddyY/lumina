@@ -25,6 +25,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../context/useToast';
 import { ticketsApi, categoriesApi, type ApiTicket, type ApiCategory, type ApiActivityEvent, type ApiComment } from '../utils/apiClient';
 import { apiAssetUrl } from '../utils/apiBase';
+import { getTicketListScope } from '../utils/orgRoles';
 import './TicketHistoryPage.css';
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -371,9 +372,9 @@ function recommendationFor(ticket: ApiTicket): string {
 
 function teamFor(ticket: ApiTicket): string {
   if (ticket.category_name) return ticket.category_name;
-  if (ticket.type === 'hardware') return 'Hardware Support';
+  if (ticket.type === 'incident') return 'Platform & Infrastructure';
   if (ticket.type === 'software') return 'Software Support';
-  return 'Bug Triage';
+  return 'Bug Reports';
 }
 
 function fallbackTimelineEvents(ticket: ApiTicket): TimelineEvent[] {
@@ -516,7 +517,10 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     let cancelled = false;
     (async () => {
       try {
-        const [ticketsRes, catRes] = await Promise.all([ticketsApi.list(), categoriesApi.list()]);
+        const [ticketsRes, catRes] = await Promise.all([
+          ticketsApi.list(getTicketListScope(user)),
+          categoriesApi.list(),
+        ]);
         const [ticketsBody, catBody] = await Promise.all([ticketsRes.json(), catRes.json()]);
         if (cancelled) return;
         setTickets(Array.isArray(ticketsBody) ? ticketsBody : []);
@@ -526,7 +530,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id, user?.department, user?.role]);
 
   const resetPage = useCallback(() => setPage(1), []);
 
@@ -648,16 +652,25 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     ? 'Completed ticket records with inline inspection'
     : user?.role === 'user'
       ? 'Your tickets in one compact workspace'
-      : 'All active ticket records with inline inspection';
+      : user?.department === 'HR'
+        ? 'All organization tickets — Developers, QA, Managers, and support staff'
+        : user?.department === 'Managers'
+          ? 'Team tickets from Developers and QA'
+          : 'All active ticket records with inline inspection';
 
   const changeTab = (tab: TicketTab) => {
     setActiveTab(tab);
     setPage(1);
   };
   const isRegularUser = user?.role === 'user';
-  const canReroute = Boolean(selectedTicket && user?.role !== 'user');
-  const canChangePriority = Boolean(selectedTicket && user?.role !== 'user');
-  const canChangeStatus = Boolean(selectedTicket && (user?.role !== 'user' || selectedTicket.assigned_to_id === user?.id));
+  const isHrOversight = user?.department === 'HR';
+  const canReroute = Boolean(selectedTicket && user?.role !== 'user' && !isHrOversight);
+  const canChangePriority = Boolean(selectedTicket && user?.role !== 'user' && !isHrOversight);
+  const canChangeStatus = Boolean(
+    selectedTicket
+    && !isHrOversight
+    && (user?.role !== 'user' || selectedTicket.assigned_to_id === user?.id)
+  );
   const canComment = Boolean(selectedTicket && (user?.role !== 'user' || selectedTicket.submitted_by_id === user?.id));
   const ownerEyebrow = isRegularUser ? 'support owner' : 'assigned';
 
@@ -676,7 +689,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       setTickets((current) => current.map((ticket) => (
         ticket.id === selectedTicket.id ? { ...ticket, priority: nextPriority } : ticket
       )));
-      const refreshed = await ticketsApi.list();
+      const refreshed = await ticketsApi.list(getTicketListScope(user));
       const body = await refreshed.json().catch(() => []);
       if (Array.isArray(body)) setTickets(body);
       await refreshActivity(selectedTicket.id, true);
@@ -703,7 +716,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       setTickets((current) => current.map((ticket) => (
         ticket.id === selectedTicket.id ? { ...ticket, status: nextStatus } : ticket
       )));
-      const refreshed = await ticketsApi.list();
+      const refreshed = await ticketsApi.list(getTicketListScope(user));
       const body = await refreshed.json().catch(() => []);
       if (Array.isArray(body)) setTickets(body);
       await refreshActivity(selectedTicket.id, true);
@@ -757,7 +770,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
         return;
       }
 
-      const refreshed = await ticketsApi.list();
+      const refreshed = await ticketsApi.list(getTicketListScope(user));
       const body = await refreshed.json().catch(() => []);
       if (Array.isArray(body)) setTickets(body);
       await refreshActivity(selectedTicket.id, true);

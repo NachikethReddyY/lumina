@@ -8,12 +8,13 @@ import { motion, type Variants } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import Logo from '../components/Logo';
 import Container from '../components/Container';
+import { SetupLoading } from '../components/SetupLoading';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import './PendingApprovalPage.css';
 
 export function PendingApprovalPage() {
   const navigate = useNavigate();
-  const { user, refetch } = useCurrentUser();
+  const { user, loading, refetch } = useCurrentUser();
 
   // Poll user status every 5s and auto-redirect if approved
   useEffect(() => {
@@ -46,6 +47,10 @@ export function PendingApprovalPage() {
     },
   };
 
+  if (loading || !user) {
+    return <SetupLoading message="Checking approval status…" />;
+  }
+
   return (
     <div className="pending-approval-page">
       <div className="pending-approval-decoration" />
@@ -72,13 +77,13 @@ export function PendingApprovalPage() {
             </p>
 
             <p className="pending-approval-description">
-              Your application has been successfully submitted. An administrator will review your profile and approve your access soon.
+              Your application has been submitted. An administrator will review your profile shortly.
             </p>
           </motion.div>
 
           <motion.div className="pending-approval-footer" variants={itemVariants}>
             <p className="pending-approval-note">
-              You will be notified once your account is approved.
+              Refresh this page in a few minutes.
             </p>
           </motion.div>
         </motion.div>

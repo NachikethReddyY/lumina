@@ -10,7 +10,13 @@ const {
   validateTicketStatusBody,
   validationError,
 } = require('../lib/ticketValidation');
-const { chooseAssignee, getAdminWorkloads, isLuminaAIUser } = require('../lib/ticketRouting');
+const {
+  chooseAssignee,
+  getAdminWorkloads,
+  getLuminaAiUserId,
+  isLuminaAIUser,
+} = require('../lib/ticketRouting');
+const { isTeamManager, isHrAdmin, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
 
 const router = express.Router();
 
@@ -101,6 +107,11 @@ router.get('/', async (req, res, next) => {
     if (req.user.role === 'user') {
       values.push(req.user.id);
       clauses.push(`t.submitted_by = $${values.length}`);
+    } else if (isTeamManager(req.user) || req.query.scope === 'team') {
+      values.push(TEAM_MEMBER_DEPARTMENTS);
+      clauses.push(`submitter.department = ANY($${values.length}::text[])`);
+    } else if (isHrAdmin(req.user) || req.query.scope === 'org') {
+      /* HR / org scope: all tickets — no extra filter */
     } else if (req.user.role === 'admin') {
       values.push(req.user.id);
       clauses.push(
@@ -294,64 +305,62 @@ router.post('/', requireRole('user'), async (req, res, next) => {
       ]
     );
 
-    const admins = await getAdminWorkloads(client);
-    const routing = await chooseAssignee(ticket, admins);
-    const routingMetadata = {
-      source: routing.source,
-      assigned_admin_id: routing.assignedAdminId,
-      reasoning: routing.reasoning,
-      decision: routing.decision || null,
-    };
-
-    let assignedUser = null;
-    if (routing.assignedAdminId) {
+    const luminaId = await getLuminaAiUserId(client);
+    if (luminaId) {
       await client.query(
         `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active)
          VALUES ($1, $2, $3, TRUE)`,
-        [ticket.id, routing.assignedAdminId, req.user.id]
+        [ticket.id, luminaId, req.user.id]
       );
       await client.query(
         `UPDATE tickets
-         SET status = 'assigned'::ticket_status,
-             metadata = jsonb_set(
-               COALESCE(metadata, '{}'::jsonb),
-               '{routing}',
-               $2::jsonb,
-               true
-             )
+         SET metadata = jsonb_set(
+           COALESCE(metadata, '{}'::jsonb),
+           '{routing,staging}',
+           $2::jsonb,
+           true
+         )
          WHERE id = $1`,
         [
           ticket.id,
-          JSON.stringify(routingMetadata),
+          JSON.stringify({
+            assigned_to_lumina: true,
+            lumina_user_id: luminaId,
+            at: new Date().toISOString(),
+          }),
         ]
       );
-      const assignedResult = await client.query(
-        `SELECT id, first_name, last_name, email, avatar_url FROM users WHERE id = $1`,
-        [routing.assignedAdminId]
-      );
-      assignedUser = assignedResult.rows[0] || null;
-
       await client.query(
         `INSERT INTO audit_logs (actor_id, action, metadata)
-         VALUES ($1, 'ticket_assigned', $2::jsonb)`,
+         VALUES ($1, 'ticket_staged_lumina_ai', $2::jsonb)`,
         [
           req.user.id,
           JSON.stringify({
             ticket_id: ticket.id,
-            assigned_to: routing.assignedAdminId,
-            assigned_to_name: assignedUser
-              ? `${assignedUser.first_name} ${assignedUser.last_name}`
-              : null,
-            source: routing.source,
-            routing_source: routing.source,
-            routing_reasoning: routing.reasoning,
-            routing_decision: routing.decision || null,
-            old_status: 'pending_routing',
-            new_status: 'assigned',
-            assignment_mode: 'ai_routing',
+            staged_to: luminaId,
+            assignment_mode: 'lumina_ai_pipeline',
           }),
         ]
       );
+    }
+
+    const ticketForRouting = { ...ticket, category_name: category.rows[0].name };
+    const admins = await getAdminWorkloads(client);
+    const routing = await chooseAssignee(ticketForRouting, admins);
+
+    let assignedUser = null;
+    let routingMetadata = buildRoutingMetadata(routing);
+
+    if (routing.assignedAdminId) {
+      const applied = await applyRoutingAssignment(client, {
+        ticket: { ...ticket, status: 'pending_routing' },
+        routing,
+        actorId: luminaId || req.user.id,
+        auditAction: 'ticket_assigned',
+        assignmentMode: 'lumina_ai_pipeline',
+      });
+      assignedUser = applied.assignedUser;
+      routingMetadata = applied.routingMetadata;
     } else {
       await client.query(
         `UPDATE tickets

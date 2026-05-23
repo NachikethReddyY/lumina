@@ -13,7 +13,7 @@
 ## 1. Purpose and Goals
 
 ### Problem Statement
-Users often generate a large number of issues, whether hardware, software, or bugs. IT teams spend significant time transferring these issues among team members, and resolution may or may not occur, resulting in decreased overall productivity and less effective issue management.
+Users often generate a large number of issues, whether software defects, bugs, or production incidents. IT teams spend significant time transferring these issues among team members, and resolution may or may not occur, resulting in decreased overall productivity and less effective issue management.
 
 ### Product Vision
 Lumina provides a unified experience where users can submit and track support tickets while admins monitor workload, prioritize queue health, and move issues through resolution quickly.

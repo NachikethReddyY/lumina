@@ -44,6 +44,14 @@
   align-items: center;
 }
 
+.oauth-name-step {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-body);
+}
+
 .oauth-name-card__header {
   text-align: center;
   display: grid;

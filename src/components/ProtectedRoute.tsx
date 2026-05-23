@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useUserContext } from '../context/UserContext';
-import { getPostAuthPath, isPlaceholderName } from '../utils/authFlow';
+import { getRequiredPath, isSetupPath } from '../utils/authFlow';
+import { SetupLoading } from './SetupLoading';
 
 type Props = {
   children: React.ReactNode;
@@ -12,56 +13,30 @@ export function ProtectedRoute({ children, roles }: Props) {
   const { user, loading } = useUserContext();
   const token = localStorage.getItem('authToken');
 
-  // Wait for the single shared fetch to complete before evaluating any route.
-  // Because user state is shared, this only blocks once on initial load — not
-  // on every navigation. Once loaded, all ProtectedRoutes evaluate instantly.
   if (loading && token) {
-    return <div style={{ minHeight: '100vh', background: '#0b0c0e' }} />;
+    return <SetupLoading message="Loading your account…" />;
   }
 
-  // Step 1: Must be authenticated
   if (!token || !user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  const onCompleteProfilePage = location.pathname === '/complete-profile';
-  const needsName =
-    !user.name_set || isPlaceholderName(user.first_name, user.last_name);
+  const requiredPath = getRequiredPath(user);
+  const onSetupRoute = isSetupPath(location.pathname);
 
-  // Step 2: OAuth / email signup — must confirm real name before proceeding
-  if (needsName) {
-    if (!onCompleteProfilePage) {
-      return <Navigate to="/complete-profile" replace />;
+  // Until setup is finished, user may only be on the single required step route.
+  if (requiredPath !== '/dashboard') {
+    if (location.pathname !== requiredPath) {
+      return <Navigate to={requiredPath} replace />;
     }
     return <>{children}</>;
   }
 
-  if (onCompleteProfilePage) {
-    return <Navigate to={getPostAuthPath(user)} replace />;
+  // Setup finished — leave setup pages
+  if (onSetupRoute) {
+    return <Navigate to="/dashboard" replace />;
   }
 
-  // Step 3: Email must be verified
-  if (!user.email_is_verified && location.pathname !== '/verify-email-otp') {
-    return <Navigate to="/verify-email-otp" replace />;
-  }
-
-  // Step 4: Onboarding must be completed
-  if (!user.onboarding_completed) {
-    if (location.pathname !== '/onboarding') {
-      return <Navigate to="/onboarding" replace />;
-    }
-    return <>{children}</>;
-  }
-
-  // Step 5: Account must be approved
-  if (user.status !== 'active') {
-    if (location.pathname !== '/pending-approval') {
-      return <Navigate to="/pending-approval" replace />;
-    }
-    return <>{children}</>;
-  }
-
-  // Step 6: Role-based access check
   if (roles && !roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }

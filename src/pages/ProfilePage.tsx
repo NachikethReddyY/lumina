@@ -9,6 +9,7 @@ import Container from '../components/Container';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usersApi, ticketsApi, type ApiTicket } from '../utils/apiClient';
 import { API_BASE_URL } from '../utils/apiBase';
+import { getUserRoleLabel } from '../utils/userDisplay';
 import './ProfilePage.css';
 
 const API_BASE = API_BASE_URL;
@@ -141,8 +142,9 @@ export function ProfilePage() {
   const resolved = tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
   const open = tickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
   const p1 = tickets.filter((t) => t.priority === 'P1').length;
-  const roleBadge = user?.role === 'admin' ? 'Admin' : 'User';
+  const roleBadge = getUserRoleLabel(user);
   const roleBadgeClass = user?.role === 'admin' ? 'badge-admin' : 'badge-user';
+  const showRoleBadge = Boolean(roleBadge);
 
   return (
     <DashboardLayout>
@@ -188,10 +190,12 @@ export function ProfilePage() {
                 <h1 className="profile-name">
                   {user?.first_name} {user?.last_name}
                 </h1>
-                <span className={`profile-role-badge ${roleBadgeClass}`}>
-                  <Shield size={12} />
-                  {roleBadge}
-                </span>
+                {showRoleBadge ? (
+                  <span className={`profile-role-badge ${roleBadgeClass}`}>
+                    <Shield size={12} />
+                    {roleBadge}
+                  </span>
+                ) : null}
                 <div className="profile-meta-row">
                   <span><Mail size={13} />{user?.email}</span>
                   <span>
@@ -334,7 +338,7 @@ export function ProfilePage() {
 
         {!showDeleteConfirm ? (
           <div style={{ padding: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.05)' }}>
-            <p style={{ margin: '0 0 12px 0', color: '#rgb(255,0,0)', fontSize: '13px' }}>
+            <p style={{ margin: '0 0 12px 0', color: 'var(--color-semantic-error)', fontSize: '13px' }}>
               Once you delete your account, there is no going back. Please be certain.
             </p>
             <button

@@ -3,7 +3,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import { authApi, type ApiUser } from '../utils/apiClient';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { getPostAuthPath } from '../utils/authFlow';
+import { resolveAuthRedirect } from '../utils/authFlow';
 import './GoogleAuthButton.css';
 
 type Props = {
@@ -13,7 +13,7 @@ type Props = {
 
 export function GoogleAuthButton({ mode, onError }: Props) {
   const navigate = useNavigate();
-  const { refetch } = useCurrentUser();
+  const { refetch, setUser } = useCurrentUser();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const [loading, setLoading] = useState(false);
 
@@ -33,10 +33,12 @@ export function GoogleAuthButton({ mode, onError }: Props) {
         if (!res.ok) {
           setLoading(false);
           if (res.status === 403 && data.code === 'EMAIL_NOT_VERIFIED') {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
             if (data.verificationEmail) {
               localStorage.setItem('pendingVerificationEmail', data.verificationEmail);
             }
-            navigate('/verify-email-otp');
+            navigate('/verify-email-otp', { replace: true });
             return;
           }
           onError?.(data.error || 'Google sign-in failed.');
@@ -50,8 +52,12 @@ export function GoogleAuthButton({ mode, onError }: Props) {
           localStorage.removeItem('pendingVerificationEmail');
           nextUser = (await refetch()) ?? nextUser;
         }
+        if (nextUser) {
+          setUser(nextUser);
+        }
 
-        navigate(getPostAuthPath(nextUser), { replace: true });
+        // Hardwired: Google users always land on first incomplete setup step (name before onboarding)
+        navigate(resolveAuthRedirect(nextUser), { replace: true });
       } catch (err) {
         setLoading(false);
         console.error('Google login error:', err);

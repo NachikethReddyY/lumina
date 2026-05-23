@@ -6,7 +6,7 @@ import Button from '../components/Button';
 import Container from '../components/Container';
 import { authApi, type ApiUser } from '../utils/apiClient';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { getPostAuthPath } from '../utils/authFlow';
+import { getPostEmailVerifyPath } from '../utils/authFlow';
 import './AuthPage.css';
 
 type Status = 'loading' | 'success' | 'error' | 'missing';
@@ -49,7 +49,7 @@ export function VerifyEmailPage() {
       if (cancelled) return;
       setStatus('success');
       setMessage(data.message || 'Your account is active.');
-      const nextPath = getPostAuthPath(nextUser);
+      const nextPath = getPostEmailVerifyPath(nextUser);
       setTimeout(() => navigate(nextPath, { replace: true }), 1500);
     })();
 
@@ -101,7 +101,7 @@ export function VerifyEmailPage() {
           {status === 'success' && (
             <motion.div className="reset-success" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="success-icon">✓</div>
-              <Button variant="primary" size="lg" type="button" onClick={() => navigate(getPostAuthPath(user), { replace: true })}>
+              <Button variant="primary" size="lg" type="button" onClick={() => navigate(getPostEmailVerifyPath(user), { replace: true })}>
                 Continue
               </Button>
             </motion.div>

@@ -270,8 +270,8 @@
 
 .category-card.active {
   background: var(--color-pill-blue-bg);
-  border-color: var(--color-pill-blue-border);
-  color: var(--color-pill-blue-fg);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .category-icon {
@@ -282,8 +282,16 @@
   line-height: 1;
 }
 
+.category-icon svg {
+  stroke: currentColor;
+}
+
+.category-card:hover .category-icon {
+  color: var(--color-primary);
+}
+
 .category-card.active .category-icon {
-  color: var(--color-accent, #2563eb);
+  color: var(--color-primary);
 }
 
 .category-label {

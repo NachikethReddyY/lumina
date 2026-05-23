@@ -5,13 +5,24 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { Shield, Trash2, ChevronUp, ChevronDown, Search, Cpu } from 'lucide-react';
+import { Trash2, ChevronUp, ChevronDown, Search, Cpu } from 'lucide-react';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { ticketsApi, usersApi, notificationsApi, type AdminWorkload, type ApiTicket, type ApiUser, type ApiAiDecision } from '../utils/apiClient';
 import { apiAssetUrl } from '../utils/apiBase';
+import {
+  DEPARTMENT_GROUP_FILTERS,
+  formatUserEmailAndRole,
+  getDepartmentGroupLabel,
+  getUserDepartmentGroup,
+  getUserRoleLabel,
+  matchesDepartmentGroupFilter,
+  type DepartmentGroupFilter,
+} from '../utils/userDisplay';
 import { useToast } from '../context/useToast';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { getTicketListScope, isHrAdmin } from '../utils/orgRoles';
 import './Dashboard.css';
 import './SuperAdminDashboard.css';
 
@@ -43,17 +54,63 @@ function buildMonthlyLine(tickets: ApiTicket[]) {
   return Object.entries(months).map(([month, count]) => ({ month, count }));
 }
 
-function buildPeopleByRole(users: ApiUser[]) {
-  const roleLabels: Array<ApiUser['role']> = ['user', 'admin'];
-  return roleLabels.map((role) => {
-    const scoped = users.filter((user) => user.role === role);
+function buildPeopleByDepartmentGroup(users: ApiUser[]) {
+  const groups = ['manager', 'developer', 'user'] as const;
+  return groups.map((group) => {
+    const scoped = users.filter((user) => getUserDepartmentGroup(user) === group);
     return {
-      role,
+      role: getDepartmentGroupLabel(group),
       active: scoped.filter((user) => user.status === 'active').length,
       pending: scoped.filter((user) => user.status === 'pending').length,
       suspended: scoped.filter((user) => user.status === 'suspended').length,
     };
   });
+}
+
+const DEPT_CHART_COLORS: Record<string, string> = {
+  Developers: '#2563eb',
+  QA: '#8b5cf6',
+  Managers: '#d97706',
+  HR: '#1f8a65',
+  Unknown: '#6b7280',
+};
+
+function buildHeadcountByDepartment(users: ApiUser[]) {
+  const counts: Record<string, number> = {};
+  users.forEach((user) => {
+    const dept = user.department?.trim() || 'Unknown';
+    counts[dept] = (counts[dept] || 0) + 1;
+  });
+  return Object.entries(counts).map(([name, value]) => ({
+    name,
+    value,
+    fill: DEPT_CHART_COLORS[name] || DEPT_CHART_COLORS.Unknown,
+  }));
+}
+
+function buildTicketsByDepartment(tickets: ApiTicket[], users: ApiUser[]) {
+  const byEmail = new Map(users.map((user) => [user.email.toLowerCase(), user]));
+  const counts: Record<string, number> = {};
+  tickets.forEach((ticket) => {
+    const submitter = byEmail.get((ticket.submitted_by_email || '').toLowerCase());
+    const dept = submitter?.department?.trim() || 'Unknown';
+    counts[dept] = (counts[dept] || 0) + 1;
+  });
+  return Object.entries(counts).map(([name, value]) => ({
+    name,
+    value,
+    fill: DEPT_CHART_COLORS[name] || DEPT_CHART_COLORS.Unknown,
+  }));
+}
+
+function buildTicketProgressSummary(tickets: ApiTicket[]) {
+  const active = tickets.filter((t) =>
+    ['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)
+  ).length;
+  const inProgress = tickets.filter((t) => t.status === 'in_progress').length;
+  const resolved = tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
+  const pendingRouting = tickets.filter((t) => t.status === 'pending_routing').length;
+  return { active, inProgress, resolved, pendingRouting, total: tickets.length };
 }
 
 function buildPendingAgeBuckets(users: ApiUser[]) {
@@ -110,11 +167,12 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   );
 };
 
-type UserFilter = 'all' | 'user' | 'admin';
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 
 export function SuperAdminDashboard() {
   const location = useLocation();
+  const { user } = useCurrentUser();
+  const hrView = isHrAdmin(user);
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [workload, setWorkload] = useState<AdminWorkload[]>([]);
@@ -124,7 +182,7 @@ export function SuperAdminDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'approvals' | 'users' | 'ai'>('overview');
 
   // User management
-  const [userRoleFilter, setUserRoleFilter] = useState<UserFilter>('all');
+  const [departmentGroupFilter, setDepartmentGroupFilter] = useState<DepartmentGroupFilter>('all');
   const [userStatusFilter, setUserStatusFilter] = useState<StatusFilter>('all');
   const [userSearch, setUserSearch] = useState('');
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null);
@@ -141,7 +199,7 @@ export function SuperAdminDashboard() {
     (async () => {
       try {
         const [ticketsRes, usersRes, workloadRes, aiRes] = await Promise.all([
-          ticketsApi.list(),
+          ticketsApi.list(getTicketListScope(user)),
           usersApi.list(),
           ticketsApi.workload(),
           notificationsApi.aiDecisions(),
@@ -162,7 +220,7 @@ export function SuperAdminDashboard() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id, user?.department]);
 
   const pendingUsers = users.filter((u) => u.status === 'pending');
   const activeAdmins = users.filter((u) => u.role !== 'user' && u.status === 'active');
@@ -171,19 +229,22 @@ export function SuperAdminDashboard() {
     const statusWeight: Record<ApiUser['status'], number> = { pending: 0, active: 1, suspended: 2 };
     return users
       .filter((u) => {
-        const roleOk = userRoleFilter === 'all' || u.role === userRoleFilter;
+        const roleOk = matchesDepartmentGroupFilter(u, departmentGroupFilter);
         const statusOk = userStatusFilter === 'all' || u.status === userStatusFilter;
         const searchOk = !userSearch || `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(userSearch.toLowerCase());
         return roleOk && statusOk && searchOk;
       })
       .sort((a, b) => statusWeight[a.status] - statusWeight[b.status] || `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
-  }, [users, userRoleFilter, userStatusFilter, userSearch]);
+  }, [users, departmentGroupFilter, userStatusFilter, userSearch]);
 
   const statusPie = useMemo(() => buildStatusPie(tickets), [tickets]);
   const monthlyLine = useMemo(() => buildMonthlyLine(tickets), [tickets]);
-  const peopleByRole = useMemo(() => buildPeopleByRole(users), [users]);
+  const peopleByRole = useMemo(() => buildPeopleByDepartmentGroup(users), [users]);
   const pendingAgeBuckets = useMemo(() => buildPendingAgeBuckets(users), [users]);
   const adminPriorityLoad = useMemo(() => buildAdminPriorityLoad(workload), [workload]);
+  const headcountByDept = useMemo(() => buildHeadcountByDepartment(users), [users]);
+  const ticketsByDept = useMemo(() => buildTicketsByDepartment(tickets, users), [tickets, users]);
+  const ticketProgress = useMemo(() => buildTicketProgressSummary(tickets), [tickets]);
 
   const handleApproval = async (id: string, status: 'active' | 'suspended') => {
     const res = await usersApi.updateApproval(id, status);
@@ -221,8 +282,12 @@ export function SuperAdminDashboard() {
           <motion.div className="dashboard-header" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="header-content">
               <div>
-                <h1 className="dashboard-title">Admin Panel</h1>
-                <p className="dashboard-subtitle">System management — users, routing, and AI transparency.</p>
+                <h1 className="dashboard-title">{hrView ? 'People Operations' : 'Admin Panel'}</h1>
+                <p className="dashboard-subtitle">
+                  {hrView
+                    ? 'Organization-wide progress, approvals, AI routing transparency, and user directory.'
+                    : 'System management — users, routing, and AI transparency.'}
+                </p>
               </div>
             </div>
           </motion.div>
@@ -245,9 +310,22 @@ export function SuperAdminDashboard() {
           {activeTab === 'overview' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
               <div className="stats-grid">
-                <div className="stat-card"><h3>Pending Approval</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{pendingUsers.length}</div></div>
-                <div className="stat-card"><h3>Active Staff</h3><div className="stat-value" style={{ color: '#60a5fa' }}>{activeAdmins.length}</div></div>
-                <div className="stat-card"><h3>Total Users</h3><div className="stat-value">{users.length}</div></div>
+                {hrView ? (
+                  <>
+                    <div className="stat-card"><h3>Active Tickets</h3><div className="stat-value" style={{ color: '#60a5fa' }}>{ticketProgress.active}</div></div>
+                    <div className="stat-card"><h3>In Progress</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{ticketProgress.inProgress}</div></div>
+                    <div className="stat-card"><h3>Resolved / Closed</h3><div className="stat-value" style={{ color: '#34c759' }}>{ticketProgress.resolved}</div></div>
+                    <div className="stat-card"><h3>Pending Approval</h3><div className="stat-value" style={{ color: '#d97706' }}>{pendingUsers.length}</div></div>
+                    <div className="stat-card"><h3>AI Routing Queue</h3><div className="stat-value">{ticketProgress.pendingRouting}</div></div>
+                    <div className="stat-card"><h3>Total People</h3><div className="stat-value">{users.length}</div></div>
+                  </>
+                ) : (
+                  <>
+                    <div className="stat-card"><h3>Pending Approval</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{pendingUsers.length}</div></div>
+                    <div className="stat-card"><h3>Active Staff</h3><div className="stat-value" style={{ color: '#60a5fa' }}>{activeAdmins.length}</div></div>
+                    <div className="stat-card"><h3>Total Users</h3><div className="stat-value">{users.length}</div></div>
+                  </>
+                )}
               </div>
 
               <div className="charts-grid" style={{ marginBottom: '48px' }}>
@@ -315,8 +393,39 @@ export function SuperAdminDashboard() {
                   </div>
                 </div>
 
+                {hrView && ticketsByDept.length > 0 && (
+                  <div className="chart-card">
+                    <h4 className="chart-card-title">Tickets by Department</h4>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={ticketsByDept} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
+                        <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="value" name="Tickets" radius={[4, 4, 0, 0]}>
+                          {ticketsByDept.map((row) => <Cell key={row.name} fill={row.fill} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {hrView && headcountByDept.length > 0 && (
+                  <div className="chart-card">
+                    <h4 className="chart-card-title">Headcount by Department</h4>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie data={headcountByDept} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={72} label={({ name, value }) => `${name} (${value})`}>
+                          {headcountByDept.map((row) => <Cell key={row.name} fill={row.fill} />)}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
                 <div className="chart-card">
-                  <h4 className="chart-card-title">People by Role & Status</h4>
+                  <h4 className="chart-card-title">{hrView ? 'People by Team & Status' : 'People by Role & Status'}</h4>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={peopleByRole} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
@@ -371,7 +480,7 @@ export function SuperAdminDashboard() {
                           </div>
                           <div className="queue-item-text">
                             <p className="queue-item-title">{account.first_name} {account.last_name}</p>
-                            <p className="queue-item-meta">{account.email} · {account.role.replace('_', ' ')}</p>
+                            <p className="queue-item-meta">{formatUserEmailAndRole(account)}</p>
                           </div>
                         </div>
                         <div className="queue-item-actions">
@@ -402,13 +511,13 @@ export function SuperAdminDashboard() {
                   />
                 </div>
                 <div className="sa-filter-group">
-                  {(['all', 'user', 'admin'] as UserFilter[]).map((r) => (
+                  {DEPARTMENT_GROUP_FILTERS.map((group) => (
                     <button
-                      key={r}
-                      className={`sa-filter-chip ${userRoleFilter === r ? 'active' : ''}`}
-                      onClick={() => setUserRoleFilter(r)}
+                      key={group}
+                      className={`sa-filter-chip ${departmentGroupFilter === group ? 'active' : ''}`}
+                      onClick={() => setDepartmentGroupFilter(group)}
                     >
-                      {r === 'all' ? 'All Roles' : r.replace('_', ' ')}
+                      {getDepartmentGroupLabel(group)}
                     </button>
                   ))}
                 </div>
@@ -431,7 +540,7 @@ export function SuperAdminDashboard() {
                     <tr>
                       <th>User</th>
                       <th>Email</th>
-                      <th>Role</th>
+                      <th>Job role</th>
                       <th>Status</th>
                       <th>Joined</th>
                       <th>Actions</th>
@@ -452,11 +561,8 @@ export function SuperAdminDashboard() {
                           </div>
                         </td>
                         <td className="tbl-muted" style={{ fontSize: '12px' }}>{u.email}</td>
-                        <td>
-                          <span className={`sa-role-badge ${u.role}`}>
-                            <Shield size={10} />
-                            {u.role.replace('_', ' ')}
-                          </span>
+                        <td className="tbl-muted" style={{ fontSize: '12px' }}>
+                          {getUserRoleLabel(u) || '—'}
                         </td>
                         <td>
                           <span className={`sa-status-badge ${u.status}`}>{u.status}</span>

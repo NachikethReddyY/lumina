@@ -28,7 +28,7 @@ async function TestV1_LuminaAINeverAssignee() {
     },
     {
       id: 'real-admin',
-      email: 'admin.software@lumina.test',
+      email: 'manager.ian@lumina.test',
       first_name: 'Sage',
       last_name: 'Software',
       p1_count: 2,

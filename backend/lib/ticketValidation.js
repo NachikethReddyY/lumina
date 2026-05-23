@@ -1,6 +1,6 @@
 const { validationError } = require('./authValidation');
 
-const ALLOWED_TYPES = ['hardware', 'software', 'bug'];
+const ALLOWED_TYPES = ['software', 'bug', 'incident'];
 const ALLOWED_PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const ALLOWED_STATUSES = [
   'open',
@@ -26,7 +26,7 @@ function validateTicketCreateBody(body) {
 
   if (!description) details.description = 'Description is required';
   if (!categoryId) details.categoryId = 'Category is required';
-  if (!ALLOWED_TYPES.includes(type)) details.type = 'Type must be hardware, software, or bug';
+  if (!ALLOWED_TYPES.includes(type)) details.type = 'Type must be software, bug, or incident';
   if (!ALLOWED_PRIORITIES.includes(priority)) details.priority = 'Priority must be P1, P2, P3, or P4';
 
   if (Object.keys(details).length > 0) {

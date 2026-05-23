@@ -14,6 +14,7 @@ const { isMailConfigured, sendMail } = require('../lib/mailer');
 const { getFrontendBaseUrl } = require('../lib/frontendUrl');
 const { verificationEmailHtml, passwordResetEmailHtml } = require('../lib/emailTemplates');
 const { rateLimit } = require('../middleware/rateLimit');
+const { serializeUser } = require('../lib/userProfile');
 
 const router = express.Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, key: (req) => req.ip });
@@ -118,7 +119,7 @@ router.post('/login', async (req, res, next) => {
     return res.status(200).json({
       accessToken,
       refreshToken: '',
-      user,
+      user: serializeUser(user),
     });
   } catch (err) {
     return next(err);
@@ -179,7 +180,7 @@ router.post('/signup', async (req, res, next) => {
     }
 
     return res.status(201).json({
-      user,
+      user: serializeUser(user),
       requiresEmailVerification: true,
       message: 'Check your email to activate your account before signing in.',
     });
@@ -227,8 +228,8 @@ router.post('/verify-email', async (req, res, next) => {
     const accessToken = signAccessToken(user);
 
     return res.json({
-      message: 'Email verified. Please complete your onboarding to continue.',
-      user,
+      message: 'Email verified. Next, enter your name to continue.',
+      user: serializeUser(user),
       accessToken,
       refreshToken: '',
     });
@@ -282,8 +283,8 @@ router.post('/verify-email-otp', otpLimiter, async (req, res, next) => {
     const accessToken = signAccessToken(user);
 
     return res.json({
-      message: 'Email verified. Please complete your onboarding to continue.',
-      user,
+      message: 'Email verified. Next, enter your name to continue.',
+      user: serializeUser(user),
       accessToken,
       refreshToken: '',
     });
@@ -404,7 +405,7 @@ router.post('/google', async (req, res, next) => {
         }
         const ins = await db.query(
           `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified, name_set)
-           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'pending'::user_status, FALSE, TRUE)
+           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'pending'::user_status, FALSE, FALSE)
            RETURNING id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at`,
           [email, first, last]
         );
@@ -417,22 +418,6 @@ router.post('/google', async (req, res, next) => {
       }
     }
 
-    if (userRow.status === 'pending' && !userRow.email_is_verified) {
-      // Always issue a fresh OTP so the user never lands on the OTP page with an expired code
-      if (isMailConfigured()) {
-        try {
-          const { token: vToken, otp } = await createVerificationChallenge(userRow.id);
-          await sendVerificationEmail(userRow.email, vToken, otp);
-        } catch (mailErr) {
-          console.error('OAuth re-verification email failed:', mailErr.message);
-        }
-      }
-      return res.status(403).json({
-        error: 'Please verify your email before signing in.',
-        code: 'EMAIL_NOT_VERIFIED',
-        verificationEmail: userRow.email,
-      });
-    }
     if (userRow.status === 'suspended') {
       return res.status(403).json({
         error: 'This account has been suspended. Contact a super admin.',
@@ -440,8 +425,36 @@ router.post('/google', async (req, res, next) => {
       });
     }
 
+    if (!userRow.email_is_verified) {
+      if (!isMailConfigured()) {
+        return res.status(503).json({
+          error: 'Email verification is required, but SMTP is not configured on the server.',
+          code: 'MAIL_NOT_CONFIGURED',
+        });
+      }
+      try {
+        const { token: vToken, otp } = await createVerificationChallenge(userRow.id);
+        await sendVerificationEmail(userRow.email, vToken, otp);
+      } catch (mailErr) {
+        console.error('OAuth verification email failed:', mailErr.message);
+        return res.status(503).json({
+          error: 'Could not send verification email. Try again shortly.',
+          code: 'MAIL_FAILED',
+        });
+      }
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        code: 'EMAIL_NOT_VERIFIED',
+        verificationEmail: userRow.email,
+      });
+    }
+
     const accessToken = signAccessToken(userRow);
-    return res.json({ accessToken, refreshToken: '', user: userRow });
+    return res.json({
+      accessToken,
+      refreshToken: '',
+      user: serializeUser(userRow, { is_google_account: true }),
+    });
   } catch (err) {
     return next(err);
   }

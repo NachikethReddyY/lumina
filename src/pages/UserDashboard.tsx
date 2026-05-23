@@ -10,6 +10,7 @@ import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { getUserRoleLabel } from '../utils/userDisplay';
 import { categoriesApi, ticketsApi, type ApiCategory, type ApiTicket } from '../utils/apiClient';
 import './Dashboard.css';
 
@@ -84,7 +85,7 @@ export function UserDashboard() {
     title: '',
     description: '',
     categoryId: '',
-    type: 'software' as 'hardware' | 'software' | 'bug',
+    type: 'software' as 'software' | 'bug' | 'incident',
     priority: 'P2' as 'P1' | 'P2' | 'P3' | 'P4',
     replicationSteps: '',
   });
@@ -159,8 +160,16 @@ export function UserDashboard() {
           <motion.div className="dashboard-header" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="header-content">
               <div>
-                <h1 className="dashboard-title">Welcome, {user?.first_name || 'User'}</h1>
-                <p className="dashboard-subtitle">Report issues, test software & hardware, track resolution.</p>
+                <h1 className="dashboard-title">Welcome, {user?.first_name || 'there'}</h1>
+                <p className="dashboard-subtitle">
+                  {getUserRoleLabel(user) ? (
+                    <>
+                      <span className="dashboard-role-label">{getUserRoleLabel(user)}</span>
+                      {' · '}
+                    </>
+                  ) : null}
+                  Report software issues, bugs, and production incidents — track resolution.
+                </p>
               </div>
               <Button variant="primary" size="lg" onClick={() => setShowNewTicket(true)}>
                 New Ticket
@@ -297,10 +306,10 @@ export function UserDashboard() {
                       </div>
                       <div className="nt-field">
                         <label>Type</label>
-                        <select value={newTicket.type} onChange={(e) => setNewTicket((p) => ({ ...p, type: e.target.value as 'hardware' | 'software' | 'bug' }))}>
-                          <option value="hardware">Hardware</option>
+                        <select value={newTicket.type} onChange={(e) => setNewTicket((p) => ({ ...p, type: e.target.value as 'software' | 'bug' | 'incident' }))}>
                           <option value="software">Software</option>
                           <option value="bug">Bug</option>
+                          <option value="incident">Incident</option>
                         </select>
                       </div>
                       <div className="nt-field">

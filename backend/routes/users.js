@@ -4,6 +4,7 @@ const multer = require('multer');
 const db = require('../db');
 const { requireAuth, requireAuthAny, requireOnboarding, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
+const { isPlaceholderName, serializeUser } = require('../lib/userProfile');
 
 const router = express.Router();
 
@@ -25,8 +26,18 @@ const avatarUpload = multer({
   },
 });
 
-router.get('/me', requireAuthAny, async (req, res) => {
-  res.json(req.user);
+router.get('/me', requireAuthAny, async (req, res, next) => {
+  try {
+    const google = await db.query(
+      `SELECT 1 FROM oauth_accounts
+       WHERE user_id = $1 AND provider = 'google'::oauth_provider
+       LIMIT 1`,
+      [req.user.id]
+    );
+    res.json(serializeUser(req.user, { is_google_account: Boolean(google.rows[0]) }));
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
@@ -77,7 +88,7 @@ router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ user, message: 'Profile updated successfully' });
+    res.json({ user: serializeUser(user), message: 'Profile updated successfully' });
   } catch (err) {
     next(err);
   }
@@ -151,6 +162,12 @@ router.patch('/me', requireAuthAny, async (req, res, next) => {
     }));
   }
 
+  if (isPlaceholderName(firstName, lastName)) {
+    return res.status(400).json({
+      error: 'Please enter your real name (not the default placeholder).',
+    });
+  }
+
   try {
     const result = await db.query(
       `UPDATE users
@@ -164,7 +181,16 @@ router.patch('/me', requireAuthAny, async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ user, message: 'Name updated successfully' });
+    const google = await db.query(
+      `SELECT 1 FROM oauth_accounts
+       WHERE user_id = $1 AND provider = 'google'::oauth_provider
+       LIMIT 1`,
+      [req.user.id]
+    );
+    res.json({
+      user: serializeUser(user, { is_google_account: Boolean(google.rows[0]) }),
+      message: 'Name updated successfully',
+    });
   } catch (err) {
     next(err);
   }
@@ -187,7 +213,8 @@ router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const result = await db.query(
       `SELECT id, email, first_name, last_name, role, status, email_is_verified,
-              avatar_url, approved_by, approved_at, created_at, last_login_at
+              avatar_url, approved_by, approved_at, created_at, last_login_at,
+              job_title, department, onboarding_completed, name_set
        FROM users
        ${where}
        ORDER BY created_at DESC`,

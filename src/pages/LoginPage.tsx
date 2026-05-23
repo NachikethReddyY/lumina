@@ -7,7 +7,7 @@ import Input from '../components/Input';
 import Container from '../components/Container';
 import { GoogleAuthButton } from '../components/GoogleAuthButton';
 import { authApi, type ApiUser, type AuthValidationErrorBody } from '../utils/apiClient';
-import { getPostAuthPath } from '../utils/authFlow';
+import { resolveAuthRedirect } from '../utils/authFlow';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import './AuthPage.css';
 
@@ -105,7 +105,7 @@ export function LoginPage() {
         localStorage.removeItem('pendingVerificationEmail');
         nextUser = await refetch();
       }
-      navigate(getPostAuthPath(nextUser), { replace: true });
+      navigate(resolveAuthRedirect(nextUser), { replace: true });
     } catch {
       setErrors({ form: 'Failed to sign in. Please check your connection and try again.' });
     } finally {

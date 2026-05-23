@@ -184,7 +184,7 @@ Enum types:
 | --- | --- |
 | `user_role` | `user`, `admin`, `super_admin` |
 | `user_status` | `pending`, `active`, `suspended` |
-| `ticket_type` | `hardware`, `software`, `bug` |
+| `ticket_type` | `software`, `bug`, `incident` |
 | `ticket_priority` | `P1`, `P2`, `P3`, `P4` |
 | `ticket_status` | `open`, `assigned`, `in_progress`, `resolved`, `closed`, `on_hold`, `pending_routing` |
 | `oauth_provider` | `google` |

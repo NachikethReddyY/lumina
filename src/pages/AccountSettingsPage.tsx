@@ -216,7 +216,7 @@ export function AccountSettingsPage() {
 
               {!showDeleteConfirm ? (
                 <div style={{ marginTop: '16px', padding: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.05)' }}>
-                  <p style={{ margin: '0 0 12px 0', color: '#d1d5db', fontSize: '13px' }}>
+                  <p style={{ margin: '0 0 12px 0', color: 'var(--color-semantic-error)', fontSize: '13px' }}>
                     Once you delete your account, there is no going back. Please be certain.
                   </p>
                   <button

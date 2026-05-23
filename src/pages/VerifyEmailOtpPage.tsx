@@ -8,7 +8,7 @@ import Container from '../components/Container';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
 import { useToast } from '../context/useToast';
 import { authApi, type ApiUser } from '../utils/apiClient';
-import { getPostAuthPath } from '../utils/authFlow';
+import { getPostEmailVerifyPath } from '../utils/authFlow';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import './AuthPage.css';
 
@@ -81,7 +81,7 @@ export function VerifyEmailOtpPage() {
       localStorage.removeItem('pendingVerificationEmail');
       setStatus('success');
       showToast(data.message || 'Email verified!', 'success');
-      navigate(getPostAuthPath(nextUser), { replace: true });
+      navigate(getPostEmailVerifyPath(nextUser), { replace: true });
     } catch {
       setStatus('error');
       showToast('Network error.', 'error');
