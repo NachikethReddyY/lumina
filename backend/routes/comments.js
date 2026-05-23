@@ -1,10 +1,10 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireOnboarding } = require('../middleware/auth');
 
 const router = express.Router({ mergeParams: true });
 
-router.use(requireAuth);
+router.use(requireAuth, requireOnboarding);
 
 router.get('/', async (req, res, next) => {
   try {
@@ -37,7 +37,7 @@ router.post('/', async (req, res, next) => {
     if (!ticket.rows[0]) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const isAdmin = req.user.role === 'admin';
     const isOwner = ticket.rows[0].submitted_by === req.user.id;
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'Access denied' });
@@ -86,7 +86,7 @@ router.delete('/:commentId', async (req, res, next) => {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
-    const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const isAdmin = req.user.role === 'admin';
     const isAuthor = comment.author_id === req.user.id;
     if (!isAdmin && !isAuthor) {
       return res.status(403).json({ error: 'Access denied' });

@@ -8,7 +8,8 @@ import Input from '../components/Input';
 import Container from '../components/Container';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
 import { GoogleAuthButton } from '../components/GoogleAuthButton';
-import { authApi, type AuthValidationErrorBody } from '../utils/apiClient';
+import { authApi, type ApiUser, type AuthValidationErrorBody } from '../utils/apiClient';
+import { getPostAuthPath } from '../utils/authFlow';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { getNewPasswordError, PASSWORD_REQUIREMENTS_TEXT } from '../utils/passwordPolicy';
 import './AuthPage.css';
@@ -19,15 +20,13 @@ export function SignUpPage() {
   const [step, setStep] = useState<'email' | 'details'>('email');
   const [formData, setFormData] = useState({
     email: '',
-    firstName: '',
-    lastName: '',
     password: '',
     confirmPassword: '',
-    role: 'user',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
   const [resendNote, setResendNote] = useState('');
@@ -69,8 +68,6 @@ export function SignUpPage() {
 
   const validateDetails = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!formData.firstName) newErrors.firstName = 'First name is required';
-    if (!formData.lastName) newErrors.lastName = 'Last name is required';
     const pwErr = getNewPasswordError(formData.password);
     if (pwErr) newErrors.password = pwErr;
     if (formData.password !== formData.confirmPassword) {
@@ -88,15 +85,14 @@ export function SignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!validateDetails()) return;
+    submittingRef.current = true;
     setLoading(true);
     try {
       const res = await authApi.signup({
         email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
         password: formData.password,
-        role: formData.role,
       });
       const data = (await res.json().catch(() => ({}))) as AuthValidationErrorBody & {
         accessToken?: string;
@@ -138,6 +134,7 @@ export function SignUpPage() {
       setErrors({ form: 'Failed to create account. Check your connection and try again.' });
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -151,19 +148,21 @@ export function SignUpPage() {
         error?: string;
         message?: string;
         accessToken?: string;
+        user?: ApiUser;
       };
       if (!res.ok) {
         setOtpError(data.error || 'Invalid or expired code. Try resending a fresh code.');
         setOtp('');
         return;
       }
+      let nextUser = data.user ?? null;
       if (data.accessToken) {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', '');
-        await refetch();
+        nextUser = (await refetch()) ?? nextUser;
       }
       localStorage.removeItem('pendingVerificationEmail');
-      navigate('/onboarding');
+      navigate(getPostAuthPath(nextUser), { replace: true });
     } catch {
       setOtpError('Network error. Please try again.');
     } finally {
@@ -355,25 +354,25 @@ export function SignUpPage() {
 
                     <div className="auth-form-row" style={{ marginTop: '18px' }}>
                       <Input
-                        id="firstName"
-                        label="First Name"
-                        type="text"
-                        name="firstName"
-                        placeholder="John"
-                        value={formData.firstName}
+                        id="password"
+                        label="Password"
+                        type="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        value={formData.password}
                         onChange={handleChange}
-                        error={errors.firstName}
+                        error={errors.password}
                         required
                       />
                       <Input
-                        id="lastName"
-                        label="Last Name"
-                        type="text"
-                        name="lastName"
-                        placeholder="Doe"
-                        value={formData.lastName}
+                        id="confirmPassword"
+                        label="Confirm Password"
+                        type="password"
+                        name="confirmPassword"
+                        placeholder="Re-enter your password"
+                        value={formData.confirmPassword}
                         onChange={handleChange}
-                        error={errors.lastName}
+                        error={errors.confirmPassword}
                         required
                       />
                     </div>

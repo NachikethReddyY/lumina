@@ -6,7 +6,8 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Container from '../components/Container';
 import { GoogleAuthButton } from '../components/GoogleAuthButton';
-import { authApi, type AuthValidationErrorBody } from '../utils/apiClient';
+import { authApi, type ApiUser, type AuthValidationErrorBody } from '../utils/apiClient';
+import { getPostAuthPath } from '../utils/authFlow';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import './AuthPage.css';
 
@@ -97,13 +98,14 @@ export function LoginPage() {
         }
         return;
       }
+      let nextUser: ApiUser | null = null;
       if (data.accessToken) {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken || '');
         localStorage.removeItem('pendingVerificationEmail');
-        await refetch();
+        nextUser = await refetch();
       }
-      navigate('/dashboard');
+      navigate(getPostAuthPath(nextUser), { replace: true });
     } catch {
       setErrors({ form: 'Failed to sign in. Please check your connection and try again.' });
     } finally {

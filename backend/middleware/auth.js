@@ -77,4 +77,51 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { requireAuth, requireAuthAny, requireRole };
+/**
+ * Require that the user has completed all onboarding steps.
+ * Must be used AFTER requireAuth or requireAuthAny so req.user is populated.
+ * Super admin is exempt from name_set and onboarding_completed checks.
+ */
+function requireOnboarding(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const user = req.user;
+
+  if (!user.name_set) {
+    return res.status(403).json({
+      error: 'Please complete your profile before continuing.',
+      code: 'NAME_NOT_SET',
+      redirectTo: '/complete-profile',
+    });
+  }
+
+  if (!user.email_is_verified) {
+    return res.status(403).json({
+      error: 'Please verify your email before continuing.',
+      code: 'EMAIL_NOT_VERIFIED',
+      redirectTo: '/verify-email-otp',
+    });
+  }
+
+  if (!user.onboarding_completed) {
+    return res.status(403).json({
+      error: 'Please complete onboarding before continuing.',
+      code: 'ONBOARDING_NOT_COMPLETED',
+      redirectTo: '/onboarding',
+    });
+  }
+
+  if (user.status !== 'active') {
+    return res.status(403).json({
+      error: 'Your account is pending approval.',
+      code: 'ACCOUNT_NOT_ACTIVE',
+      redirectTo: '/pending-approval',
+    });
+  }
+
+  next();
+}
+
+module.exports = { requireAuth, requireAuthAny, requireRole, requireOnboarding };

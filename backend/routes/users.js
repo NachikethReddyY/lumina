@@ -2,7 +2,7 @@ const path = require('path');
 const express = require('express');
 const multer = require('multer');
 const db = require('../db');
-const { requireAuth, requireAuthAny, requireRole } = require('../middleware/auth');
+const { requireAuth, requireAuthAny, requireOnboarding, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
 
 const router = express.Router();
@@ -35,19 +35,43 @@ router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
 
   const details = {};
   if (!jobTitle) details.jobTitle = 'Job title is required';
-  if (!department) details.department = 'Department is required';
   if (Object.keys(details).length) {
     return res.status(400).json(validationError(details));
   }
 
   try {
+    const setClauses = [`job_title = $2`, `onboarding_completed = TRUE`];
+    const params = [req.user.id, jobTitle];
+    let paramIdx = 3;
+
+    if (department) {
+      setClauses.push(`department = $${paramIdx}`);
+      params.push(department);
+      paramIdx++;
+    }
+
+    // Derive role from department — server-side, never trust client-provided role
+    const adminDepartments = ['HR', 'Managers'];
+    const userDepartments = ['Developers', 'QA'];
+    const derivedRole = adminDepartments.includes(department)
+      ? 'admin'
+      : userDepartments.includes(department)
+        ? 'user'
+        : null;
+
+    if (derivedRole) {
+      setClauses.push(`role = $${paramIdx}::user_role`);
+      params.push(derivedRole);
+      paramIdx++;
+    }
+
     const result = await db.query(
       `UPDATE users
-       SET job_title = $2, department = $3, onboarding_completed = TRUE
+       SET ${setClauses.join(', ')}
        WHERE id = $1
        RETURNING id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
                  approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed, name_set`,
-      [req.user.id, jobTitle, department]
+      params
     );
     const user = result.rows[0];
     if (!user) {
@@ -59,7 +83,7 @@ router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
   }
 });
 
-router.patch('/me/password', requireAuth, async (req, res, next) => {
+router.patch('/me/password', requireAuth, requireOnboarding, async (req, res, next) => {
   const current = String(req.body?.currentPassword ?? '').trim();
   const next_ = String(req.body?.newPassword ?? '').trim();
   if (!current || !next_) {
@@ -146,7 +170,7 @@ router.patch('/me', requireAuthAny, async (req, res, next) => {
   }
 });
 
-router.get('/', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   try {
     const values = [];
     const clauses = [];
@@ -175,7 +199,7 @@ router.get('/', requireAuth, requireRole('admin', 'super_admin'), async (req, re
   }
 });
 
-router.patch('/:id/approval', requireAuth, requireRole('super_admin'), async (req, res, next) => {
+router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   const status = String(req.body?.status ?? '').trim();
   if (!['active', 'pending', 'suspended'].includes(status)) {
     return res.status(400).json(validationError({ status: 'Status must be active, pending, or suspended' }));
@@ -200,10 +224,10 @@ router.patch('/:id/approval', requireAuth, requireRole('super_admin'), async (re
   }
 });
 
-router.patch('/:id/role', requireAuth, requireRole('super_admin'), async (req, res, next) => {
+router.patch('/:id/role', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   const role = String(req.body?.role ?? '').trim();
-  if (!['user', 'admin', 'super_admin'].includes(role)) {
-    return res.status(400).json(validationError({ role: 'Role must be user, admin, or super_admin' }));
+  if (!['user', 'admin'].includes(role)) {
+    return res.status(400).json(validationError({ role: 'Role must be user or admin' }));
   }
   if (req.params.id === req.user.id) {
     return res.status(400).json({ error: 'You cannot change your own role' });
@@ -229,14 +253,14 @@ router.patch('/:id/role', requireAuth, requireRole('super_admin'), async (req, r
   }
 });
 
-router.delete('/:id', requireAuth, async (req, res, next) => {
+router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => {
   const targetId = req.params.id;
   const isOwnAccount = targetId === req.user.id;
-  const isSuperAdmin = req.user.role === 'super_admin';
+  const isAdmin = req.user.role === 'admin';
 
   // Allow self-deletion for any authenticated user
-  // OR allow super_admin to delete other users
-  if (!isOwnAccount && !isSuperAdmin) {
+  // OR allow admin to delete other users
+  if (!isOwnAccount && !isAdmin) {
     return res.status(403).json({ error: 'You can only delete your own account' });
   }
 
@@ -246,14 +270,9 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Prevent deletion of the last super_admin
-    if (check.rows[0].role === 'super_admin') {
-      const superAdminCount = await db.query(
-        `SELECT COUNT(*) as count FROM users WHERE role = 'super_admin'`
-      );
-      if (superAdminCount.rows[0].count <= 1) {
-        return res.status(400).json({ error: 'Cannot delete the last super admin account' });
-      }
+    // Prevent admins from deleting themselves
+    if (!isOwnAccount && check.rows[0].role === 'admin') {
+      return res.status(400).json({ error: 'Cannot delete another admin account' });
     }
 
     await db.query(

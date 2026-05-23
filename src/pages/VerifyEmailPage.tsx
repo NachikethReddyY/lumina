@@ -4,8 +4,9 @@ import { motion } from 'framer-motion';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import Container from '../components/Container';
-import { authApi } from '../utils/apiClient';
+import { authApi, type ApiUser } from '../utils/apiClient';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { getPostAuthPath } from '../utils/authFlow';
 import './AuthPage.css';
 
 type Status = 'loading' | 'success' | 'error' | 'missing';
@@ -13,7 +14,7 @@ type Status = 'loading' | 'success' | 'error' | 'missing';
 export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { refetch } = useCurrentUser();
+  const { user, refetch } = useCurrentUser();
   const token = searchParams.get('token') || '';
   const [status, setStatus] = useState<Status>(token ? 'loading' : 'missing');
   const [message, setMessage] = useState('');
@@ -31,6 +32,7 @@ export function VerifyEmailPage() {
         error?: string;
         message?: string;
         accessToken?: string;
+        user?: ApiUser;
       };
       if (cancelled) return;
       if (!res.ok) {
@@ -38,14 +40,17 @@ export function VerifyEmailPage() {
         setMessage(data.error || 'This activation link is invalid or has expired.');
         return;
       }
+      let nextUser = data.user ?? null;
       if (data.accessToken) {
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', '');
-        await refetch();
+        nextUser = (await refetch()) ?? nextUser;
       }
       if (cancelled) return;
       setStatus('success');
       setMessage(data.message || 'Your account is active.');
+      const nextPath = getPostAuthPath(nextUser);
+      setTimeout(() => navigate(nextPath, { replace: true }), 1500);
     })();
 
     return () => {
@@ -96,8 +101,8 @@ export function VerifyEmailPage() {
           {status === 'success' && (
             <motion.div className="reset-success" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="success-icon">✓</div>
-              <Button variant="primary" size="lg" type="button" onClick={() => navigate('/dashboard')}>
-                Continue to dashboard
+              <Button variant="primary" size="lg" type="button" onClick={() => navigate(getPostAuthPath(user), { replace: true })}>
+                Continue
               </Button>
             </motion.div>
           )}

@@ -224,54 +224,108 @@
   margin-top: 4px;
 }
 
-/* Role selector */
-.role-selection {
+/* Role category selector */
+.role-category-select {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
-.role-selection label {
+.role-category-select label {
   font-size: 11px;
   font-weight: 600;
-  /* Use ink here; --color-muted is reserved for secondary text. */
   color: var(--color-ink);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
-.role-options {
-  display: flex;
-  gap: 8px;
+.category-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
-.role-option {
-  flex: 1;
-  padding: 9px 10px;
+.category-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 12px;
   border: 1px solid var(--color-hairline-strong);
   background: var(--color-canvas-soft);
   color: var(--color-ink);
-  border-radius: 6px;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.role-option:hover {
+.category-card:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
 }
 
-.role-option.active {
+.category-card.active {
   background: var(--color-pill-blue-bg);
   border-color: var(--color-pill-blue-border);
   color: var(--color-pill-blue-fg);
-  box-shadow: none;
+}
+
+.category-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.category-card.active .category-icon {
+  color: var(--color-accent, #2563eb);
+}
+
+.category-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Sub-title chips */
+.subtitle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.subtitle-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--color-hairline-strong);
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 12px;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.subtitle-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.subtitle-chip.active {
+  background: var(--color-pill-blue-bg);
+  border-color: var(--color-pill-blue-border);
+  color: var(--color-pill-blue-fg);
+}
+
+.onboarding-field-desc {
+  font-size: 11px;
+  color: var(--color-muted);
+  margin: 0;
+  line-height: 1.4;
 }
 
 /* Form */

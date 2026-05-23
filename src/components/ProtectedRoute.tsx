@@ -1,9 +1,10 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useUserContext } from '../context/UserContext';
+import { getPostAuthPath, isPlaceholderName } from '../utils/authFlow';
 
 type Props = {
   children: React.ReactNode;
-  roles?: Array<'user' | 'admin' | 'super_admin'>;
+  roles?: Array<'user' | 'admin'>;
 };
 
 export function ProtectedRoute({ children, roles }: Props) {
@@ -24,13 +25,19 @@ export function ProtectedRoute({ children, roles }: Props) {
   }
 
   const onCompleteProfilePage = location.pathname === '/complete-profile';
+  const needsName =
+    !user.name_set || isPlaceholderName(user.first_name, user.last_name);
 
-  // Step 2: Google OAuth — must confirm real name before proceeding
-  if (!user.name_set) {
+  // Step 2: OAuth / email signup — must confirm real name before proceeding
+  if (needsName) {
     if (!onCompleteProfilePage) {
       return <Navigate to="/complete-profile" replace />;
     }
     return <>{children}</>;
+  }
+
+  if (onCompleteProfilePage) {
+    return <Navigate to={getPostAuthPath(user)} replace />;
   }
 
   // Step 3: Email must be verified
@@ -38,8 +45,8 @@ export function ProtectedRoute({ children, roles }: Props) {
     return <Navigate to="/verify-email-otp" replace />;
   }
 
-  // Step 4: Onboarding must be completed (super_admin is exempt)
-  if (!user.onboarding_completed && user.role !== 'super_admin') {
+  // Step 4: Onboarding must be completed
+  if (!user.onboarding_completed) {
     if (location.pathname !== '/onboarding') {
       return <Navigate to="/onboarding" replace />;
     }

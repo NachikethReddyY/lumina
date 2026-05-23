@@ -44,11 +44,11 @@ function buildMonthlyLine(tickets: ApiTicket[]) {
 }
 
 function buildPeopleByRole(users: ApiUser[]) {
-  const roles: Array<ApiUser['role']> = ['user', 'admin', 'super_admin'];
-  return roles.map((role) => {
+  const roleLabels: Array<ApiUser['role']> = ['user', 'admin'];
+  return roleLabels.map((role) => {
     const scoped = users.filter((user) => user.role === role);
     return {
-      role: role === 'super_admin' ? 'super admin' : role,
+      role,
       active: scoped.filter((user) => user.status === 'active').length,
       pending: scoped.filter((user) => user.status === 'pending').length,
       suspended: scoped.filter((user) => user.status === 'suspended').length,
@@ -110,7 +110,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   );
 };
 
-type UserFilter = 'all' | 'user' | 'admin' | 'super_admin';
+type UserFilter = 'all' | 'user' | 'admin';
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 
 export function SuperAdminDashboard() {
@@ -130,9 +130,9 @@ export function SuperAdminDashboard() {
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null);
 
   useEffect(() => {
-    if (location.pathname === '/super-admin/users') setActiveTab('users');
-    else if (location.pathname === '/routing-logs') setActiveTab('ai');
-    else if (location.pathname === '/super-admin/approvals') setActiveTab('approvals');
+    if (location.pathname === '/admin/users') setActiveTab('users');
+    else if (location.pathname === '/admin/routing-logs') setActiveTab('ai');
+    else if (location.pathname === '/admin/approvals') setActiveTab('approvals');
     else setActiveTab('overview');
   }, [location.pathname]);
 
@@ -193,7 +193,7 @@ export function SuperAdminDashboard() {
     }
   };
 
-  const handleRoleChange = async (id: string, role: 'user' | 'admin' | 'super_admin') => {
+  const handleRoleChange = async (id: string, role: 'user' | 'admin') => {
     const res = await usersApi.updateRole(id, role);
     if (res.ok) {
       setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
@@ -221,8 +221,8 @@ export function SuperAdminDashboard() {
           <motion.div className="dashboard-header" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="header-content">
               <div>
-                <h1 className="dashboard-title">Super Admin</h1>
-                <p className="dashboard-subtitle">Full system visibility — routing health, user control, and AI transparency.</p>
+                <h1 className="dashboard-title">Admin Panel</h1>
+                <p className="dashboard-subtitle">System management — users, routing, and AI transparency.</p>
               </div>
             </div>
           </motion.div>
@@ -402,7 +402,7 @@ export function SuperAdminDashboard() {
                   />
                 </div>
                 <div className="sa-filter-group">
-                  {(['all', 'user', 'admin', 'super_admin'] as UserFilter[]).map((r) => (
+                  {(['all', 'user', 'admin'] as UserFilter[]).map((r) => (
                     <button
                       key={r}
                       className={`sa-filter-chip ${userRoleFilter === r ? 'active' : ''}`}
@@ -467,23 +467,20 @@ export function SuperAdminDashboard() {
                             {u.status === 'pending' && (
                               <button className="sa-btn approve" onClick={() => handleApproval(u.id, 'active')}>Approve</button>
                             )}
-                            {u.status === 'active' && u.role !== 'super_admin' && (
+                            {u.status === 'active' && (
                               <button className="sa-btn suspend" onClick={() => handleApproval(u.id, 'suspended')}>Suspend</button>
                             )}
                             {u.status === 'suspended' && (
                               <button className="sa-btn approve" onClick={() => handleApproval(u.id, 'active')}>Restore</button>
                             )}
-                            {u.role !== 'super_admin' && (
-                              <select
-                                className="sa-role-select"
-                                value={u.role}
-                                onChange={(e) => handleRoleChange(u.id, e.target.value as ApiUser['role'])}
-                              >
-                                <option value="user">User</option>
-                                <option value="admin">Admin</option>
-                                <option value="super_admin">Super Admin</option>
-                              </select>
-                            )}
+                            <select
+                              className="sa-role-select"
+                              value={u.role}
+                              onChange={(e) => handleRoleChange(u.id, e.target.value as ApiUser['role'])}
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                            </select>
                             <button className="sa-btn delete" onClick={() => handleDelete(u.id, u.email)} title="Delete user">
                               <Trash2 size={12} />
                             </button>

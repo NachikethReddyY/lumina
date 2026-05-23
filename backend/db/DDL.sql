@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-    CREATE TYPE user_role AS ENUM ('user', 'admin', 'super_admin');
+    CREATE TYPE user_role AS ENUM ('user', 'admin');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
     CREATE TYPE user_status AS ENUM ('pending', 'active', 'suspended');
@@ -61,12 +61,35 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS name_set BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Backfill: mark existing users with real names as having completed the name step.
--- Google OAuth placeholders have first_name='New'/'Google' and last_name='User'.
+-- Placeholders: OAuth (Google/New + User) and email signup (User + New).
 UPDATE users SET name_set = TRUE
-WHERE NOT (lower(last_name) = 'user' AND lower(first_name) IN ('new', 'google'))
+WHERE NOT (
+    (lower(last_name) = 'user' AND lower(first_name) IN ('new', 'google'))
+    OR (lower(last_name) = 'new' AND lower(first_name) = 'user')
+  )
   AND first_name <> ''
   AND last_name <> ''
   AND name_set = FALSE;
+
+-- Correct users who were incorrectly marked name_set from the User/New placeholder.
+UPDATE users SET name_set = FALSE
+WHERE name_set = TRUE
+  AND (
+    (lower(last_name) = 'user' AND lower(first_name) IN ('new', 'google'))
+    OR (lower(last_name) = 'new' AND lower(first_name) = 'user')
+  );
+
+-- Migrate: remove super_admin role, convert existing super_admin users to admin.
+UPDATE users SET role = 'admin'::user_role WHERE role = 'super_admin'::user_role;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role' AND enum_range(NULL::user_role) @> ARRAY['super_admin']::text[]) THEN
+    ALTER TYPE user_role RENAME TO user_role_old;
+    CREATE TYPE user_role AS ENUM ('user', 'admin');
+    ALTER TABLE users ALTER COLUMN role TYPE user_role USING role::text::user_role;
+    DROP TYPE user_role_old;
+  END IF;
+END $$;
 
 -- Categories
 CREATE TABLE IF NOT EXISTS categories (
@@ -248,15 +271,16 @@ GROUP BY u.id, u.email, u.first_name, u.last_name;
 
 -- Seed users for local development and demos.
 INSERT INTO users (
-  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, approved_at
+  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, name_set, approved_at
 )
 VALUES (
   lower('ynrdevs@gmail.com'),
   crypt('Nachiketh1', gen_salt('bf')),
   'Nachiketh',
   'Reddy',
-  'super_admin'::user_role,
+  'admin'::user_role,
   'active'::user_status,
+  TRUE,
   TRUE,
   TRUE,
   NOW()
@@ -268,10 +292,11 @@ SET first_name = EXCLUDED.first_name,
     status = EXCLUDED.status,
     email_is_verified = EXCLUDED.email_is_verified,
     onboarding_completed = EXCLUDED.onboarding_completed,
+    name_set = EXCLUDED.name_set,
     approved_at = COALESCE(users.approved_at, NOW());
 
 INSERT INTO users (
-  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, approved_by, approved_at
+  email, password_hash, first_name, last_name, role, status, email_is_verified, onboarding_completed, name_set, approved_by, approved_at
 )
 SELECT
   lower(seed.email),
@@ -282,6 +307,7 @@ SELECT
   seed.status::user_status,
   seed.email_is_verified,
   seed.status = 'active',
+  TRUE,
   (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')),
   CASE WHEN seed.status = 'active' THEN NOW() ELSE NULL END
 FROM (
@@ -310,6 +336,7 @@ SET first_name = EXCLUDED.first_name,
     status = EXCLUDED.status,
     email_is_verified = EXCLUDED.email_is_verified,
     onboarding_completed = EXCLUDED.onboarding_completed,
+    name_set = EXCLUDED.name_set,
     approved_by = EXCLUDED.approved_by,
     approved_at = COALESCE(users.approved_at, EXCLUDED.approved_at);
 

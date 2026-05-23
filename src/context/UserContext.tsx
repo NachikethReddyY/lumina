@@ -5,7 +5,7 @@ type UserContextValue = {
   user: ApiUser | null;
   loading: boolean;
   error: string;
-  refetch: () => Promise<void>;
+  refetch: () => Promise<ApiUser | null>;
   setUser: Dispatch<SetStateAction<ApiUser | null>>;
 };
 
@@ -16,12 +16,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(() => !!localStorage.getItem('authToken'));
   const [error, setError] = useState('');
 
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (): Promise<ApiUser | null> => {
     const token = localStorage.getItem('authToken');
     if (!token) {
       setUser(null);
       setLoading(false);
-      return;
+      return null;
     }
     try {
       const res = await usersApi.me();
@@ -29,13 +29,16 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) {
         setError((data as { error?: string } | null)?.error || 'Could not load account.');
         setUser(null);
-      } else {
-        setUser(data as ApiUser);
-        setError('');
+        return null;
       }
+      const nextUser = data as ApiUser;
+      setUser(nextUser);
+      setError('');
+      return nextUser;
     } catch {
       setError('Could not load account.');
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }

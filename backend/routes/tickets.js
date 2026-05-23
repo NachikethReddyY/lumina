@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const db = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireOnboarding, requireRole } = require('../middleware/auth');
 const {
   validateRatingBody,
   validateTicketAssignmentBody,
@@ -14,7 +14,7 @@ const { chooseAssignee, getAdminWorkloads, isLuminaAIUser } = require('../lib/ti
 
 const router = express.Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireOnboarding);
 
 function userDisplayName(user) {
   return `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || null;
@@ -110,7 +110,7 @@ router.get('/', async (req, res, next) => {
           WHERE ta.ticket_id = t.id AND ta.assigned_to = $${values.length} AND ta.is_active = TRUE
         )`
       );
-    } else if (req.user.role === 'super_admin' && req.query.scope === 'assigned') {
+    } else if (req.query.scope === 'assigned') {
       values.push(req.user.id);
       clauses.push(
         `EXISTS (
@@ -150,7 +150,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/admin/workload', requireRole('admin', 'super_admin'), async (_req, res, next) => {
+router.get('/admin/workload', requireRole('admin'), async (_req, res, next) => {
   try {
     const data = await getAdminWorkloads();
     res.json(data);
@@ -391,7 +391,7 @@ router.post('/', requireRole('user'), async (req, res, next) => {
   }
 });
 
-router.post('/:id/assign', requireRole('admin', 'super_admin'), async (req, res, next) => {
+router.post('/:id/assign', requireRole('admin'), async (req, res, next) => {
   const parsed = validateTicketAssignmentBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));
@@ -418,7 +418,7 @@ router.post('/:id/assign', requireRole('admin', 'super_admin'), async (req, res,
 
     const assignee = await client.query(
       `SELECT id, email, first_name, last_name FROM users
-       WHERE id = $1 AND role IN ('admin', 'super_admin') AND status = 'active'`,
+       WHERE id = $1 AND role = 'admin' AND status = 'active'`,
       [parsed.value.assignedTo]
     );
     if (!assignee.rows[0]) {
@@ -492,7 +492,7 @@ router.post('/:id/assign', requireRole('admin', 'super_admin'), async (req, res,
   }
 });
 
-router.post('/:id/route', requireRole('admin', 'super_admin'), async (req, res, next) => {
+router.post('/:id/route', requireRole('admin'), async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -555,7 +555,7 @@ router.patch('/:id/status', async (req, res, next) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    const canAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const canAdmin = req.user.role === 'admin';
     const canAssignee = ticket.assigned_to === req.user.id;
     if (!canAdmin && !canAssignee) {
       return res.status(403).json({ error: 'You cannot change this ticket status' });
@@ -587,7 +587,7 @@ router.patch('/:id/status', async (req, res, next) => {
   }
 });
 
-router.patch('/:id/priority', requireRole('admin', 'super_admin'), async (req, res, next) => {
+router.patch('/:id/priority', requireRole('admin'), async (req, res, next) => {
   const parsed = validateTicketPriorityBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));

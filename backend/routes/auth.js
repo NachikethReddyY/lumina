@@ -85,7 +85,7 @@ router.post('/login', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+      `SELECT id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at
        FROM users
        WHERE lower(email) = lower($1)
          AND password_hash IS NOT NULL
@@ -130,7 +130,7 @@ router.post('/signup', async (req, res, next) => {
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));
   }
-  const { email, password, firstName, lastName } = parsed;
+  const { email, password } = parsed;
 
   // Clean up expired pending users (older than verification TTL)
   const verificationTTL = VERIFY_TTL_MS;
@@ -159,10 +159,10 @@ router.post('/signup', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
-       VALUES ($1, crypt($2, gen_salt('bf')), $3, $4, 'user'::user_role, $5::user_status, $6)
-       RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
-      [email, password, firstName, lastName, 'pending', false]
+      `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified, name_set)
+       VALUES ($1, crypt($2, gen_salt('bf')), 'User', 'New', 'user'::user_role, $5::user_status, $6, FALSE)
+       RETURNING id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at`,
+      [email, password, 'pending', false]
     );
     const user = result.rows[0];
     const { token: vToken, otp } = await createVerificationChallenge(user.id);
@@ -219,7 +219,7 @@ router.post('/verify-email', async (req, res, next) => {
     await db.query(`UPDATE email_verifications SET used_at = NOW() WHERE id = $1`, [row.id]);
 
     const u = await db.query(
-      `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+      `SELECT id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at
        FROM users WHERE id = $1`,
       [row.user_id]
     );
@@ -274,7 +274,7 @@ router.post('/verify-email-otp', otpLimiter, async (req, res, next) => {
     await db.query(`UPDATE email_verifications SET used_at = NOW() WHERE id = $1`, [row.id]);
 
     const u = await db.query(
-      `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+      `SELECT id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at
        FROM users WHERE id = $1`,
       [row.user_id]
     );
@@ -369,7 +369,7 @@ router.post('/google', async (req, res, next) => {
   try {
     let userRow;
     const existingOAuth = await db.query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.email_is_verified, u.created_at
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.email_is_verified, u.name_set, u.created_at
        FROM oauth_accounts o
        JOIN users u ON u.id = o.user_id
        WHERE o.provider = 'google'::oauth_provider AND o.provider_user_id = $1`,
@@ -380,7 +380,7 @@ router.post('/google', async (req, res, next) => {
       userRow = existingOAuth.rows[0];
     } else {
       const byEmail = await db.query(
-        `SELECT id, email, first_name, last_name, role, status, email_is_verified, created_at
+        `SELECT id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at
          FROM users WHERE lower(email) = lower($1)`,
         [email]
       );
@@ -403,9 +403,9 @@ router.post('/google', async (req, res, next) => {
           });
         }
         const ins = await db.query(
-          `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified)
-           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'pending'::user_status, FALSE)
-           RETURNING id, email, first_name, last_name, role, status, email_is_verified, created_at`,
+          `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified, name_set)
+           VALUES (lower($1), NULL, $2, $3, 'user'::user_role, 'pending'::user_status, FALSE, TRUE)
+           RETURNING id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at`,
           [email, first, last]
         );
         userRow = ins.rows[0];
@@ -414,16 +414,6 @@ router.post('/google', async (req, res, next) => {
            VALUES ($1, 'google'::oauth_provider, $2)`,
           [userRow.id, sub]
         );
-        const { token: vToken, otp } = await createVerificationChallenge(userRow.id);
-        try {
-          await sendVerificationEmail(userRow.email, vToken, otp);
-        } catch (mailErr) {
-          console.error('OAuth verification email failed:', mailErr.message);
-          return res.status(503).json({
-            error: 'Account was created but the verification email could not be sent.',
-            code: 'MAIL_FAILED',
-          });
-        }
       }
     }
 

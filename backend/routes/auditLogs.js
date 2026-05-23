@@ -1,10 +1,10 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireOnboarding, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   try {
     const result = await db.query(
       `SELECT a.id, a.action, a.metadata, a.created_at,

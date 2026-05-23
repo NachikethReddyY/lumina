@@ -141,8 +141,8 @@ export function ProfilePage() {
   const resolved = tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
   const open = tickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
   const p1 = tickets.filter((t) => t.priority === 'P1').length;
-  const roleBadge = user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'User';
-  const roleBadgeClass = user?.role === 'super_admin' ? 'badge-super' : user?.role === 'admin' ? 'badge-admin' : 'badge-user';
+  const roleBadge = user?.role === 'admin' ? 'Admin' : 'User';
+  const roleBadgeClass = user?.role === 'admin' ? 'badge-admin' : 'badge-user';
 
   return (
     <DashboardLayout>

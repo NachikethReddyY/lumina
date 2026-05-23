@@ -1,11 +1,11 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireOnboarding, requireRole } = require('../middleware/auth');
 const { validateCategoryBody, validationError } = require('../lib/ticketValidation');
 
 const router = express.Router();
 
-router.get('/', requireAuth, async (_req, res, next) => {
+router.get('/', requireAuth, requireOnboarding, async (_req, res, next) => {
   try {
     const result = await db.query(
       `SELECT id, name, description, created_by, is_active
@@ -18,7 +18,7 @@ router.get('/', requireAuth, async (_req, res, next) => {
   }
 });
 
-router.post('/', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+router.post('/', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   const parsed = validateCategoryBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));
@@ -37,7 +37,7 @@ router.post('/', requireAuth, requireRole('admin', 'super_admin'), async (req, r
   }
 });
 
-router.put('/:id', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+router.put('/:id', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   const parsed = validateCategoryBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));

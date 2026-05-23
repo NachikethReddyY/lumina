@@ -13,7 +13,7 @@ export type ApiUser = {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'user' | 'admin';
   status: 'pending' | 'active' | 'suspended';
   email_is_verified: boolean;
   avatar_url?: string | null;
@@ -239,7 +239,7 @@ export const usersApi = {
   updateApproval: (id: string, status: 'active' | 'pending' | 'suspended') =>
     apiRequest(`/users/${id}/approval`, { method: 'PATCH' as RequestOptions['method'], body: { status } }),
 
-  updateRole: (id: string, role: 'user' | 'admin' | 'super_admin') =>
+  updateRole: (id: string, role: 'user' | 'admin') =>
     apiRequest(`/users/${id}/role`, { method: 'PATCH' as RequestOptions['method'], body: { role } }),
 
   delete: (id: string) =>

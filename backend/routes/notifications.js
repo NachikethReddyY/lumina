@@ -1,10 +1,10 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireOnboarding } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireOnboarding);
 
 // Returns recent activity relevant to the current user:
 // - for users: events on tickets they submitted
@@ -61,7 +61,7 @@ router.get('/', async (req, res, next) => {
 });
 
 router.get('/ai-decisions', requireAuth, async (req, res, next) => {
-  if (!['admin', 'super_admin'].includes(req.user.role)) {
+  if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Access denied' });
   }
   try {

@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, X, CheckCircle2, Crown } from 'lucide-react';
+import { Upload, X, CheckCircle2 } from 'lucide-react';
+import {
+  HiUser,
+  HiClipboardDocumentList,
+  HiComputerDesktop,
+  HiMagnifyingGlass,
+} from 'react-icons/hi2';
+import type { IconType } from 'react-icons';
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import Logo from '../components/Logo';
@@ -15,34 +22,19 @@ import './OnboardingPage.css';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
-const DEPARTMENTS = [
-  'Engineering',
-  'Product',
-  'Design',
-  'Marketing',
-  'Sales',
-  'Customer Success',
-  'HR',
-  'Finance',
-  'Operations',
-  'Legal',
-  'Other',
+type Category = {
+  id: string;
+  label: string;
+  subtitles: string[];
+  Icon: IconType;
+};
+
+const CATEGORIES: Category[] = [
+  { id: 'HR', label: 'HR', subtitles: ['HR'], Icon: HiUser },
+  { id: 'Managers', label: 'Managers', subtitles: ['Product Manager', 'Product Owner', 'Program / Project Manager', 'Head of Product / VP Product'], Icon: HiClipboardDocumentList },
+  { id: 'Developers', label: 'Developers', subtitles: ['Software Engineer / Developer', 'Tech Lead / Lead Engineer', 'Architect', 'Platform / Infrastructure Engineer', 'DevOps / Site Reliability Engineer'], Icon: HiComputerDesktop },
+  { id: 'QA', label: 'QA', subtitles: ['Product Designer / UX Designer', 'UI / Visual Designer', 'UX Researcher', 'Content Designer / UX Writer', 'QA Engineer / Test Engineer', 'Automation Engineer', 'Security Engineer / AppSec', 'Compliance / Privacy Specialist', 'Release Manager'], Icon: HiMagnifyingGlass },
 ];
-
-const getRoleColor = (role: string) => {
-  switch (role) {
-    case 'super_admin': return 'from-purple-600 to-pink-600';
-    case 'admin': return 'from-blue-600 to-cyan-600';
-    default: return 'from-gray-600 to-gray-700';
-  }
-};
-
-const getRoleLabel = (role: string) => {
-  if (role === 'super_admin') return 'Super Admin';
-  if (role === 'admin') return 'Developer';
-  if (role === 'user') return 'QA Tester';
-  return role.charAt(0).toUpperCase() + role.slice(1);
-};
 
 async function cropImageToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
   const canvas = document.createElement('canvas');
@@ -84,15 +76,14 @@ export function OnboardingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropImgRef = useRef<HTMLImageElement>(null);
 
-  const [jobTitle, setJobTitle] = useState('');
-  const [department, setDepartment] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSubtitle, setSelectedSubtitle] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [rawImage, setRawImage] = useState<string>('');
   const [crop, setCrop] = useState<Crop>({ unit: 'px', width: 200, height: 200, x: 0, y: 0 });
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const [showCropModal, setShowCropModal] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<string>(user?.role || 'user');
   const [status, setStatus] = useState<Status>('idle');
   const [showConfirmation, setShowConfirmation] = useState(false);
 
@@ -169,8 +160,12 @@ export function OnboardingPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!jobTitle.trim() || !department) {
-      showToast('Please fill in all fields', 'error');
+    if (!selectedCategory) {
+      showToast('Please select your role category', 'error');
+      return;
+    }
+    if (!selectedSubtitle) {
+      showToast('Please select your specific role', 'error');
       return;
     }
     setShowConfirmation(true);
@@ -194,8 +189,8 @@ export function OnboardingPage() {
         }
       }
 
-      // Save onboarding info
-      const res = await usersApi.saveOnboarding(jobTitle, department);
+      // Save onboarding info — subtitle becomes job title, category becomes department
+      const res = await usersApi.saveOnboarding(selectedSubtitle!, selectedCategory!);
       const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
 
       if (!res.ok) {
@@ -305,83 +300,58 @@ export function OnboardingPage() {
                 <p className="onboarding-user-email">{user.email}</p>
 
                 {/* Role Selection */}
-                {user.role === 'super_admin' ? (
-                  <div className={`onboarding-role-badge bg-gradient-to-r ${getRoleColor(user.role)}`}>
-                    <Crown size={14} />
-                    <span>{getRoleLabel(user.role)}</span>
-                  </div>
-                ) : (
-                  <div className="role-selection">
-                    <label>Your Role</label>
-                    <div className="role-options">
+                <div className="role-category-select">
+                  <label>Your Role</label>
+                  <p className="onboarding-field-desc">AI routes tickets to the right team based on your selection</p>
+                  <div className="category-cards">
+                    {CATEGORIES.filter((cat) => cat.id !== 'HR' || user.email === 'ynrdevs@gmail.com').map((cat) => (
                       <button
+                        key={cat.id}
                         type="button"
-                        className={`role-option ${selectedRole === 'user' ? 'active' : ''}`}
-                        onClick={() => setSelectedRole('user')}
-                        title="Test software and hardware, report bugs and issues"
+                        className={`category-card ${selectedCategory === cat.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedCategory(cat.id);
+                          setSelectedSubtitle(null);
+                        }}
                       >
-                        <div>QA Tester</div>
-                        <small>Report issues & bugs</small>
+                        <span className="category-icon" aria-hidden>
+                          <cat.Icon size={24} />
+                        </span>
+                        <span className="category-label">{cat.label}</span>
                       </button>
-                      <button
-                        type="button"
-                        className={`role-option ${selectedRole === 'admin' ? 'active' : ''}`}
-                        onClick={() => setSelectedRole('admin')}
-                        title="Review and resolve reported issues"
-                      >
-                        <div>Developer</div>
-                        <small>Review & resolve issues</small>
-                      </button>
-                    </div>
+                    ))}
                   </div>
-                )}
+                  {selectedCategory && (
+                    <motion.div
+                      className="subtitle-chips"
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {CATEGORIES.find((c) => c.id === selectedCategory)?.subtitles.map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          className={`subtitle-chip ${selectedSubtitle === st ? 'active' : ''}`}
+                          onClick={() => setSelectedSubtitle(st)}
+                        >
+                          {st}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </div>
               </div>
+
             </motion.div>
           )}
 
           <form className="onboarding-form" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="jobTitle">
-                <span>Job Title</span>
-                <span className="text-red-400">*</span>
-              </label>
-              <input
-                id="jobTitle"
-                type="text"
-                placeholder="e.g. Senior Engineer, Product Manager"
-                value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
-                disabled={status === 'loading'}
-                className="form-input"
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="department">
-                <span>Department</span>
-                <span className="text-red-400">*</span>
-              </label>
-              <select
-                id="department"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                disabled={status === 'loading'}
-                className="form-select"
-              >
-                <option value="">Select a department</option>
-                {DEPARTMENTS.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             <Button
               type="submit"
               size="lg"
               loading={status === 'loading'}
-              disabled={!jobTitle.trim() || !department || status === 'loading'}
+              disabled={!selectedSubtitle || status === 'loading'}
               className="w-full onboarding-submit-btn"
             >
               Continue to Approval

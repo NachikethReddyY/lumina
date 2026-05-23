@@ -74,8 +74,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin"
-  const isSuperAdmin = user?.role === "super_admin"
+  const isAdmin = user?.role === "admin"
 
   const fetchNotifications = useCallback(async () => {
     setNotifLoading(true)
@@ -95,7 +94,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   }, [user, fetchNotifications])
 
   useEffect(() => {
-    if (!isSuperAdmin) return
+    if (!isAdmin) return
     let cancelled = false
     ;(async () => {
       const res = await usersApi.list()
@@ -106,7 +105,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
       }
     })()
     return () => { cancelled = true }
-  }, [isSuperAdmin])
+  }, [isAdmin])
 
   const visibleNotifications = notifications.filter((n) => !hiddenIds.has(n.id))
   const unreadCount = visibleNotifications.length
@@ -119,24 +118,24 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, color: "#2563eb" },
     { title: "Ticket Queue", url: "/tickets", icon: Inbox, color: "#1f8a65" },
     { title: "Ticket History", url: "/tickets/history", icon: History, color: "#8b5cf6" },
-    ...(isSuperAdmin
+    ...(isAdmin
       ? [
           {
             title: "Approval Queue",
-            url: "/super-admin/approvals",
+            url: "/admin/approvals",
             icon: UserCheck,
             color: "#d97706",
             badge: pendingApprovalCount,
           },
           {
             title: "AI Routing Logs",
-            url: "/routing-logs",
+            url: "/admin/routing-logs",
             icon: Cpu,
             color: "#c08532",
           },
           {
             title: "User Directory",
-            url: "/super-admin/users",
+            url: "/admin/users",
             icon: ListTree,
             color: "#64748b",
           },

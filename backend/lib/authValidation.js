@@ -73,12 +73,6 @@ function validateSignupBody(body) {
   const email = validateEmail(body?.email);
   if (!email.ok) details.email = email.error;
 
-  const first = validatePersonName(body?.firstName ?? body?.first_name, 'First name');
-  if (!first.ok) details.firstName = first.error;
-
-  const last = validatePersonName(body?.lastName ?? body?.last_name, 'Last name');
-  if (!last.ok) details.lastName = last.error;
-
   const password = validateNewPassword(body?.password);
   if (!password.ok) details.password = password.error;
 
@@ -89,8 +83,8 @@ function validateSignupBody(body) {
   return {
     ok: true,
     email: email.value,
-    firstName: first.value,
-    lastName: last.value,
+    firstName: '',
+    lastName: '',
     password: password.value,
   };
 }

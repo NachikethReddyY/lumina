@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
-import { authApi } from '../utils/apiClient';
+import { authApi, type ApiUser } from '../utils/apiClient';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { getPostAuthPath } from '../utils/authFlow';
 import './GoogleAuthButton.css';
 
 type Props = {
@@ -24,6 +25,7 @@ export function GoogleAuthButton({ mode, onError }: Props) {
           error?: string;
           accessToken?: string;
           refreshToken?: string;
+          user?: ApiUser;
           code?: string;
           verificationEmail?: string;
         };
@@ -41,14 +43,15 @@ export function GoogleAuthButton({ mode, onError }: Props) {
           return;
         }
 
+        let nextUser = data.user ?? null;
         if (data.accessToken) {
           localStorage.setItem('authToken', data.accessToken);
           localStorage.setItem('refreshToken', data.refreshToken || '');
           localStorage.removeItem('pendingVerificationEmail');
-          await refetch();
+          nextUser = (await refetch()) ?? nextUser;
         }
 
-        navigate('/dashboard');
+        navigate(getPostAuthPath(nextUser), { replace: true });
       } catch (err) {
         setLoading(false);
         console.error('Google login error:', err);
