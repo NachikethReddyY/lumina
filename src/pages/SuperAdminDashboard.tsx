@@ -22,7 +22,7 @@ import {
 } from '../utils/userDisplay';
 import { useToast } from '../context/useToast';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { getTicketListScope, isHrAdmin } from '../utils/orgRoles';
+import { canAccessApprovalQueue, getTicketListScope, isHrAdmin } from '../utils/orgRoles';
 import './Dashboard.css';
 import './SuperAdminDashboard.css';
 
@@ -173,6 +173,11 @@ export function SuperAdminDashboard() {
   const location = useLocation();
   const { user } = useCurrentUser();
   const hrView = isHrAdmin(user);
+  const showApprovals = canAccessApprovalQueue(user);
+  const dashboardTabs = useMemo(
+    () => (showApprovals ? ['overview', 'approvals', 'users', 'ai'] : ['overview', 'users', 'ai']) as const,
+    [showApprovals]
+  );
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [workload, setWorkload] = useState<AdminWorkload[]>([]);
@@ -190,9 +195,9 @@ export function SuperAdminDashboard() {
   useEffect(() => {
     if (location.pathname === '/admin/users') setActiveTab('users');
     else if (location.pathname === '/admin/routing-logs') setActiveTab('ai');
-    else if (location.pathname === '/admin/approvals') setActiveTab('approvals');
+    else if (location.pathname === '/admin/approvals' && showApprovals) setActiveTab('approvals');
     else setActiveTab('overview');
-  }, [location.pathname]);
+  }, [location.pathname, showApprovals]);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,7 +300,7 @@ export function SuperAdminDashboard() {
 
           {/* Tab nav */}
           <div className="sa-tabs">
-            {(['overview', 'approvals', 'users', 'ai'] as const).map((tab) => (
+            {dashboardTabs.map((tab) => (
               <button
                 key={tab}
                 className={`sa-tab ${activeTab === tab ? 'active' : ''}`}
@@ -321,9 +326,10 @@ export function SuperAdminDashboard() {
                   </>
                 ) : (
                   <>
-                    <div className="stat-card"><h3>Pending Approval</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{pendingUsers.length}</div></div>
-                    <div className="stat-card"><h3>Active Staff</h3><div className="stat-value" style={{ color: '#60a5fa' }}>{activeAdmins.length}</div></div>
-                    <div className="stat-card"><h3>Total Users</h3><div className="stat-value">{users.length}</div></div>
+                    <div className="stat-card"><h3>Active Tickets</h3><div className="stat-value" style={{ color: '#60a5fa' }}>{ticketProgress.active}</div></div>
+                    <div className="stat-card"><h3>In Progress</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{ticketProgress.inProgress}</div></div>
+                    <div className="stat-card"><h3>AI Routing Queue</h3><div className="stat-value">{ticketProgress.pendingRouting}</div></div>
+                    <div className="stat-card"><h3>Team Members</h3><div className="stat-value">{users.filter((u) => u.role === 'user').length}</div></div>
                   </>
                 )}
               </div>
@@ -570,13 +576,13 @@ export function SuperAdminDashboard() {
                         <td className="tbl-muted tbl-mono">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td>
                           <div className="sa-action-row">
-                            {u.status === 'pending' && (
+                            {showApprovals && u.status === 'pending' && (
                               <button className="sa-btn approve" onClick={() => handleApproval(u.id, 'active')}>Approve</button>
                             )}
-                            {u.status === 'active' && (
+                            {showApprovals && u.status === 'active' && (
                               <button className="sa-btn suspend" onClick={() => handleApproval(u.id, 'suspended')}>Suspend</button>
                             )}
-                            {u.status === 'suspended' && (
+                            {showApprovals && u.status === 'suspended' && (
                               <button className="sa-btn approve" onClick={() => handleApproval(u.id, 'active')}>Restore</button>
                             )}
                             <select
@@ -625,7 +631,13 @@ export function SuperAdminDashboard() {
                     const isLuminaAi = routing?.source === 'gemini' || routing?.source === 'lumina_ai';
                     const isFallback = routing?.source === 'rules_fallback';
                     const isExpanded = expandedDecision === d.id;
-                    const assignedLabel = d.assigned_to_name || (routing?.assigned_admin_id ? 'assignment unavailable' : 'unassigned');
+                    const assigneeRole = d.assigned_to_job_title?.trim()
+                      || routing?.decision?.assignee_job_title?.trim()
+                      || '';
+                    const assignedName = d.assigned_to_name || (routing?.assigned_admin_id ? 'assignment unavailable' : 'unassigned');
+                    const assignedLabel = assigneeRole && assignedName !== 'unassigned' && assignedName !== 'assignment unavailable'
+                      ? `${assignedName} · ${assigneeRole}`
+                      : assignedName;
                     return (
                       <div key={d.id} className={`ai-decision-card ${isLuminaAi ? 'lumina' : isFallback ? 'fallback' : 'rules'}`}>
                         <div className="ai-decision-top" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>

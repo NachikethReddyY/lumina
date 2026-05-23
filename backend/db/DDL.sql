@@ -455,15 +455,16 @@ SET metadata = jsonb_set(
     'decision', jsonb_build_object(
       'assigned_admin_id', assignee.id::text,
       'assignee_name', CONCAT(assignee.first_name, ' ', assignee.last_name),
+      'assignee_job_title', NULLIF(TRIM(assignee.job_title), ''),
       'source', 'lumina_ai',
       'confidence', 0.85,
       'steps', jsonb_build_array(
         jsonb_build_object('phase', 'thinking', 'summary', 'Classified priority, category, and submitter department.'),
         jsonb_build_object('phase', 'read', 'summary', 'Compared active admin workloads.'),
-        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Routed to ', assignee.first_name, ' ', assignee.last_name, '.'))
+        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Routed to ', assignee.first_name, ' ', assignee.last_name, COALESCE(' (' || NULLIF(TRIM(assignee.job_title), '') || ')', '')))
       ),
       'ticket_note', jsonb_build_object(
-        'summary', CONCAT('Route to ', assignee.first_name, ' ', assignee.last_name, '.'),
+        'summary', CONCAT('Route to ', assignee.first_name, ' ', assignee.last_name, COALESCE(' (' || NULLIF(TRIM(assignee.job_title), '') || ')', ''), '.'),
         'rationale', 'Lumina AI pipeline assignment based on support area and load.',
         'next_step', 'Assignee reviews and starts work.'
       )
@@ -585,15 +586,16 @@ SET metadata = jsonb_set(
     'decision', jsonb_build_object(
       'assigned_admin_id', assignee.id::text,
       'assignee_name', CONCAT(assignee.first_name, ' ', assignee.last_name),
+      'assignee_job_title', NULLIF(TRIM(assignee.job_title), ''),
       'source', 'lumina_ai',
       'confidence', 0.85,
       'steps', jsonb_build_array(
         jsonb_build_object('phase', 'thinking', 'summary', 'Classified priority, category, and submitter department.'),
         jsonb_build_object('phase', 'read', 'summary', 'Compared active admin workloads.'),
-        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Routed to ', assignee.first_name, ' ', assignee.last_name, '.'))
+        jsonb_build_object('phase', 'assign', 'summary', CONCAT('Routed to ', assignee.first_name, ' ', assignee.last_name, COALESCE(' (' || NULLIF(TRIM(assignee.job_title), '') || ')', '')))
       ),
       'ticket_note', jsonb_build_object(
-        'summary', CONCAT('Route to ', assignee.first_name, ' ', assignee.last_name, '.'),
+        'summary', CONCAT('Route to ', assignee.first_name, ' ', assignee.last_name, COALESCE(' (' || NULLIF(TRIM(assignee.job_title), '') || ')', ''), '.'),
         'rationale', 'Lumina AI pipeline assignment based on support area and load.',
         'next_step', 'Assignee reviews and starts work.'
       )
@@ -859,3 +861,19 @@ WHERE o.user_id = u.id
     u.status = 'pending'::user_status
     OR NOT u.onboarding_completed
   );
+
+-- Backfill routing decision assignee job title for existing AI-routed tickets
+UPDATE tickets t
+SET metadata = jsonb_set(
+  COALESCE(t.metadata, '{}'::jsonb),
+  '{routing,decision,assignee_job_title}',
+  to_jsonb(NULLIF(TRIM(u.job_title), '')),
+  true
+)
+FROM ticket_assignment ta
+JOIN users u ON u.id = ta.assigned_to
+WHERE ta.ticket_id = t.id
+  AND ta.is_active = TRUE
+  AND t.metadata->'routing' IS NOT NULL
+  AND t.metadata->'routing' != 'null'::jsonb
+  AND COALESCE(t.metadata->'routing'->'decision'->>'assignee_job_title', '') = '';

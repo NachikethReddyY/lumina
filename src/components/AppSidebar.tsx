@@ -22,6 +22,7 @@ import Logo from "./Logo"
 import { useCurrentUser } from "../hooks/useCurrentUser"
 import { notificationsApi, usersApi, type ApiNotification, type ApiUser } from "../utils/apiClient"
 import { getUserRoleLabel } from "../utils/userDisplay"
+import { canAccessApprovalQueue } from "../utils/orgRoles"
 import { apiAssetUrl } from "../utils/apiBase"
 import "./Sidebar.css"
 
@@ -76,6 +77,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const notificationsRef = useRef<HTMLDivElement>(null)
 
   const isAdmin = user?.role === "admin"
+  const showApprovals = canAccessApprovalQueue(user)
 
   const fetchNotifications = useCallback(async () => {
     setNotifLoading(true)
@@ -95,7 +97,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   }, [user, fetchNotifications])
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!showApprovals) return
     let cancelled = false
     ;(async () => {
       const res = await usersApi.list()
@@ -106,7 +108,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
       }
     })()
     return () => { cancelled = true }
-  }, [isAdmin])
+  }, [showApprovals])
 
   const visibleNotifications = notifications.filter((n) => !hiddenIds.has(n.id))
   const unreadCount = visibleNotifications.length
@@ -119,7 +121,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, color: "#2563eb" },
     { title: "Ticket Queue", url: "/tickets", icon: Inbox, color: "#1f8a65" },
     { title: "Ticket History", url: "/tickets/history", icon: History, color: "#8b5cf6" },
-    ...(isAdmin
+    ...(showApprovals
       ? [
           {
             title: "Approval Queue",
@@ -128,6 +130,10 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
             color: "#d97706",
             badge: pendingApprovalCount,
           },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
           {
             title: "AI Routing Logs",
             url: "/admin/routing-logs",

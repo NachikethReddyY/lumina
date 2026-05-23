@@ -5,6 +5,7 @@ const db = require('../db');
 const { requireAuth, requireAuthAny, requireOnboarding, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
 const { isPlaceholderName, serializeUser } = require('../lib/userProfile');
+const { isHrAdmin } = require('../lib/teamScope');
 
 const router = express.Router();
 
@@ -226,7 +227,12 @@ router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req
   }
 });
 
-router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
+router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin'), (req, res, next) => {
+  if (!isHrAdmin(req.user)) {
+    return res.status(403).json({ error: 'Only HR can approve or suspend accounts.' });
+  }
+  next();
+}, async (req, res, next) => {
   const status = String(req.body?.status ?? '').trim();
   if (!['active', 'pending', 'suspended'].includes(status)) {
     return res.status(400).json(validationError({ status: 'Status must be active, pending, or suspended' }));

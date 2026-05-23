@@ -37,6 +37,10 @@ function normalizeAdminName(admin) {
 
 function buildRoutingDecision({ ticket, admins, chosen, source, reasoning, confidence = 0.72, error = null }) {
   const assigneeName = chosen ? normalizeAdminName(chosen) : null;
+  const assigneeRole = chosen?.job_title?.trim() || null;
+  const assigneeWithRole = assigneeName
+    ? `${assigneeName}${assigneeRole ? ` (${assigneeRole})` : ''}`
+    : null;
   const sortedAdmins = admins
     .slice()
     .sort((a, b) => a.load_score - b.load_score || a.total_open - b.total_open)
@@ -55,6 +59,7 @@ function buildRoutingDecision({ ticket, admins, chosen, source, reasoning, confi
   return {
     assigned_admin_id: chosen?.id || null,
     assignee_name: assigneeName,
+    assignee_job_title: chosen?.job_title?.trim() || null,
     source,
     confidence,
     ticket_snapshot: {
@@ -77,15 +82,15 @@ function buildRoutingDecision({ ticket, admins, chosen, source, reasoning, confi
       },
       {
         phase: 'assign',
-        summary: assigneeName
-          ? `Selected ${assigneeName} for the next active assignment.`
+        summary: assigneeWithRole
+          ? `Selected ${assigneeWithRole} for the next active assignment.`
           : 'Left ticket pending routing because no eligible assignee was available.',
       },
     ],
     workload_candidates: sortedAdmins,
     rationale: reasoning,
     ticket_note: {
-      summary: assigneeName ? `Route to ${assigneeName}.` : 'Keep pending routing.',
+      summary: assigneeWithRole ? `Route to ${assigneeWithRole}.` : 'Keep pending routing.',
       rationale: reasoning,
       next_step: assigneeName ? 'Assign ticket and notify assignee.' : 'Wait for an active admin to become available.',
     },
@@ -99,6 +104,7 @@ async function getAdminWorkloads(client = db) {
             u.email,
             u.first_name,
             u.last_name,
+            u.job_title,
             COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p1_count,
             COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p2_count,
             COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p3_count,
@@ -118,7 +124,7 @@ async function getAdminWorkloads(client = db) {
          OR lower(u.first_name) = 'pending'
          OR (lower(u.first_name) = 'lumina' AND lower(u.last_name) = 'ai')
        )
-     GROUP BY u.id, u.email, u.first_name, u.last_name
+     GROUP BY u.id, u.email, u.first_name, u.last_name, u.job_title
      ORDER BY u.first_name, u.last_name`,
     [LUMINA_AI_EMAIL]
   );
@@ -266,6 +272,7 @@ async function routeWithLuminaModel(ticket, admins) {
       ...parsed,
       assigned_admin_id: match.id,
       assignee_name: normalizeAdminName(match),
+      assignee_job_title: match.job_title?.trim() || baseDecision.assignee_job_title || null,
       source: 'lumina_ai',
       rationale: reasoning,
       steps: Array.isArray(parsed.steps) && parsed.steps.length ? parsed.steps : baseDecision.steps,

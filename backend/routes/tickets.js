@@ -42,7 +42,7 @@ async function applyRoutingAssignment(client, { ticket, routing, actorId, auditA
 
   const routingMetadata = buildRoutingMetadata(routing);
   const assignedResult = await client.query(
-    `SELECT id, first_name, last_name, email FROM users WHERE id = $1`,
+    `SELECT id, first_name, last_name, email, job_title FROM users WHERE id = $1`,
     [routing.assignedAdminId]
   );
   const assignedUser = assignedResult.rows[0] || null;
@@ -104,15 +104,12 @@ router.get('/', async (req, res, next) => {
     const values = [];
     const clauses = [];
 
+    const scope = String(req.query.scope || '').trim();
+
     if (req.user.role === 'user') {
       values.push(req.user.id);
       clauses.push(`t.submitted_by = $${values.length}`);
-    } else if (isTeamManager(req.user) || req.query.scope === 'team') {
-      values.push(TEAM_MEMBER_DEPARTMENTS);
-      clauses.push(`submitter.department = ANY($${values.length}::text[])`);
-    } else if (isHrAdmin(req.user) || req.query.scope === 'org') {
-      /* HR / org scope: all tickets — no extra filter */
-    } else if (req.user.role === 'admin') {
+    } else if (scope === 'assigned') {
       values.push(req.user.id);
       clauses.push(
         `EXISTS (
@@ -121,7 +118,12 @@ router.get('/', async (req, res, next) => {
           WHERE ta.ticket_id = t.id AND ta.assigned_to = $${values.length} AND ta.is_active = TRUE
         )`
       );
-    } else if (req.query.scope === 'assigned') {
+    } else if (scope === 'team' || (scope !== 'org' && isTeamManager(req.user))) {
+      values.push(TEAM_MEMBER_DEPARTMENTS);
+      clauses.push(`submitter.department = ANY($${values.length}::text[])`);
+    } else if (scope === 'org' || isHrAdmin(req.user)) {
+      /* HR / org scope: all tickets — no extra filter */
+    } else if (req.user.role === 'admin') {
       values.push(req.user.id);
       clauses.push(
         `EXISTS (
@@ -145,7 +147,8 @@ router.get('/', async (req, res, next) => {
               submitter.avatar_url AS submitted_by_avatar_url,
               assignee.id AS assigned_to_id,
               assignee.avatar_url AS assigned_to_avatar_url,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
+              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
+              assignee.job_title AS assigned_to_job_title
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
@@ -221,7 +224,8 @@ router.get('/:id', async (req, res, next) => {
               submitter.avatar_url AS submitted_by_avatar_url,
               assignee.id AS assigned_to_id,
               assignee.avatar_url AS assigned_to_avatar_url,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name
+              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
+              assignee.job_title AS assigned_to_job_title
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
@@ -390,6 +394,7 @@ router.post('/', requireRole('user'), async (req, res, next) => {
       assigned_to_id: assignedUser?.id || null,
       assigned_to_avatar_url: assignedUser?.avatar_url || null,
       assigned_to_name: assignedUser ? `${assignedUser.first_name} ${assignedUser.last_name}` : null,
+      assigned_to_job_title: assignedUser?.job_title?.trim() || null,
       routing,
     });
   } catch (error) {

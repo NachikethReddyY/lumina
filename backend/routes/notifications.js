@@ -105,7 +105,8 @@ router.get('/ai-decisions', requireAuth, async (req, res, next) => {
               COALESCE(
                 NULLIF(CONCAT(assignee.first_name, ' ', assignee.last_name), ' '),
                 NULLIF(CONCAT(routed_assignee.first_name, ' ', routed_assignee.last_name), ' ')
-              ) AS assigned_to_name
+              ) AS assigned_to_name,
+              COALESCE(NULLIF(TRIM(assignee.job_title), ''), NULLIF(TRIM(routed_assignee.job_title), '')) AS assigned_to_job_title
        FROM tickets t
        JOIN users submitter ON submitter.id = t.submitted_by
        LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE

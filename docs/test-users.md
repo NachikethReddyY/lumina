@@ -6,7 +6,7 @@ Seeded by `backend/db/DDL.sql`. Password for all `@lumina.test` accounts: **`Tes
 
 | System role | Who | What they do in the app |
 | --- | --- | --- |
-| **`admin`** | Product owners, program/product managers, HR | Approvals, user directory, AI routing logs, team/org dashboards, ticket triage |
+| **`admin`** | Product owners, program/product managers, HR | User directory, AI routing logs, team/org dashboards, ticket triage; **approvals are HR-only** |
 | **`user`** | Developers, testers, platform/ops ICs | File tickets, track their own work |
 
 Onboarding **department** (`Developers`, `QA`, `Managers`, `HR`) sets job title and derives system role on signup.
@@ -31,7 +31,7 @@ Dashboard: **People Operations** — all tickets, charts, approvals, AI routing,
 | `manager.priya@lumina.test` | Product Manager |
 | `manager.ian@lumina.test` | Program / Project Manager |
 
-Dashboard: team progress (Developers + QA tickets), approval queue, can triage routed tickets.
+Dashboard: team progress (Developers + QA tickets), can triage routed tickets. **Ticket queue:** filter **Assigned to me** vs **All team** (no approval queue).
 
 ## System — routing only (`admin`)
 

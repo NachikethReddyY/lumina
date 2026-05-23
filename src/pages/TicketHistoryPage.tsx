@@ -25,7 +25,13 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../context/useToast';
 import { ticketsApi, categoriesApi, type ApiTicket, type ApiCategory, type ApiActivityEvent, type ApiComment } from '../utils/apiClient';
 import { apiAssetUrl } from '../utils/apiBase';
-import { getTicketListScope } from '../utils/orgRoles';
+import {
+  getTicketListScope,
+  getTicketQueueListScope,
+  isHrAdmin,
+  showQueueOwnershipFilter,
+  type QueueOwnershipFilter,
+} from '../utils/orgRoles';
 import './TicketHistoryPage.css';
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -65,6 +71,7 @@ type RoutingStep = { phase?: string; summary?: string };
 type RoutingDecision = {
   confidence?: number;
   assignee_name?: string | null;
+  assignee_job_title?: string | null;
   rationale?: string;
   steps?: RoutingStep[];
   ticket_note?: {
@@ -117,10 +124,24 @@ function formatDate(timestamp: string): string {
 
 function assigneeLabel(ticket: ApiTicket) {
   if (ticket.assigned_to_name) return ticket.assigned_to_name;
-  const routing = ticket.metadata?.routing as { assigned_admin_id?: string; source?: string } | undefined;
+  const routing = getRouting(ticket);
+  if (routing?.decision?.assignee_name) return routing.decision.assignee_name;
   if (ticket.status === 'pending_routing') return 'Pending routing';
   if (routing?.assigned_admin_id) return 'Assignment missing';
   return 'Unassigned';
+}
+
+function assigneeRoleLabel(ticket: ApiTicket): string {
+  const fromAssignee = ticket.assigned_to_job_title?.trim();
+  if (fromAssignee) return fromAssignee;
+  const fromDecision = getRouting(ticket)?.decision?.assignee_job_title?.trim();
+  return fromDecision || '';
+}
+
+function assigneeDisplay(ticket: ApiTicket): string {
+  const name = assigneeLabel(ticket);
+  const role = assigneeRoleLabel(ticket);
+  return role ? `${name} · ${role}` : name;
 }
 
 function initials(name: string) {
@@ -354,11 +375,11 @@ function activityTimelineEvents(ticket: ApiTicket, event: ApiActivityEvent): Tim
 
 function aiDecisionReason(ticket: ApiTicket): string {
   const routing = getRouting(ticket);
-  const assignee = assigneeLabel(ticket);
+  const assignee = assigneeDisplay(ticket);
   return luminaVoice(routing?.decision?.ticket_note?.rationale
     || routing?.decision?.rationale
     || routing?.reasoning
-    || (ticket.assigned_to_name
+    || (ticket.assigned_to_name || routing?.decision?.assignee_name
       ? `Routed to ${assignee} because ${teamFor(ticket)} matches the ticket category and the current ownership/load profile is the best fit.`
       : `Recommended ${teamFor(ticket)} based on priority, category, and current queue ownership.`));
 }
@@ -405,12 +426,12 @@ function fallbackTimelineEvents(ticket: ApiTicket): TimelineEvent[] {
     });
   }
 
-  if (ticket.assigned_to_name) {
+  if (ticket.assigned_to_name || routing?.decision?.assignee_name) {
     events.push({
       id: `${ticket.id}-owner`,
       icon: UserCircle2,
       title: 'Owner assigned',
-      detail: `${ticket.assigned_to_name} is the current operator for this ticket.`,
+      detail: `${assigneeDisplay(ticket)} is the current operator for this ticket.`,
       time: timeAgo(ticket.created_at),
       occurredAt: new Date(ticket.created_at).getTime(),
       order: 2,
@@ -459,12 +480,16 @@ function timelineEvents(ticket: ApiTicket, activityEvents: ApiActivityEvent[]): 
 
 function AssigneeCell({ ticket }: { ticket: ApiTicket }) {
   const name = assigneeLabel(ticket);
+  const role = assigneeRoleLabel(ticket);
   return (
     <div className="th-person-cell">
       <span className="th-person-avatar">
         {ticket.assigned_to_avatar_url ? <img src={apiAssetUrl(ticket.assigned_to_avatar_url)} alt="" /> : initials(name)}
       </span>
-      <span>{name}</span>
+      <span className="th-person-meta">
+        <strong>{name}</strong>
+        {role ? <small>{role}</small> : null}
+      </span>
     </div>
   );
 }
@@ -498,6 +523,14 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
   const [commentSending, setCommentSending] = useState(false);
+  const [queueOwnership, setQueueOwnership] = useState<QueueOwnershipFilter>('assigned');
+
+  const ticketListScope = useMemo(() => {
+    if (mode === 'queue' && showQueueOwnershipFilter(user)) {
+      return getTicketQueueListScope(user, queueOwnership);
+    }
+    return getTicketListScope(user);
+  }, [mode, queueOwnership, user]);
 
   useEffect(() => {
     setActiveTab(ticketTabForMode(mode));
@@ -518,7 +551,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     (async () => {
       try {
         const [ticketsRes, catRes] = await Promise.all([
-          ticketsApi.list(getTicketListScope(user)),
+          ticketsApi.list(ticketListScope),
           categoriesApi.list(),
         ]);
         const [ticketsBody, catBody] = await Promise.all([ticketsRes.json(), catRes.json()]);
@@ -530,7 +563,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.id, user?.department, user?.role]);
+  }, [ticketListScope, user?.id, user?.department, user?.role]);
 
   const resetPage = useCallback(() => setPage(1), []);
 
@@ -648,15 +681,18 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   }), [scopedTickets]);
 
   const pageTitle = mode === 'queue' ? 'Ticket Queue' : 'Ticket History';
+  const adminQueueOwnership = showQueueOwnershipFilter(user);
   const pageSubtitle = mode === 'history'
     ? 'Completed ticket records with inline inspection'
     : user?.role === 'user'
       ? 'Your tickets in one compact workspace'
-      : user?.department === 'HR'
-        ? 'All organization tickets — Developers, QA, Managers, and support staff'
-        : user?.department === 'Managers'
-          ? 'Team tickets from Developers and QA'
-          : 'All active ticket records with inline inspection';
+      : adminQueueOwnership && queueOwnership === 'assigned'
+        ? 'Tickets currently assigned to you'
+        : isHrAdmin(user)
+          ? 'All organization tickets — Developers, QA, Managers, and support staff'
+          : user?.department === 'Managers'
+            ? 'Team tickets from Developers and QA'
+            : 'All active ticket records with inline inspection';
 
   const changeTab = (tab: TicketTab) => {
     setActiveTab(tab);
@@ -689,7 +725,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       setTickets((current) => current.map((ticket) => (
         ticket.id === selectedTicket.id ? { ...ticket, priority: nextPriority } : ticket
       )));
-      const refreshed = await ticketsApi.list(getTicketListScope(user));
+      const refreshed = await ticketsApi.list(ticketListScope);
       const body = await refreshed.json().catch(() => []);
       if (Array.isArray(body)) setTickets(body);
       await refreshActivity(selectedTicket.id, true);
@@ -699,7 +735,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     } finally {
       setChangingPriority(false);
     }
-  }, [canChangePriority, changingPriority, refreshActivity, selectedTicket, showToast]);
+  }, [canChangePriority, changingPriority, refreshActivity, selectedTicket, showToast, ticketListScope]);
 
   const handleStatusChange = useCallback(async (status: ApiTicket['status']) => {
     if (!selectedTicket || !canChangeStatus || selectedTicket.status === status || changingStatus) return;
@@ -716,7 +752,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       setTickets((current) => current.map((ticket) => (
         ticket.id === selectedTicket.id ? { ...ticket, status: nextStatus } : ticket
       )));
-      const refreshed = await ticketsApi.list(getTicketListScope(user));
+      const refreshed = await ticketsApi.list(ticketListScope);
       const body = await refreshed.json().catch(() => []);
       if (Array.isArray(body)) setTickets(body);
       await refreshActivity(selectedTicket.id, true);
@@ -726,7 +762,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     } finally {
       setChangingStatus(false);
     }
-  }, [canChangeStatus, changingStatus, refreshActivity, selectedTicket, showToast]);
+  }, [canChangeStatus, changingStatus, refreshActivity, selectedTicket, showToast, ticketListScope]);
 
   const handleAddComment = useCallback(async () => {
     if (!selectedTicket || !canComment || !commentDraft.trim() || commentSending) return;
@@ -770,7 +806,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
         return;
       }
 
-      const refreshed = await ticketsApi.list(getTicketListScope(user));
+      const refreshed = await ticketsApi.list(ticketListScope);
       const body = await refreshed.json().catch(() => []);
       if (Array.isArray(body)) setTickets(body);
       await refreshActivity(selectedTicket.id, true);
@@ -780,7 +816,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     } finally {
       setReroutingTicket(false);
     }
-  }, [canReroute, refreshActivity, reroutingTicket, selectedTicket, showToast]);
+  }, [canReroute, refreshActivity, reroutingTicket, selectedTicket, showToast, ticketListScope]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -810,9 +846,32 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
           <div className="th-rail-filters">
             {mode === 'queue' ? (
               <div className="th-tabs th-rail-tabs" role="tablist" aria-label="Ticket views">
-                <button type="button" className="active" onClick={() => changeTab('active')} role="tab">
-                  Working <span>{counts.active}</span>
-                </button>
+                {adminQueueOwnership ? (
+                  <>
+                    <button
+                      type="button"
+                      className={queueOwnership === 'assigned' ? 'active' : ''}
+                      onClick={() => { setQueueOwnership('assigned'); resetPage(); }}
+                      role="tab"
+                      aria-selected={queueOwnership === 'assigned'}
+                    >
+                      Assigned to me <span>{counts.active}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={queueOwnership === 'team' ? 'active' : ''}
+                      onClick={() => { setQueueOwnership('team'); resetPage(); }}
+                      role="tab"
+                      aria-selected={queueOwnership === 'team'}
+                    >
+                      {isHrAdmin(user) ? 'Organization' : 'All team'}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="active" onClick={() => changeTab('active')} role="tab">
+                    Working <span>{counts.active}</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="th-tabs th-rail-tabs" role="tablist" aria-label="Completed ticket views">
@@ -1069,7 +1128,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                   <dl className="th-queue-routing-props">
                     <div>
                       <dt>Owner</dt>
-                      <dd>{selectedTicket ? assigneeLabel(selectedTicket) : 'No ticket selected'}</dd>
+                      <dd>{selectedTicket ? assigneeDisplay(selectedTicket) : 'No ticket selected'}</dd>
                     </div>
                     <div>
                       <dt>Lane</dt>
@@ -1152,6 +1211,15 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                           <p>{selectedRouting?.decision?.ticket_note?.summary || `Recommended lane: ${teamFor(selectedTicket)}`}</p>
                         </div>
                       </div>
+                      {(selectedTicket.assigned_to_name || selectedRouting?.decision?.assignee_name) && (
+                        <div className="th-routed-assignee">
+                          <span>Routed to</span>
+                          <strong>{assigneeLabel(selectedTicket)}</strong>
+                          {assigneeRoleLabel(selectedTicket) ? (
+                            <em>{assigneeRoleLabel(selectedTicket)}</em>
+                          ) : null}
+                        </div>
+                      )}
                       <div className="th-ai-decision">
                         <span>AI decision</span>
                         <p>{aiDecisionReason(selectedTicket)}</p>

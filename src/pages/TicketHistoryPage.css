@@ -596,6 +596,55 @@
   font-weight: 850;
 }
 
+.th-person-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.th-person-meta strong {
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.th-person-meta small {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.th-routed-assignee {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-hairline-soft);
+}
+
+.th-routed-assignee > span {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.th-routed-assignee strong {
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.th-routed-assignee em {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+}
+
 .th-person-avatar {
   display: inline-flex;
   align-items: center;

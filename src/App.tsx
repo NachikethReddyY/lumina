@@ -52,7 +52,7 @@ function App() {
 
         <Route path="/user/dashboard" element={<ProtectedRoute roles={['user']}><UserDashboard /></ProtectedRoute>} />
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/approvals" element={<ProtectedRoute roles={['admin']}><SuperAdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/approvals" element={<ProtectedRoute roles={['admin']} hrAdminOnly><SuperAdminDashboard /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><SuperAdminDashboard /></ProtectedRoute>} />
         <Route path="/admin/routing-logs" element={<ProtectedRoute roles={['admin']}><SuperAdminDashboard /></ProtectedRoute>} />
 

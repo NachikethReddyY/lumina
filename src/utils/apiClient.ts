@@ -47,6 +47,7 @@ export type ApiTicket = {
   assigned_to_id?: string | null;
   assigned_to_avatar_url?: string | null;
   assigned_to_name?: string | null;
+  assigned_to_job_title?: string | null;
 };
 
 export type ApiCategory = {
@@ -126,8 +127,13 @@ export type ApiAiDecision = {
     source: string;
     assigned_admin_id?: string;
     reasoning?: string;
+    decision?: {
+      assignee_name?: string | null;
+      assignee_job_title?: string | null;
+    } | null;
   } | null;
   assigned_to_name?: string | null;
+  assigned_to_job_title?: string | null;
 };
 
 interface RequestOptions {
@@ -259,7 +265,7 @@ export const categoriesApi = {
 };
 
 export const ticketsApi = {
-  list: (params?: { scope?: 'org' | 'team' | 'assigned'; status?: string }) => {
+  list: (params?: { scope?: 'org' | 'team' | 'assigned'; status?: string } = {}) => {
     const query = new URLSearchParams();
     if (params?.scope) query.set('scope', params.scope);
     if (params?.status) query.set('status', params.status);
