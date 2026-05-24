@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { usersApi, type ApiUser } from '../utils/apiClient';
+import { isSessionExpired, touchSessionActivity, clearAuthSession } from '../utils/sessionAuth';
 
 type UserContextValue = {
   user: ApiUser | null;
@@ -23,6 +24,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return null;
     }
+    if (isSessionExpired()) {
+      clearAuthSession();
+      setUser(null);
+      setLoading(false);
+      return null;
+    }
     try {
       const res = await usersApi.me();
       const data = (await res.json().catch(() => null)) as ApiUser | { error?: string } | null;
@@ -34,6 +41,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const nextUser = data as ApiUser;
       setUser(nextUser);
       setError('');
+      touchSessionActivity();
       return nextUser;
     } catch {
       setError('Could not load account.');

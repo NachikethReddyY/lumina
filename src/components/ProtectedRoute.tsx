@@ -2,6 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useUserContext } from '../context/UserContext';
 import { getRequiredPath, isSetupPath } from '../utils/authFlow';
 import { canAccessApprovalQueue } from '../utils/orgRoles';
+import { clearAuthSession, isSessionExpired } from '../utils/sessionAuth';
 import { SetupLoading } from './SetupLoading';
 
 type Props = {
@@ -15,6 +16,17 @@ export function ProtectedRoute({ children, roles, hrAdminOnly }: Props) {
   const location = useLocation();
   const { user, loading } = useUserContext();
   const token = localStorage.getItem('authToken');
+
+  if (token && isSessionExpired()) {
+    clearAuthSession();
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location.pathname, message: 'Your session expired due to inactivity. Please sign in again.' }}
+      />
+    );
+  }
 
   if (loading && token) {
     return <SetupLoading message="Loading your account…" />;

@@ -19,6 +19,7 @@ import ProfilePage from './pages/ProfilePage';
 import AccountSettingsPage from './pages/AccountSettingsPage';
 import TicketHistoryPage from './pages/TicketHistoryPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import SessionTimeoutManager from './components/SessionTimeoutManager';
 import { ToastProvider } from './context/ToastContext';
 import { UserProvider } from './context/UserContext';
 import './App.css';
@@ -27,6 +28,7 @@ function App() {
   return (
     <ToastProvider>
       <UserProvider>
+      <SessionTimeoutManager />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />

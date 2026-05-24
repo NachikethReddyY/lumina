@@ -23,6 +23,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser"
 import { notificationsApi, usersApi, type ApiNotification, type ApiUser } from "../utils/apiClient"
 import { getUserRoleLabel } from "../utils/userDisplay"
 import { canAccessApprovalQueue } from "../utils/orgRoles"
+import { clearAuthSession } from "../utils/sessionAuth"
 import { apiAssetUrl } from "../utils/apiBase"
 import "./Sidebar.css"
 
@@ -175,8 +176,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   }, [onToggle])
 
   const handleSignOut = () => {
-    localStorage.removeItem("authToken")
-    localStorage.removeItem("refreshToken")
+    clearAuthSession()
     navigate("/login")
   }
 

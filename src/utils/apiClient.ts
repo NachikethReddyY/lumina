@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './apiBase';
+import { clearAuthSession, isAuthPublicPath, touchSessionActivity } from './sessionAuth';
 
 const API_PREFIX = import.meta.env.VITE_API_PREFIX ?? '/api/v1';
 
@@ -151,12 +152,6 @@ const getAuthToken = (): string | null => {
   return localStorage.getItem('authToken');
 };
 
-const isAuthPublicPath = (): boolean => {
-  const path = window.location.pathname;
-  const publicPrefixes = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
-  return publicPrefixes.some((p) => path === p || path.startsWith(`${p}/`));
-};
-
 export async function apiRequest(
   endpoint: string,
   options: RequestOptions = {}
@@ -179,9 +174,12 @@ export async function apiRequest(
   });
 
   if (response.status === 401 && !isAuthPublicPath()) {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
+    clearAuthSession();
     window.location.href = '/login';
+  }
+
+  if (response.ok && token) {
+    touchSessionActivity();
   }
 
   return response;
