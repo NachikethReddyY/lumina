@@ -88,6 +88,7 @@ export function UserDashboard() {
     type: 'software' as 'software' | 'bug' | 'incident',
     priority: 'P2' as 'P1' | 'P2' | 'P3' | 'P4',
     replicationSteps: '',
+    requestQaTesting: false,
   });
 
   // Cmd+N / Ctrl+N to open new ticket modal
@@ -273,7 +274,15 @@ export function UserDashboard() {
                       }
                       setCreatingTicket(true);
                       try {
-                        const res = await ticketsApi.create({ ...newTicket, categoryId });
+                        const res = await ticketsApi.create({
+                          title: newTicket.title,
+                          description: newTicket.description,
+                          categoryId,
+                          type: newTicket.type,
+                          priority: newTicket.priority,
+                          replicationSteps: newTicket.replicationSteps || undefined,
+                          requestQaTesting: newTicket.requestQaTesting,
+                        });
                         const body = await res.json().catch(() => ({}));
                         if (!res.ok) {
                           const errorBody = body as { error?: string; details?: Record<string, string> };
@@ -285,7 +294,7 @@ export function UserDashboard() {
                         setFilterStatus('all');
                         setFilterPriority('all');
                         setPage(1);
-                        setNewTicket({ title: '', description: '', categoryId: activeCategories[0]?.id || '', type: 'software', priority: 'P2', replicationSteps: '' });
+                        setNewTicket({ title: '', description: '', categoryId: activeCategories[0]?.id || '', type: 'software', priority: 'P2', replicationSteps: '', requestQaTesting: false });
                         setShowNewTicket(false);
                       } catch {
                         setFormError('Could not create ticket. Check your connection and try again.');
@@ -321,6 +330,16 @@ export function UserDashboard() {
                           <option value="P4">P4 — Low</option>
                         </select>
                       </div>
+                    </div>
+                    <div className="nt-field nt-checkbox-row">
+                      <label className="nt-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={newTicket.requestQaTesting}
+                          onChange={(e) => setNewTicket((p) => ({ ...p, requestQaTesting: e.target.checked }))}
+                        />
+                        <span>Request QA testing — route to a QA engineer for verification</span>
+                      </label>
                     </div>
                     <div className="nt-field">
                       <label>Replication Steps</label>

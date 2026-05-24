@@ -146,7 +146,7 @@ export function AdminDashboard() {
   }), [tickets]);
 
   const myLoad = workload.find((e) => e.id === user?.id);
-  const myTickets = useMemo(() => tickets.filter((t) => t.assigned_to === user?.id), [tickets, user?.id]);
+  const myTickets = useMemo(() => tickets.filter((t) => t.assigned_to_id === user?.id), [tickets, user?.id]);
   const myActiveCount = useMemo(() => myTickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length, [myTickets]);
   const myResolvedCount = useMemo(() => myTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length, [myTickets]);
 
@@ -177,7 +177,7 @@ export function AdminDashboard() {
                     </>
                   ) : null}
                   {isTeamManager(user)
-                    ? 'Team progress across Developers and QA — read-only workload view.'
+                    ? 'Organization-wide ticket metrics — read-only oversight across all departments.'
                     : 'Review reported issues, manage resolution queue, optimize workflow.'}
                 </p>
               </div>

@@ -11,7 +11,7 @@ function isHrAdmin(user = {}) {
 }
 
 function isOrgViewer(user = {}) {
-  return isHrAdmin(user);
+  return isHrAdmin(user) || isTeamManager(user);
 }
 
 module.exports = {

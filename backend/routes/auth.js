@@ -161,7 +161,7 @@ router.post('/signup', async (req, res, next) => {
   try {
     const result = await db.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, role, status, email_is_verified, name_set)
-       VALUES ($1, crypt($2, gen_salt('bf')), 'User', 'New', 'user'::user_role, $5::user_status, $6, FALSE)
+       VALUES ($1, crypt($2, gen_salt('bf')), 'User', 'New', 'user'::user_role, $3::user_status, $4, FALSE)
        RETURNING id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at`,
       [email, password, 'pending', false]
     );

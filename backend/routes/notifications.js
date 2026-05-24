@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireOnboarding } = require('../middleware/auth');
-const { isTeamManager, isHrAdmin, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
+const { isOrgViewer } = require('../lib/teamScope');
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ router.get('/', async (req, res, next) => {
          LIMIT 30`,
         [req.user.id]
       );
-    } else if (isHrAdmin(req.user)) {
+    } else if (isOrgViewer(req.user)) {
       result = await db.query(
         `SELECT a.id, a.action, a.metadata, a.created_at,
                 u.first_name, u.last_name, u.email AS actor_email
@@ -35,22 +35,6 @@ router.get('/', async (req, res, next) => {
          JOIN users u ON u.id = a.actor_id
          ORDER BY a.created_at DESC
          LIMIT 50`
-      );
-    } else if (isTeamManager(req.user)) {
-      result = await db.query(
-        `SELECT a.id, a.action, a.metadata, a.created_at,
-                u.first_name, u.last_name, u.email AS actor_email
-         FROM audit_logs a
-         JOIN users u ON u.id = a.actor_id
-         WHERE a.metadata->>'ticket_id' IN (
-           SELECT t.id::text
-           FROM tickets t
-           JOIN users submitter ON submitter.id = t.submitted_by
-           WHERE submitter.department = ANY($1::text[])
-         )
-         ORDER BY a.created_at DESC
-         LIMIT 50`,
-        [TEAM_MEMBER_DEPARTMENTS]
       );
     } else if (req.user.role === 'admin') {
       result = await db.query(
@@ -91,13 +75,6 @@ router.get('/ai-decisions', requireAuth, async (req, res, next) => {
     return res.status(403).json({ error: 'Access denied' });
   }
   try {
-    const values = [];
-    let teamClause = '';
-    if (isTeamManager(req.user)) {
-      values.push(TEAM_MEMBER_DEPARTMENTS);
-      teamClause = `AND submitter.department = ANY($${values.length}::text[])`;
-    }
-
     const result = await db.query(
       `SELECT t.id, t.title, t.priority, t.type, t.created_at,
               t.metadata->'routing' AS routing,
@@ -114,10 +91,8 @@ router.get('/ai-decisions', requireAuth, async (req, res, next) => {
        LEFT JOIN users routed_assignee ON routed_assignee.id::text = t.metadata->'routing'->>'assigned_admin_id'
        WHERE t.metadata->'routing' IS NOT NULL
          AND t.metadata->'routing' != 'null'
-         ${teamClause}
        ORDER BY t.created_at DESC
-       LIMIT 50`,
-      values
+       LIMIT 50`
     );
     res.json(result.rows);
   } catch (err) {

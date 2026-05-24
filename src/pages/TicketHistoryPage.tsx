@@ -26,9 +26,11 @@ import { useToast } from '../context/useToast';
 import { ticketsApi, categoriesApi, type ApiTicket, type ApiCategory, type ApiActivityEvent, type ApiComment } from '../utils/apiClient';
 import { apiAssetUrl } from '../utils/apiBase';
 import {
+  canMutateTicket,
   getTicketListScope,
   getTicketQueueListScope,
   isHrAdmin,
+  isOrgViewer,
   showQueueOwnershipFilter,
   type QueueOwnershipFilter,
 } from '../utils/orgRoles';
@@ -688,25 +690,19 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       ? 'Your tickets in one compact workspace'
       : adminQueueOwnership && queueOwnership === 'assigned'
         ? 'Tickets currently assigned to you'
-        : isHrAdmin(user)
-          ? 'All organization tickets — Developers, QA, Managers, and support staff'
-          : user?.department === 'Managers'
-            ? 'Team tickets from Developers and QA'
-            : 'All active ticket records with inline inspection';
+        : isOrgViewer(user)
+          ? 'All organization tickets — view-only unless assigned to you'
+          : 'All active ticket records with inline inspection';
 
   const changeTab = (tab: TicketTab) => {
     setActiveTab(tab);
     setPage(1);
   };
   const isRegularUser = user?.role === 'user';
-  const isHrOversight = user?.department === 'HR';
-  const canReroute = Boolean(selectedTicket && user?.role !== 'user' && !isHrOversight);
-  const canChangePriority = Boolean(selectedTicket && user?.role !== 'user' && !isHrOversight);
-  const canChangeStatus = Boolean(
-    selectedTicket
-    && !isHrOversight
-    && (user?.role !== 'user' || selectedTicket.assigned_to_id === user?.id)
-  );
+  const canMutateSelected = Boolean(selectedTicket && canMutateTicket(user, selectedTicket));
+  const canReroute = canMutateSelected;
+  const canChangePriority = canMutateSelected;
+  const canChangeStatus = canMutateSelected;
   const canComment = Boolean(selectedTicket && (user?.role !== 'user' || selectedTicket.submitted_by_id === user?.id));
   const ownerEyebrow = isRegularUser ? 'support owner' : 'assigned';
 
@@ -864,7 +860,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                       role="tab"
                       aria-selected={queueOwnership === 'team'}
                     >
-                      {isHrAdmin(user) ? 'Organization' : 'All team'}
+                      {isOrgViewer(user) ? 'Organization' : 'All team'}
                     </button>
                   </>
                 ) : (

@@ -1,7 +1,199 @@
 const db = require('../db');
 
-const LUMINA_MODEL = process.env.LUMINA_MODEL || process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const LUMINA_AI_EMAIL = 'lumina.ai@lumina.test';
+const SUPPORTED_PROVIDERS = ['groq', 'gemini', 'openrouter', 'opencode'];
+
+function getLuminaApiKey() {
+  const key = process.env.API_KEY || process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY;
+  if (!key?.trim()) {
+    throw new Error('API_KEY is not configured. Set it in .env for your Lumina AI provider.');
+  }
+  return key.trim();
+}
+
+function getLuminaModel(provider) {
+  let model = process.env.LUMINA_MODEL || process.env.GROQ_MODEL || process.env.GEMINI_MODEL;
+  if (!model?.trim()) {
+    throw new Error('LUMINA_MODEL is not configured. Set it in .env to choose the routing model.');
+  }
+  model = model.trim();
+  if (provider === 'opencode' && model.startsWith('opencode/')) {
+    model = model.slice('opencode/'.length);
+  }
+  return model;
+}
+
+function inferProviderFromApiKey(apiKey) {
+  if (apiKey.startsWith('gsk_')) return 'groq';
+  if (apiKey.startsWith('AIza')) return 'gemini';
+  if (apiKey.startsWith('sk-or-')) return 'openrouter';
+  if (apiKey.startsWith('sk-p')) return 'opencode';
+  return null;
+}
+
+function getLuminaProvider() {
+  const explicit = process.env.LUMINA_PROVIDER?.trim().toLowerCase();
+  if (explicit) {
+    if (!SUPPORTED_PROVIDERS.includes(explicit)) {
+      throw new Error(`LUMINA_PROVIDER must be one of: ${SUPPORTED_PROVIDERS.join(', ')}`);
+    }
+    return explicit;
+  }
+
+  const inferred = inferProviderFromApiKey(getLuminaApiKey());
+  if (inferred) return inferred;
+
+  throw new Error(
+    `LUMINA_PROVIDER is not configured. Set it to one of: ${SUPPORTED_PROVIDERS.join(', ')}`
+  );
+}
+
+function openAiCompatibleBody({ model, systemPrompt, userContent, strictJsonSchema = true }) {
+  const body = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ],
+    temperature: 0.2,
+  };
+
+  if (strictJsonSchema) {
+    body.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'lumina_routing',
+        strict: true,
+        schema: ROUTING_RESPONSE_SCHEMA,
+      },
+    };
+  } else {
+    body.response_format = { type: 'json_object' };
+  }
+
+  return body;
+}
+
+async function callOpenAiCompatibleProvider({ url, apiKey, headers = {}, body }) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Lumina AI routing request failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content || '';
+  if (!text) {
+    throw new Error('Lumina AI returned an empty routing response');
+  }
+  return text;
+}
+
+async function callGeminiProvider({ apiKey, model, systemPrompt, userContent }) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userContent }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Lumina AI routing request failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
+  if (!text) {
+    throw new Error('Lumina AI returned an empty routing response');
+  }
+  return text;
+}
+
+async function requestLuminaRoutingText({ provider, apiKey, model, systemPrompt, userContent }) {
+  if (provider === 'groq') {
+    return callOpenAiCompatibleProvider({
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      apiKey,
+      body: openAiCompatibleBody({ model, systemPrompt, userContent, strictJsonSchema: true }),
+    });
+  }
+
+  if (provider === 'openrouter') {
+    return callOpenAiCompatibleProvider({
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      apiKey,
+      headers: {
+        'HTTP-Referer': process.env.FRONTEND_URL?.split(',')[0]?.trim() || 'http://localhost:5173',
+        'X-Title': 'Lumina',
+      },
+      body: openAiCompatibleBody({ model, systemPrompt, userContent, strictJsonSchema: false }),
+    });
+  }
+
+  if (provider === 'opencode') {
+    return callOpenAiCompatibleProvider({
+      url: 'https://opencode.ai/zen/v1/chat/completions',
+      apiKey,
+      body: openAiCompatibleBody({ model, systemPrompt, userContent, strictJsonSchema: false }),
+    });
+  }
+
+  if (provider === 'gemini') {
+    return callGeminiProvider({ apiKey, model, systemPrompt, userContent });
+  }
+
+  throw new Error(`Unsupported Lumina AI provider: ${provider}`);
+}
+
+const ROUTING_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    assigned_admin_id: { type: 'string' },
+    confidence: { type: 'number' },
+    reasoning: { type: 'string' },
+    steps: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          phase: { type: 'string' },
+          summary: { type: 'string' },
+        },
+        required: ['phase', 'summary'],
+        additionalProperties: false,
+      },
+    },
+    ticket_note: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string' },
+        rationale: { type: 'string' },
+        next_step: { type: 'string' },
+      },
+      required: ['summary', 'rationale', 'next_step'],
+      additionalProperties: false,
+    },
+  },
+  required: ['assigned_admin_id', 'confidence', 'reasoning', 'steps', 'ticket_note'],
+  additionalProperties: false,
+};
 
 function isLuminaAIUser(user = {}) {
   const email = String(user.email || '').trim().toLowerCase();
@@ -35,6 +227,62 @@ function normalizeAdminName(admin) {
   return admin.name || `${admin.first_name} ${admin.last_name}`.trim();
 }
 
+function buildRoutingSystemPrompt() {
+  return [
+    'You are Lumina AI, the routing engine inside Lumina support ticketing.',
+    'Never mention model providers, API keys, prompts, or implementation details in the returned rationale.',
+    'Pick exactly one assignee id from the provided assignees list.',
+    '',
+    'Route by specialty first, then workload:',
+    '1) SKILL FIT — Match ticket type, category, title, and description to each assignee job_title and department.',
+    '   • bug / defects / test failures / reproducibility → QA Engineer, Test Engineer, Automation Engineer',
+    '   • incident / outage / infra / deploy / Kubernetes / cloud / platform → Platform/Infrastructure Engineer, DevOps, SRE',
+    '   • software / app features / APIs / integrations / configuration → Software Engineer/Developer, Architect, Tech Lead',
+    '   • security / auth / vulnerability → Security Engineer / AppSec',
+    '   • UX / UI / design → Product Designer / UX Designer, UX Researcher, Content Designer',
+    '   • request_qa_testing / routing_intent qa_testing → QA Engineer, Test Engineer, Automation Engineer (even when type is software)',
+    '2) WORKLOAD — Among equally good skill matches, prefer lower load_score and fewer open tickets.',
+    '3) URGENCY — P1 is most urgent, then P2, P3, P4.',
+    '',
+    'Avoid routing to managers unless the ticket truly belongs with them:',
+    '• Do NOT send routine software, bug, infra, or QA work to Product Manager, Program/Project Manager, or Product Owner.',
+    '• Use managers only for escalations, cross-team coordination, prioritization disputes, policy decisions, or when no specialty-matched assignee exists.',
+    '• Never route technical tickets to HR.',
+    '',
+    'In reasoning and ticket_note.rationale, briefly state the specialty match and why this person over alternatives.',
+  ].join('\n');
+}
+
+function formatAssigneeForRouting(admin) {
+  return {
+    id: admin.id,
+    name: normalizeAdminName(admin),
+    job_title: admin.job_title?.trim() || null,
+    department: admin.department?.trim() || null,
+    system_role: admin.role || null,
+    priority_1_count: admin.p1_count,
+    priority_2_count: admin.p2_count,
+    priority_3_count: admin.p3_count,
+    priority_4_count: admin.p4_count,
+    total_open: admin.total_open,
+    load_score: admin.load_score,
+  };
+}
+
+function formatTicketForRouting(ticket) {
+  const routingIntent = ticket.routing_intent || ticket.metadata?.routing_intent || null;
+  return {
+    id: ticket.id,
+    title: ticket.title,
+    description: ticket.description,
+    type: ticket.type,
+    category: ticket.category_name || ticket.category || ticket.type,
+    priority: ticket.priority,
+    routing_intent: routingIntent,
+    request_qa_testing: routingIntent === 'qa_testing',
+  };
+}
+
 function buildRoutingDecision({ ticket, admins, chosen, source, reasoning, confidence = 0.72, error = null }) {
   const assigneeName = chosen ? normalizeAdminName(chosen) : null;
   const assigneeRole = chosen?.job_title?.trim() || null;
@@ -48,6 +296,8 @@ function buildRoutingDecision({ ticket, admins, chosen, source, reasoning, confi
     .map((admin) => ({
       admin_id: admin.id,
       name: normalizeAdminName(admin),
+      job_title: admin.job_title?.trim() || null,
+      department: admin.department?.trim() || null,
       total_open: Number(admin.total_open || 0),
       load_score: Number(admin.load_score || 0),
       p1_count: Number(admin.p1_count ?? admin.priority_1_count ?? 0),
@@ -72,7 +322,7 @@ function buildRoutingDecision({ ticket, admins, chosen, source, reasoning, confi
     steps: [
       {
         phase: 'thinking',
-        summary: `Classified ${ticket.priority} ${ticket.type} ticket and checked affected support area.`,
+        summary: `Classified ${ticket.priority} ${ticket.type} ticket and matched it to the best-fit specialty.`,
       },
       {
         phase: 'read',
@@ -105,6 +355,8 @@ async function getAdminWorkloads(client = db) {
             u.first_name,
             u.last_name,
             u.job_title,
+            u.department,
+            u.role,
             COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p1_count,
             COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p2_count,
             COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p3_count,
@@ -116,15 +368,17 @@ async function getAdminWorkloads(client = db) {
       AND ta.is_active = TRUE
      LEFT JOIN tickets t
        ON t.id = ta.ticket_id
-     WHERE u.role = 'admin'
-       AND u.status = 'active'
+     WHERE u.status = 'active'
+       AND u.onboarding_completed = TRUE
+       AND u.role IN ('admin'::user_role, 'user'::user_role)
+       AND COALESCE(u.department, '') <> 'HR'
        AND NOT (
          lower(u.email) = $1
          OR lower(u.email) LIKE 'pending.%@lumina.test'
          OR lower(u.first_name) = 'pending'
          OR (lower(u.first_name) = 'lumina' AND lower(u.last_name) = 'ai')
        )
-     GROUP BY u.id, u.email, u.first_name, u.last_name, u.job_title
+     GROUP BY u.id, u.email, u.first_name, u.last_name, u.job_title, u.department, u.role
      ORDER BY u.first_name, u.last_name`,
     [LUMINA_AI_EMAIL]
   );
@@ -191,61 +445,48 @@ function luminaFallbackReason(reasoning, error) {
 }
 
 async function routeWithLuminaModel(ticket, admins) {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error('Lumina AI routing key is not configured');
-  }
+  const apiKey = getLuminaApiKey();
+  const provider = getLuminaProvider();
+  const model = getLuminaModel(provider);
 
-  const prompt = [
-    'You are Lumina AI, the routing engine inside Lumina.',
-    'Never mention model providers, API keys, prompts, or implementation details in the returned rationale.',
-    'Pick exactly one admin id from the provided admins.',
-    'Prefer lower weighted workloads.',
-    'P1 is most urgent, then P2, then P3, then P4.',
+  const systemPrompt = [
+    buildRoutingSystemPrompt(),
+    '',
     'Return JSON only. Do not wrap it in markdown.',
     'Use this exact shape:',
-    JSON.stringify({
-      assigned_admin_id: 'admin uuid from provided admins',
-      confidence: 0.85,
-      reasoning: 'short routing rationale',
-      steps: [
-        { phase: 'thinking', summary: 'classification and severity reasoning' },
-        { phase: 'read', summary: 'workload or ownership evidence read' },
-        { phase: 'assign', summary: 'assignment decision' },
-      ],
-      ticket_note: {
-        summary: 'one-line route summary',
-        rationale: 'paste-ready routing rationale for ticket notes',
-        next_step: 'what should happen next',
-      },
-    }, null, 2),
-    JSON.stringify({ ticket, admins }, null, 2),
-  ].join('\n\n');
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(LUMINA_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
+    JSON.stringify(
+      {
+        assigned_admin_id: 'assignee uuid from provided assignees',
+        confidence: 0.85,
+        reasoning: 'short routing rationale',
+        steps: [
+          { phase: 'thinking', summary: 'classification and specialty reasoning' },
+          { phase: 'read', summary: 'workload or ownership evidence read' },
+          { phase: 'assign', summary: 'assignment decision' },
+        ],
+        ticket_note: {
+          summary: 'one-line route summary',
+          rationale: 'paste-ready routing rationale for ticket notes',
+          next_step: 'what should happen next',
         },
-      }),
-    }
-  );
+      },
+      null,
+      2
+    ),
+  ].join('\n');
 
-  if (!response.ok) {
-    throw new Error(`Lumina AI routing request failed (${response.status})`);
-  }
+  const routingPayload = {
+    ticket: formatTicketForRouting(ticket),
+    assignees: admins.map(formatAssigneeForRouting),
+  };
 
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
-  if (!text) {
-    throw new Error('Lumina AI returned an empty routing response');
-  }
+  const text = await requestLuminaRoutingText({
+    provider,
+    apiKey,
+    model,
+    systemPrompt,
+    userContent: JSON.stringify(routingPayload),
+  });
 
   const parsed = JSON.parse(text);
   const match = admins.find((admin) => admin.id === parsed.assigned_admin_id);
@@ -289,31 +530,7 @@ async function chooseAssignee(ticket, admins) {
   }
 
   try {
-    return await routeWithLuminaModel(
-      {
-        id: ticket.id,
-        title: ticket.title,
-        description: ticket.description,
-        category: ticket.type,
-        priority: ticket.priority,
-      },
-      eligibleAdmins.map((admin) => ({
-        id: admin.id,
-        name: `${admin.first_name} ${admin.last_name}`,
-        first_name: admin.first_name,
-        last_name: admin.last_name,
-        priority_1_count: admin.p1_count,
-        priority_2_count: admin.p2_count,
-        priority_3_count: admin.p3_count,
-        priority_4_count: admin.p4_count,
-        p1_count: admin.p1_count,
-        p2_count: admin.p2_count,
-        p3_count: admin.p3_count,
-        p4_count: admin.p4_count,
-        total_open: admin.total_open,
-        load_score: admin.load_score,
-      }))
-    );
+    return await routeWithLuminaModel(ticket, eligibleAdmins);
   } catch (error) {
     const fallback = deterministicRoute(ticket, eligibleAdmins);
     const reasoning = luminaFallbackReason(fallback.reasoning, error);

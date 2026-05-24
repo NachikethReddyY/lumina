@@ -282,6 +282,7 @@ export const ticketsApi = {
     type: 'software' | 'bug' | 'incident';
     priority: 'P1' | 'P2' | 'P3' | 'P4';
     replicationSteps?: string;
+    requestQaTesting?: boolean;
   }) => apiRequest('/tickets', { method: 'POST', body }),
 
   updateStatus: (ticketId: string, status: ApiTicket['status']) =>

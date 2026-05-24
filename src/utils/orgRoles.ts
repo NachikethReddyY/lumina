@@ -8,12 +8,28 @@ export function isTeamManager(user: ApiUser | null | undefined): boolean {
   return user?.role === 'admin' && user?.department === 'Managers';
 }
 
+export function isOrgViewer(user: ApiUser | null | undefined): boolean {
+  return isHrAdmin(user) || isTeamManager(user);
+}
+
+/** Only the active assignee may reroute or change ticket fields. */
+export function canMutateTicket(
+  user: ApiUser | null | undefined,
+  ticket: { assigned_to_id?: string | null } | null | undefined
+): boolean {
+  return Boolean(user?.id && ticket?.assigned_to_id && ticket.assigned_to_id === user.id);
+}
+
+/** HR and managers inspect org tickets read-only. */
+export function isTicketOversightAdmin(user: ApiUser | null | undefined): boolean {
+  return isOrgViewer(user);
+}
+
 /** Ticket list scope for dashboards and ticket pages. */
 export function getTicketListScope(
   user: ApiUser | null | undefined
 ): { scope?: 'org' | 'team' | 'assigned' } {
-  if (isHrAdmin(user)) return { scope: 'org' };
-  if (isTeamManager(user)) return { scope: 'team' };
+  if (isOrgViewer(user)) return { scope: 'org' };
   return {};
 }
 
@@ -35,7 +51,7 @@ export function getTicketQueueListScope(
 ): { scope?: 'org' | 'team' | 'assigned' } {
   if (!user || user.role !== 'admin') return {};
 
-  if (isHrAdmin(user)) {
+  if (isOrgViewer(user)) {
     return ownership === 'assigned' ? { scope: 'assigned' } : { scope: 'org' };
   }
 

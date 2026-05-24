@@ -345,37 +345,12 @@ export function SignUpPage() {
                     </div>
                   </motion.div>
                 ) : (
-                  <motion.div variants={itemVariants} key="details-step">
+                    <motion.div variants={itemVariants} key="details-step">
                     <p className="auth-notice auth-notice--info" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', flexWrap: 'wrap' }}>
                       <span>Signing up as <strong>{formData.email}</strong></span>
                       <span style={{ color: 'var(--color-muted)' }}>·</span>
                       <button type="button" className="auth-link-small" style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }} onClick={() => setStep('email')}>Change</button>
                     </p>
-
-                    <div className="auth-form-row" style={{ marginTop: '18px' }}>
-                      <Input
-                        id="password"
-                        label="Password"
-                        type="password"
-                        name="password"
-                        placeholder="Enter your password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        error={errors.password}
-                        required
-                      />
-                      <Input
-                        id="confirmPassword"
-                        label="Confirm Password"
-                        type="password"
-                        name="confirmPassword"
-                        placeholder="Re-enter your password"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        error={errors.confirmPassword}
-                        required
-                      />
-                    </div>
 
                     <div style={{ marginTop: '18px' }}>
                       <Input

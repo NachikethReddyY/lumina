@@ -16,7 +16,8 @@ const {
   getLuminaAiUserId,
   isLuminaAIUser,
 } = require('../lib/ticketRouting');
-const { isTeamManager, isHrAdmin, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
+const { isTeamManager, isHrAdmin, isOrgViewer, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
+const { canMutateTicket, canViewTicket } = require('../lib/ticketPermissions');
 
 const router = express.Router();
 
@@ -118,11 +119,11 @@ router.get('/', async (req, res, next) => {
           WHERE ta.ticket_id = t.id AND ta.assigned_to = $${values.length} AND ta.is_active = TRUE
         )`
       );
-    } else if (scope === 'team' || (scope !== 'org' && isTeamManager(req.user))) {
+    } else if (scope === 'team') {
       values.push(TEAM_MEMBER_DEPARTMENTS);
       clauses.push(`submitter.department = ANY($${values.length}::text[])`);
-    } else if (scope === 'org' || isHrAdmin(req.user)) {
-      /* HR / org scope: all tickets — no extra filter */
+    } else if (scope === 'org' || isOrgViewer(req.user)) {
+      /* HR / managers: organization-wide tickets */
     } else if (req.user.role === 'admin') {
       values.push(req.user.id);
       clauses.push(
@@ -175,13 +176,16 @@ router.get('/admin/workload', requireRole('admin'), async (_req, res, next) => {
 
 router.get('/:id/activity', async (req, res, next) => {
   try {
-    const ticketCheck = await db.query(
-      `SELECT id, submitted_by FROM tickets WHERE id = $1`,
+    const ticketRow = await db.query(
+      `SELECT t.id, t.submitted_by, ta.assigned_to
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       WHERE t.id = $1`,
       [req.params.id]
     );
-    const ticket = ticketCheck.rows[0];
-    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-    if (req.user.role === 'user' && ticket.submitted_by !== req.user.id) {
+    const accessTicket = ticketRow.rows[0];
+    if (!accessTicket) return res.status(404).json({ error: 'Ticket not found' });
+    if (!canViewTicket(req.user, accessTicket)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -238,7 +242,7 @@ router.get('/:id', async (req, res, next) => {
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (req.user.role === 'user' && ticket.submitted_by_id !== req.user.id) {
+    if (!canViewTicket(req.user, ticket)) {
       return res.status(403).json({ error: 'You do not have access to this ticket' });
     }
     res.json(ticket);
@@ -285,6 +289,7 @@ router.post('/', requireRole('user'), async (req, res, next) => {
         JSON.stringify({
           submitted_via: 'api',
           request_id: crypto.randomUUID(),
+          ...(parsed.value.requestQaTesting ? { routing_intent: 'qa_testing' } : {}),
         }),
       ]
     );
@@ -348,7 +353,11 @@ router.post('/', requireRole('user'), async (req, res, next) => {
       );
     }
 
-    const ticketForRouting = { ...ticket, category_name: category.rows[0].name };
+    const ticketForRouting = {
+      ...ticket,
+      category_name: category.rows[0].name,
+      routing_intent: parsed.value.requestQaTesting ? 'qa_testing' : null,
+    };
     const admins = await getAdminWorkloads(client);
     const routing = await chooseAssignee(ticketForRouting, admins);
 
@@ -405,7 +414,7 @@ router.post('/', requireRole('user'), async (req, res, next) => {
   }
 });
 
-router.post('/:id/assign', requireRole('admin'), async (req, res, next) => {
+router.post('/:id/assign', async (req, res, next) => {
   const parsed = validateTicketAssignmentBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));
@@ -417,6 +426,7 @@ router.post('/:id/assign', requireRole('admin'), async (req, res, next) => {
 
     const ticket = await client.query(
       `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.metadata,
+              ta.assigned_to,
               ta.assigned_to AS old_assigned_to,
               CONCAT(old_assignee.first_name, ' ', old_assignee.last_name) AS old_assigned_to_name
        FROM tickets t
@@ -430,17 +440,22 @@ router.post('/:id/assign', requireRole('admin'), async (req, res, next) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
+    const ticketRow = ticket.rows[0];
+    if (!canMutateTicket(req.user, ticketRow)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Only the active assignee can change ticket assignment' });
+    }
+
     const assignee = await client.query(
       `SELECT id, email, first_name, last_name FROM users
-       WHERE id = $1 AND role = 'admin' AND status = 'active'`,
+       WHERE id = $1 AND status = 'active'`,
       [parsed.value.assignedTo]
     );
     if (!assignee.rows[0]) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Assignee must be an active admin user' });
+      return res.status(400).json({ error: 'Assignee must be an active user' });
     }
 
-    const ticketRow = ticket.rows[0];
     const assigneeRow = assignee.rows[0];
 
     if (isLuminaAIUser(assigneeRow)) {
@@ -506,12 +521,13 @@ router.post('/:id/assign', requireRole('admin'), async (req, res, next) => {
   }
 });
 
-router.post('/:id/route', requireRole('admin'), async (req, res, next) => {
+router.post('/:id/route', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const result = await client.query(
       `SELECT t.id, t.title, t.description, t.type, t.priority, t.metadata,
+              ta.assigned_to,
               ta.assigned_to AS old_assigned_to,
               CONCAT(old_assignee.first_name, ' ', old_assignee.last_name) AS old_assigned_to_name
        FROM tickets t
@@ -524,6 +540,10 @@ router.post('/:id/route', requireRole('admin'), async (req, res, next) => {
     if (!ticket) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (!canMutateTicket(req.user, ticket)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Only the active assignee can reroute this ticket' });
     }
 
     const admins = await getAdminWorkloads(client);
@@ -569,10 +589,9 @@ router.patch('/:id/status', async (req, res, next) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    const canAdmin = req.user.role === 'admin';
-    const canAssignee = ticket.assigned_to === req.user.id;
-    if (!canAdmin && !canAssignee) {
-      return res.status(403).json({ error: 'You cannot change this ticket status' });
+    const canAssignee = canMutateTicket(req.user, ticket);
+    if (!canAssignee) {
+      return res.status(403).json({ error: 'Only the active assignee can change this ticket status' });
     }
 
     const updated = await db.query(
@@ -601,7 +620,7 @@ router.patch('/:id/status', async (req, res, next) => {
   }
 });
 
-router.patch('/:id/priority', requireRole('admin'), async (req, res, next) => {
+router.patch('/:id/priority', async (req, res, next) => {
   const parsed = validateTicketPriorityBody(req.body);
   if (!parsed.ok) {
     return res.status(400).json(validationError(parsed.details));
@@ -609,14 +628,18 @@ router.patch('/:id/priority', requireRole('admin'), async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT id, priority
-       FROM tickets
-       WHERE id = $1`,
+      `SELECT t.id, t.priority, ta.assigned_to
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       WHERE t.id = $1`,
       [req.params.id]
     );
     const ticket = result.rows[0];
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (!canMutateTicket(req.user, ticket)) {
+      return res.status(403).json({ error: 'Only the active assignee can change ticket priority' });
     }
 
     const updated = await db.query(

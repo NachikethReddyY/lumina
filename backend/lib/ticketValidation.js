@@ -20,6 +20,7 @@ function validateTicketCreateBody(body) {
   const type = String(body?.type ?? '').trim().toLowerCase();
   const priority = String(body?.priority ?? '').trim().toUpperCase();
   const replicationSteps = body?.replicationSteps == null ? null : String(body.replicationSteps).trim();
+  const requestQaTesting = body?.requestQaTesting === true || body?.request_qa_testing === true;
 
   if (!title) details.title = 'Title is required';
   else if (title.length > 255) details.title = 'Title must be 255 characters or fewer';
@@ -42,6 +43,7 @@ function validateTicketCreateBody(body) {
       type,
       priority,
       replicationSteps,
+      requestQaTesting,
     },
   };
 }
