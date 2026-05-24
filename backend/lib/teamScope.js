@@ -14,8 +14,18 @@ function isOrgViewer(user = {}) {
   return isHrAdmin(user) || isTeamManager(user);
 }
 
+function isDeveloper(user = {}) {
+  if (!user?.job_title && !user?.department) return false;
+  const title = String(user.job_title || '').toLowerCase();
+  const dept = String(user.department || '').trim();
+  if (dept === 'Developers') return true;
+  const devKeywords = ['developer', 'engineer', 'software', 'dev', 'architect', 'tech lead'];
+  return devKeywords.some((kw) => title.includes(kw));
+}
+
 module.exports = {
   TEAM_MEMBER_DEPARTMENTS,
+  isDeveloper,
   isHrAdmin,
   isOrgViewer,
   isTeamManager,

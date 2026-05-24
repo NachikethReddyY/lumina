@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, useCallback, useDeferredValue } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Circle,
   X,
-  Send,
   PanelRightClose,
   PanelRightOpen,
   CheckCircle2,
@@ -17,51 +16,32 @@ import {
   Activity,
   UserCircle2,
   ClipboardList,
-  MessageSquare,
+  Plus,
   type LucideIcon,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import UserProfileCard from '../components/UserProfileCard';
+import CreateTicketModal from '../components/CreateTicketModal';
+import { TicketListItem } from '../components/tickets/TicketListItem';
+import { TicketDetailPanel } from '../components/tickets/TicketDetailPanel';
+import { TicketSideRail } from '../components/tickets/TicketSideRail';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useTicketCategories, useTicketList, invalidateTicketListCache } from '../hooks/useTicketData';
 import { useToast } from '../context/useToast';
-import { ticketsApi, categoriesApi, type ApiTicket, type ApiCategory, type ApiActivityEvent, type ApiComment } from '../utils/apiClient';
-import { apiAssetUrl } from '../utils/apiBase';
+import { ticketsApi, type ApiTicket, type ApiActivityEvent, type ApiComment } from '../utils/apiClient';
 import {
   canMutateTicket,
+  canRerouteTicket,
+  canCommentOnTicket,
+  canEditTicketDetails,
+  canSendToQa,
   getTicketListScope,
   getTicketQueueListScope,
-  isHrAdmin,
   isOrgViewer,
   showQueueOwnershipFilter,
   type QueueOwnershipFilter,
 } from '../utils/orgRoles';
 import './TicketHistoryPage.css';
-
-const PRIORITY_COLOR: Record<string, string> = {
-  P1: '#cf2d56',
-  P2: '#2563eb',
-  P3: '#1f8a65',
-  P4: '#807d72',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  open: '#807d72',
-  assigned: '#2563eb',
-  in_progress: '#1f8a65',
-  resolved: '#1f8a65',
-  closed: '#a09c92',
-  on_hold: '#c08532',
-  pending_routing: '#dfa88f',
-};
-
-const STATUS_OPTIONS: Array<{ value: ApiTicket['status']; label: string }> = [
-  { value: 'open', label: 'Open' },
-  { value: 'assigned', label: 'Assigned' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'on_hold', label: 'On hold' },
-  { value: 'pending_routing', label: 'Pending routing' },
-  { value: 'resolved', label: 'Resolved' },
-  { value: 'closed', label: 'Closed' },
-];
 
 const PAGE_SIZE = 12;
 const QUEUE_STATUSES = new Set<ApiTicket['status']>(['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing']);
@@ -115,15 +95,6 @@ function timeAgo(timestamp: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function formatDate(timestamp: string): string {
-  return new Date(timestamp).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function assigneeLabel(ticket: ApiTicket) {
   if (ticket.assigned_to_name) return ticket.assigned_to_name;
   const routing = getRouting(ticket);
@@ -144,10 +115,6 @@ function assigneeDisplay(ticket: ApiTicket): string {
   const name = assigneeLabel(ticket);
   const role = assigneeRoleLabel(ticket);
   return role ? `${name} · ${role}` : name;
-}
-
-function initials(name: string) {
-  return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 }
 
 function ticketTabForMode(mode: TicketHistoryMode): TicketTab {
@@ -190,17 +157,6 @@ function ticketWorkspacePath(mode: TicketHistoryMode, ticketId?: string): string
 
 function getRouting(ticket?: ApiTicket | null): RoutingMetadata | null {
   return (ticket?.metadata?.routing as RoutingMetadata | undefined) || null;
-}
-
-function confidenceScore(ticket?: ApiTicket | null): number {
-  const raw = getRouting(ticket)?.decision?.confidence;
-  if (typeof raw === 'number') {
-    return Math.max(0, Math.min(100, Math.round(raw <= 1 ? raw * 100 : raw)));
-  }
-  if (!ticket) return 0;
-  if (ticket.status === 'pending_routing') return 42;
-  if (ticket.assigned_to_name) return 86;
-  return 58;
 }
 
 function priorityLabel(priority: ApiTicket['priority']): string {
@@ -375,24 +331,6 @@ function activityTimelineEvents(ticket: ApiTicket, event: ApiActivityEvent): Tim
   }];
 }
 
-function aiDecisionReason(ticket: ApiTicket): string {
-  const routing = getRouting(ticket);
-  const assignee = assigneeDisplay(ticket);
-  return luminaVoice(routing?.decision?.ticket_note?.rationale
-    || routing?.decision?.rationale
-    || routing?.reasoning
-    || (ticket.assigned_to_name || routing?.decision?.assignee_name
-      ? `Routed to ${assignee} because ${teamFor(ticket)} matches the ticket category and the current ownership/load profile is the best fit.`
-      : `Recommended ${teamFor(ticket)} based on priority, category, and current queue ownership.`));
-}
-
-function recommendationFor(ticket: ApiTicket): string {
-  if (ticket.status === 'pending_routing') return 'Route immediately';
-  if (ticket.priority === 'P1') return 'Expedite review';
-  if (ticket.status === 'resolved' || ticket.status === 'closed') return 'Archive with learnings';
-  return 'Continue owner follow-up';
-}
-
 function teamFor(ticket: ApiTicket): string {
   if (ticket.category_name) return ticket.category_name;
   if (ticket.type === 'incident') return 'Platform & Infrastructure';
@@ -480,40 +418,25 @@ function timelineEvents(ticket: ApiTicket, activityEvents: ApiActivityEvent[]): 
   return sortTimelineEvents([...fallbackTimeline, ...auditTimeline]);
 }
 
-function AssigneeCell({ ticket }: { ticket: ApiTicket }) {
-  const name = assigneeLabel(ticket);
-  const role = assigneeRoleLabel(ticket);
-  return (
-    <div className="th-person-cell">
-      <span className="th-person-avatar">
-        {ticket.assigned_to_avatar_url ? <img src={apiAssetUrl(ticket.assigned_to_avatar_url)} alt="" /> : initials(name)}
-      </span>
-      <span className="th-person-meta">
-        <strong>{name}</strong>
-        {role ? <small>{role}</small> : null}
-      </span>
-    </div>
-  );
-}
-
-function commentAuthorName(comment: ApiComment): string {
-  return `${comment.first_name || ''} ${comment.last_name || ''}`.trim() || comment.email;
-}
-
 export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMode }) {
   const { user } = useCurrentUser();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { id: routeTicketId } = useParams<{ id?: string }>();
-  const [tickets, setTickets] = useState<ApiTicket[]>([]);
-  const [categories, setCategories] = useState<ApiCategory[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<TicketTab>(() => ticketTabForMode(mode));
+  const [prevMode, setPrevMode] = useState(mode);
+  if (prevMode !== mode) {
+    setPrevMode(mode);
+    setActiveTab(ticketTabForMode(mode));
+    setFilterStatus('all');
+    setPage(1);
+  }
   const [selectedTicketId, setSelectedTicketId] = useState<string>(routeTicketId || '');
   const [rightRailOpen, setRightRailOpen] = useState(() => localStorage.getItem('lumina.ticketHistory.rightRailOpen') !== 'false');
   const [reroutingTicket, setReroutingTicket] = useState(false);
@@ -525,7 +448,15 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
   const [commentSending, setCommentSending] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState('');
+  const [editDescValue, setEditDescValue] = useState('');
+  const [editReplicationValue, setEditReplicationValue] = useState('');
+  const [savingDetails, setSavingDetails] = useState(false);
   const [queueOwnership, setQueueOwnership] = useState<QueueOwnershipFilter>('assigned');
+  const [profileCardUserId, setProfileCardUserId] = useState<string | null>(null);
+  const [showNewTicket, setShowNewTicket] = useState(false);
 
   const ticketListScope = useMemo(() => {
     if (mode === 'queue' && showQueueOwnershipFilter(user)) {
@@ -534,11 +465,13 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     return getTicketListScope(user);
   }, [mode, queueOwnership, user]);
 
-  useEffect(() => {
-    setActiveTab(ticketTabForMode(mode));
-    setFilterStatus('all');
-    setPage(1);
-  }, [mode]);
+  const { tickets, loading, revalidate: revalidateTickets, mutate: mutateTickets } = useTicketList(user ? ticketListScope : undefined);
+  const { categories } = useTicketCategories(Boolean(user));
+
+  const refreshTicketList = useCallback(async () => {
+    invalidateTicketListCache();
+    await revalidateTickets();
+  }, [revalidateTickets]);
 
   useEffect(() => {
     setSelectedTicketId(routeTicketId || '');
@@ -547,25 +480,6 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   useEffect(() => {
     localStorage.setItem('lumina.ticketHistory.rightRailOpen', String(rightRailOpen));
   }, [rightRailOpen]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [ticketsRes, catRes] = await Promise.all([
-          ticketsApi.list(ticketListScope),
-          categoriesApi.list(),
-        ]);
-        const [ticketsBody, catBody] = await Promise.all([ticketsRes.json(), catRes.json()]);
-        if (cancelled) return;
-        setTickets(Array.isArray(ticketsBody) ? ticketsBody : []);
-        setCategories(Array.isArray(catBody) ? catBody : []);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [ticketListScope, user?.id, user?.department, user?.role]);
 
   const resetPage = useCallback(() => setPage(1), []);
 
@@ -584,7 +498,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   );
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = deferredSearch.toLowerCase();
     return tabbedTickets.filter((ticket) => {
       if (filterStatus !== 'all' && ticket.status !== filterStatus) return false;
       if (filterPriority !== 'all' && ticket.priority !== filterPriority) return false;
@@ -593,7 +507,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       if (q && !`${code} ${ticket.id} ${ticket.title} ${ticket.description} ${ticket.category_name} ${ticket.status} ${ticket.priority} ${assigneeLabel(ticket)}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tabbedTickets, filterStatus, filterPriority, filterCategory, search]);
+  }, [tabbedTickets, filterStatus, filterPriority, filterCategory, deferredSearch]);
 
   const sorted = useMemo(() => {
     const priorityRank: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
@@ -618,8 +532,6 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const pageBlocks = useMemo(() => paginationBlocks(page, totalPages), [page, totalPages]);
-  const selectedRouting = getRouting(selectedTicket);
-  const selectedConfidence = confidenceScore(selectedTicket);
   const selectedActivityEvents = selectedTicket ? activityByTicket[selectedTicket.id] || [] : [];
   const selectedTimeline = selectedTicket ? timelineEvents(selectedTicket, selectedActivityEvents) : [];
   const selectedComments = selectedTicket ? commentsByTicket[selectedTicket.id] || [] : [];
@@ -627,11 +539,6 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     .reverse()
     .find((event) => event.action === 'ticket_assigned' || event.action === 'ticket_rerouted');
   const selectedAssignmentTime = selectedAssignmentEvent?.created_at || selectedTicket?.created_at || '';
-  const routingPhase = selectedTicket?.status === 'pending_routing'
-    ? 'thinking'
-    : selectedTicket?.assigned_to_name
-      ? 'assign'
-      : 'read';
 
   const refreshActivity = useCallback(async (ticketId: string, silent = false) => {
     if (!silent) setActivityLoading(true);
@@ -700,10 +607,12 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   };
   const isRegularUser = user?.role === 'user';
   const canMutateSelected = Boolean(selectedTicket && canMutateTicket(user, selectedTicket));
-  const canReroute = canMutateSelected;
+  const canReroute = Boolean(selectedTicket && canRerouteTicket(user, selectedTicket));
   const canChangePriority = canMutateSelected;
   const canChangeStatus = canMutateSelected;
-  const canComment = Boolean(selectedTicket && (user?.role !== 'user' || selectedTicket.submitted_by_id === user?.id));
+  const canComment = Boolean(selectedTicket && canCommentOnTicket(user, selectedTicket));
+  const canEditDetails = Boolean(selectedTicket && canEditTicketDetails(user, selectedTicket));
+  const canSendToQaSelected = Boolean(selectedTicket && canSendToQa(user, selectedTicket));
   const ownerEyebrow = isRegularUser ? 'support owner' : 'assigned';
 
   const handlePriorityChange = useCallback(async (priority: ApiTicket['priority']) => {
@@ -718,12 +627,10 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       }
 
       const nextPriority = data.priority || priority;
-      setTickets((current) => current.map((ticket) => (
+      mutateTickets((current) => (current ?? []).map((ticket) => (
         ticket.id === selectedTicket.id ? { ...ticket, priority: nextPriority } : ticket
       )));
-      const refreshed = await ticketsApi.list(ticketListScope);
-      const body = await refreshed.json().catch(() => []);
-      if (Array.isArray(body)) setTickets(body);
+      await refreshTicketList();
       await refreshActivity(selectedTicket.id, true);
       showToast(`Priority changed to ${nextPriority}.`, 'success');
     } catch {
@@ -731,7 +638,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     } finally {
       setChangingPriority(false);
     }
-  }, [canChangePriority, changingPriority, refreshActivity, selectedTicket, showToast, ticketListScope]);
+  }, [canChangePriority, changingPriority, mutateTickets, refreshActivity, refreshTicketList, selectedTicket, showToast]);
 
   const handleStatusChange = useCallback(async (status: ApiTicket['status']) => {
     if (!selectedTicket || !canChangeStatus || selectedTicket.status === status || changingStatus) return;
@@ -745,12 +652,10 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       }
 
       const nextStatus = data.status || status;
-      setTickets((current) => current.map((ticket) => (
+      mutateTickets((current) => (current ?? []).map((ticket) => (
         ticket.id === selectedTicket.id ? { ...ticket, status: nextStatus } : ticket
       )));
-      const refreshed = await ticketsApi.list(ticketListScope);
-      const body = await refreshed.json().catch(() => []);
-      if (Array.isArray(body)) setTickets(body);
+      await refreshTicketList();
       await refreshActivity(selectedTicket.id, true);
       showToast(`Status changed to ${humanize(nextStatus)}.`, 'success');
     } catch {
@@ -758,7 +663,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     } finally {
       setChangingStatus(false);
     }
-  }, [canChangeStatus, changingStatus, refreshActivity, selectedTicket, showToast, ticketListScope]);
+  }, [canChangeStatus, changingStatus, mutateTickets, refreshActivity, refreshTicketList, selectedTicket, showToast]);
 
   const handleAddComment = useCallback(async () => {
     if (!selectedTicket || !canComment || !commentDraft.trim() || commentSending) return;
@@ -802,9 +707,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
         return;
       }
 
-      const refreshed = await ticketsApi.list(ticketListScope);
-      const body = await refreshed.json().catch(() => []);
-      if (Array.isArray(body)) setTickets(body);
+      await refreshTicketList();
       await refreshActivity(selectedTicket.id, true);
       showToast(data.assignedToName ? `Rerouted to ${data.assignedToName}.` : 'Ticket rerouted.', 'success');
     } catch {
@@ -812,7 +715,67 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     } finally {
       setReroutingTicket(false);
     }
-  }, [canReroute, refreshActivity, reroutingTicket, selectedTicket, showToast, ticketListScope]);
+  }, [canReroute, refreshActivity, refreshTicketList, reroutingTicket, selectedTicket, showToast]);
+
+  const handleSendToQa = useCallback(async () => {
+    if (!selectedTicket || !canSendToQaSelected) return;
+    try {
+      const res = await ticketsApi.sendToQa(selectedTicket.id);
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        showToast(data.error || 'Could not send to QA.', 'error');
+        return;
+      }
+      await refreshTicketList();
+      await refreshActivity(selectedTicket.id, true);
+      showToast('Ticket sent to QA.', 'success');
+    } catch {
+      showToast('Could not send to QA.', 'error');
+    }
+  }, [canSendToQaSelected, refreshActivity, refreshTicketList, selectedTicket, showToast]);
+
+  const handleQaVerify = useCallback(async () => {
+    if (!selectedTicket) return;
+    try {
+      const res = await ticketsApi.qaVerify(selectedTicket.id);
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        showToast(data.error || 'Could not verify ticket.', 'error');
+        return;
+      }
+      await refreshTicketList();
+      await refreshActivity(selectedTicket.id, true);
+      showToast('Ticket verified and resolved.', 'success');
+    } catch {
+      showToast('Could not verify ticket.', 'error');
+    }
+  }, [refreshActivity, refreshTicketList, selectedTicket, showToast]);
+
+  const handleSaveDetails = useCallback(async () => {
+    if (!selectedTicket || savingDetails) return;
+    setSavingDetails(true);
+    try {
+      const body: Record<string, string> = {};
+      if (editingTitle) body.title = editTitleValue;
+      if (editingDesc) body.description = editDescValue;
+      if (editingTitle || editingDesc) body.replicationSteps = editReplicationValue;
+      if (!Object.keys(body).length) { setSavingDetails(false); return; }
+
+      const res = await ticketsApi.updateDetails(selectedTicket.id, body);
+      if (!res.ok) {
+        showToast('Could not save changes.', 'error');
+        return;
+      }
+      await refreshTicketList();
+      setEditingTitle(false);
+      setEditingDesc(false);
+      showToast('Ticket details updated.', 'success');
+    } catch {
+      showToast('Could not save changes.', 'error');
+    } finally {
+      setSavingDetails(false);
+    }
+  }, [selectedTicket, savingDetails, editingTitle, editingDesc, editTitleValue, editDescValue, editReplicationValue, refreshTicketList, showToast]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -827,6 +790,10 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
             <p className="th-subtitle">{pageSubtitle}</p>
           </div>
           <div className="th-header-actions">
+            <button className="th-create-ticket-btn" onClick={() => setShowNewTicket(true)}>
+              <Plus size={15} />
+              New Ticket
+            </button>
             <button
               className="th-rail-toggle"
               onClick={() => setRightRailOpen((value) => !value)}
@@ -955,26 +922,13 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                 </div>
               ) : (
                 paginated.map((ticket) => (
-                  <button
+                  <TicketListItem
                     key={ticket.id}
-                    className={`th-list-item ${selectedTicket?.id === ticket.id ? 'active' : ''}`}
-                    onClick={() => navigate(ticketWorkspacePath(mode, ticket.id))}
-                  >
-                    <span className="th-list-top">
-                      <span className="th-priority-pill" style={{ color: PRIORITY_COLOR[ticket.priority], background: `${PRIORITY_COLOR[ticket.priority]}14` }}>
-                        {ticket.priority}
-                      </span>
-                      <span className="th-ticket-id">{ticketCode(ticket)}</span>
-                      <span className="th-list-time">{timeAgo(ticket.created_at)}</span>
-                    </span>
-                    <span className="th-list-title">{ticket.title}</span>
-                    <span className="th-list-meta-row">
-                      <span className="th-list-status" style={{ background: `${STATUS_COLOR[ticket.status]}18`, color: STATUS_COLOR[ticket.status] }}>
-                        {humanize(ticket.status)}
-                      </span>
-                      <span className="th-list-assignee">{assigneeLabel(ticket)}</span>
-                    </span>
-                  </button>
+                    ticket={ticket}
+                    selected={selectedTicket?.id === ticket.id}
+                    mode={mode}
+                    onSelect={(id) => navigate(ticketWorkspacePath(mode, id))}
+                  />
                 ))
               )}
             </div>
@@ -1009,270 +963,77 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
           </aside>
 
           <main className="th-ticket-main">
-            {selectedTicket ? (
-              <>
-                <div className="th-detail-kicker">
-                  <span className="th-priority-pill large" style={{ color: PRIORITY_COLOR[selectedTicket.priority], background: `${PRIORITY_COLOR[selectedTicket.priority]}14` }}>
-                    {selectedTicket.priority}
-                  </span>
-                  <span className="th-ticket-id">{ticketCode(selectedTicket)}</span>
-                  <span className="th-detail-status" style={{ background: `${STATUS_COLOR[selectedTicket.status]}22`, color: STATUS_COLOR[selectedTicket.status] }}>
-                    {humanize(selectedTicket.status)}
-                  </span>
-                </div>
-
-                <div className="th-detail-title-row">
-                  <h2>{selectedTicket.title}</h2>
-                  <button
-                    type="button"
-                    className="th-ticket-reroute"
-                    onClick={handleRerouteSelected}
-                    disabled={!canReroute || reroutingTicket}
-                  >
-                    <RotateCcw size={15} />
-                    {reroutingTicket ? 'Rerouting' : 'Reroute'}
-                  </button>
-                </div>
-
-                <p className="th-detail-description">{selectedTicket.description}</p>
-
-                <div className="th-detail-panels">
-                  <section className="th-section-card th-replication-card">
-                    <header>
-                      <span><FileText size={16} /> Replication Steps</span>
-                      <small>technical evidence</small>
-                    </header>
-                    <pre>{selectedTicket.replication_steps || 'No replication steps were provided for this ticket.'}</pre>
-                  </section>
-
-                  <section className="th-section-card th-comments-card">
-                    <header>
-                      <span><MessageSquare size={16} /> Comments</span>
-                      <small>{selectedComments.length} notes</small>
-                    </header>
-
-                    {canComment && (
-                      <div className="th-comment-compose">
-                        <span className="th-comment-avatar">
-                          {user?.avatar_url ? <img src={apiAssetUrl(user.avatar_url)} alt="" /> : initials(`${user?.first_name || ''} ${user?.last_name || ''}`)}
-                        </span>
-                        <div className="th-comment-compose-body">
-                          <textarea
-                            value={commentDraft}
-                            onChange={(event) => setCommentDraft(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                                event.preventDefault();
-                                void handleAddComment();
-                              }
-                            }}
-                            placeholder="Add a comment"
-                            rows={3}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddComment}
-                            disabled={commentSending || !commentDraft.trim()}
-                          >
-                            <Send size={14} />
-                            {commentSending ? 'Adding' : 'Comment'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="th-comment-thread">
-                      {commentsLoading && !selectedComments.length ? (
-                        <div className="th-comment-empty">Loading comments...</div>
-                      ) : selectedComments.length ? (
-                        selectedComments.map((comment) => (
-                          <article className="th-comment-item" key={comment.id}>
-                            <span className="th-comment-avatar">
-                              {comment.avatar_url ? <img src={apiAssetUrl(comment.avatar_url)} alt="" /> : initials(commentAuthorName(comment))}
-                            </span>
-                            <div>
-                              <div className="th-comment-meta">
-                                <strong>{commentAuthorName(comment)}</strong>
-                                <span>{timeAgo(comment.created_at)}</span>
-                              </div>
-                              <p>{comment.body}</p>
-                            </div>
-                          </article>
-                        ))
-                      ) : (
-                        <div className="th-comment-empty">No comments yet.</div>
-                      )}
-                    </div>
-                  </section>
-
-                </div>
-
-              </>
-            ) : (
-              <div className="th-empty-main">
-                <Circle size={32} />
-                <h3>No ticket selected</h3>
-                <p>Choose a ticket from the left column.</p>
-              </div>
-            )}
+            <TicketDetailPanel
+              ticket={selectedTicket}
+              user={user}
+              canReroute={canReroute}
+              reroutingTicket={reroutingTicket}
+              canEditDetails={canEditDetails}
+              canComment={canComment}
+              canSendToQa={canSendToQaSelected}
+              canMutate={canMutateSelected}
+              isQaUser={user?.department === 'QA'}
+              editingTitle={editingTitle}
+              editingDesc={editingDesc}
+              editTitleValue={editTitleValue}
+              editDescValue={editDescValue}
+              savingDetails={savingDetails}
+              comments={selectedComments}
+              commentsLoading={commentsLoading}
+              commentDraft={commentDraft}
+              commentSending={commentSending}
+              onReroute={() => { void handleRerouteSelected(); }}
+              onSendToQa={() => { void handleSendToQa(); }}
+              onQaVerify={() => { void handleQaVerify(); }}
+              onCloseTicket={() => { void handleStatusChange('closed'); }}
+              onEditTitleStart={() => {
+                if (!selectedTicket) return;
+                setEditingTitle(true);
+                setEditTitleValue(selectedTicket.title);
+              }}
+              onEditDescStart={() => {
+                if (!selectedTicket) return;
+                setEditingDesc(true);
+                setEditDescValue(selectedTicket.description);
+                setEditReplicationValue(selectedTicket.replication_steps || '');
+              }}
+              onEditTitleChange={setEditTitleValue}
+              onEditDescChange={setEditDescValue}
+              onSaveDetails={() => { void handleSaveDetails(); }}
+              onCancelEditDesc={() => setEditingDesc(false)}
+              onDraftChange={setCommentDraft}
+              onSubmitComment={() => { void handleAddComment(); }}
+              onAvatarClick={setProfileCardUserId}
+            />
           </main>
 
-          <aside className="th-side-rail" aria-label="Ticket logs">
-            {rightRailOpen && (
-              <div className="th-side-content">
-                <section className="th-queue-routing-card th-side-properties-card" aria-label="Selected ticket properties">
-                  <dl className="th-queue-routing-props">
-                    <div>
-                      <dt>Owner</dt>
-                      <dd>{selectedTicket ? assigneeDisplay(selectedTicket) : 'No ticket selected'}</dd>
-                    </div>
-                    <div>
-                      <dt>Lane</dt>
-                      <dd>{selectedTicket ? teamFor(selectedTicket) : 'Awaiting selection'}</dd>
-                    </div>
-                    <div>
-                      <dt>Priority</dt>
-                      <dd className="th-queue-property-control">
-                        {selectedTicket ? (
-                          canChangePriority ? (
-                            <select
-                              className="th-property-select"
-                              value={selectedTicket.priority}
-                              onChange={(event) => handlePriorityChange(event.target.value as ApiTicket['priority'])}
-                              disabled={changingPriority}
-                              aria-label="Change ticket priority"
-                            >
-                              <option value="P1">P1 Critical</option>
-                              <option value="P2">P2 High</option>
-                              <option value="P3">P3 Medium</option>
-                              <option value="P4">P4 Low</option>
-                            </select>
-                          ) : (
-                            priorityLabel(selectedTicket.priority)
-                          )
-                        ) : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Status</dt>
-                      <dd className="th-queue-property-control">
-                        {selectedTicket ? (
-                          canChangeStatus ? (
-                            <select
-                              className="th-property-select th-property-select--status"
-                              value={selectedTicket.status}
-                              onChange={(event) => handleStatusChange(event.target.value as ApiTicket['status'])}
-                              disabled={changingStatus}
-                              aria-label="Change ticket status"
-                            >
-                              {STATUS_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            humanize(selectedTicket.status)
-                          )
-                        ) : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Type</dt>
-                      <dd>{selectedTicket ? humanize(selectedTicket.type) : '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>Category</dt>
-                      <dd>{selectedTicket?.category_name || '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>Created</dt>
-                      <dd>{selectedTicket ? formatDate(selectedTicket.created_at) : '—'}</dd>
-                    </div>
-                  </dl>
-                </section>
-
-                <section className="th-side-log-card th-side-ai-decision-log" aria-label="AI decision log">
-                  <header>
-                    <span><BrainCircuit size={15} /> AI Decision Log</span>
-                    <small>{humanize(routingPhase)}</small>
-                  </header>
-                  {selectedTicket ? (
-                    <>
-                      <div className="th-routing-intel">
-                        <div className="th-confidence-ring" style={{ '--score': `${selectedConfidence}%` } as CSSProperties}>
-                          <strong>{selectedConfidence}%</strong>
-                          <span>confidence</span>
-                        </div>
-                        <div className="th-routing-copy">
-                          <span className="th-route-badge">{recommendationFor(selectedTicket)}</span>
-                          <p>{selectedRouting?.decision?.ticket_note?.summary || `Recommended lane: ${teamFor(selectedTicket)}`}</p>
-                        </div>
-                      </div>
-                      {(selectedTicket.assigned_to_name || selectedRouting?.decision?.assignee_name) && (
-                        <div className="th-routed-assignee">
-                          <span>Routed to</span>
-                          <strong>{assigneeLabel(selectedTicket)}</strong>
-                          {assigneeRoleLabel(selectedTicket) ? (
-                            <em>{assigneeRoleLabel(selectedTicket)}</em>
-                          ) : null}
-                        </div>
-                      )}
-                      <div className="th-ai-decision">
-                        <span>AI decision</span>
-                        <p>{aiDecisionReason(selectedTicket)}</p>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="th-side-empty">Select a ticket to see routing context.</p>
-                  )}
-                </section>
-
-                {selectedTicket && (
-                  <div className="th-assignment-box th-assignment-box--pinned">
-                    <span className="th-eyebrow">{ownerEyebrow} log</span>
-                    <AssigneeCell ticket={selectedTicket} />
-                    <small>{formatDate(selectedAssignmentTime)}</small>
-                  </div>
-                )}
-
-                <section className="th-side-log-card th-side-activity-log" aria-label="Activity log">
-                  <header>
-                    <span><Activity size={15} /> Activity Log</span>
-                    <small>{selectedTimeline.length} events</small>
-                  </header>
-                  {selectedTicket ? (
-                    <>
-                      {activityLoading && !selectedActivityEvents.length ? (
-                        <div className="th-activity-loading" aria-label="Loading ticket activity">
-                          <span />
-                          <span />
-                          <span />
-                        </div>
-                      ) : null}
-                      <div className="th-activity-list">
-                        {selectedTimeline.map((event) => {
-                          const Icon = event.icon;
-                          return (
-                            <div className={`th-activity-item tone-${event.tone}`} key={event.id}>
-                              <span className="th-activity-icon"><Icon size={15} /></span>
-                              <div>
-                                <strong>{event.title}</strong>
-                                <p>{event.detail}</p>
-                              </div>
-                              <time>{event.time}</time>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="th-side-empty">Select a ticket to see activity.</p>
-                  )}
-                </section>
-              </div>
-            )}
-          </aside>
+          <TicketSideRail
+            ticket={selectedTicket}
+            canChangePriority={canChangePriority}
+            canChangeStatus={canChangeStatus}
+            changingPriority={changingPriority}
+            changingStatus={changingStatus}
+            onPriorityChange={handlePriorityChange}
+            onStatusChange={handleStatusChange}
+            ownerEyebrow={ownerEyebrow}
+            rightRailOpen={rightRailOpen}
+            timelineEvents={selectedTimeline}
+            timelineLoading={activityLoading}
+            assignmentTime={selectedAssignmentTime}
+          />
         </div>
       </div>
+      <CreateTicketModal
+        open={showNewTicket}
+        onClose={() => setShowNewTicket(false)}
+        onCreated={(ticket) => {
+          mutateTickets((prev) => [ticket, ...(prev ?? [])]);
+          setShowNewTicket(false);
+        }}
+      />
+      {profileCardUserId && (
+        <UserProfileCard userId={profileCardUserId} onClose={() => setProfileCardUserId(null)} />
+      )}
     </DashboardLayout>
   );
 }

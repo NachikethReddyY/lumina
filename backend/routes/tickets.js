@@ -17,11 +17,19 @@ const {
   isLuminaAIUser,
 } = require('../lib/ticketRouting');
 const { isTeamManager, isHrAdmin, isOrgViewer, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
-const { canMutateTicket, canViewTicket } = require('../lib/ticketPermissions');
+const { canMutateTicket, canViewTicket, canRerouteTicket, canEditTicketDetails, canSendToQa, isAssignedToQa } = require('../lib/ticketPermissions');
 
 const router = express.Router();
 
 router.use(requireAuth, requireOnboarding);
+
+function assignedToUserSql(paramIndex) {
+  return `EXISTS (
+    SELECT 1
+    FROM ticket_assignment ta
+    WHERE ta.ticket_id = t.id AND ta.assigned_to = $${paramIndex} AND ta.is_active = TRUE
+  )`;
+}
 
 function userDisplayName(user) {
   return `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || null;
@@ -109,7 +117,14 @@ router.get('/', async (req, res, next) => {
 
     if (req.user.role === 'user') {
       values.push(req.user.id);
-      clauses.push(`t.submitted_by = $${values.length}`);
+      const userParam = `$${values.length}`;
+      if (scope === 'submitted') {
+        clauses.push(`t.submitted_by = ${userParam}`);
+      } else if (scope === 'assigned') {
+        clauses.push(assignedToUserSql(values.length));
+      } else {
+        clauses.push(`(t.submitted_by = ${userParam} OR ${assignedToUserSql(values.length)})`);
+      }
     } else if (scope === 'assigned') {
       values.push(req.user.id);
       clauses.push(
@@ -169,6 +184,34 @@ router.get('/admin/workload', requireRole('admin'), async (_req, res, next) => {
   try {
     const data = await getAdminWorkloads();
     res.json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/stats/solved-by-assignee', async (req, res, next) => {
+  try {
+    const period = String(req.query.period || '30d').trim();
+    let intervalDays = 30;
+    if (period === '7d') intervalDays = 7;
+    else if (period === '90d') intervalDays = 90;
+
+    const result = await db.query(
+      `SELECT
+        CONCAT(u.first_name, ' ', u.last_name) AS name,
+        u.department,
+        COUNT(DISTINCT t.id) AS count
+      FROM tickets t
+      JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+      JOIN users u ON u.id = ta.assigned_to
+      WHERE t.status IN ('resolved', 'closed')
+        AND t.created_at >= NOW() - INTERVAL '1 day' * $1
+      GROUP BY u.id, u.first_name, u.last_name, u.department
+      ORDER BY count DESC`,
+      [intervalDays]
+    );
+
+    res.json(result.rows);
   } catch (error) {
     next(error);
   }
@@ -541,9 +584,9 @@ router.post('/:id/route', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (!canMutateTicket(req.user, ticket)) {
+    if (!canRerouteTicket(req.user, ticket)) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Only the active assignee can reroute this ticket' });
+      return res.status(403).json({ error: 'Only the assignee or a manager can reroute this ticket' });
     }
 
     const admins = await getAdminWorkloads(client);
@@ -709,6 +752,185 @@ router.post('/:id/rating', async (req, res, next) => {
       ]
     );
     res.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id/details', async (req, res, next) => {
+  const { title, description, replicationSteps } = req.body || {};
+  if (!title && !description && replicationSteps === undefined) {
+    return res.status(400).json({ error: 'Provide at least one field: title, description, or replicationSteps' });
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT t.id, t.submitted_by, ta.assigned_to
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       WHERE t.id = $1`,
+      [req.params.id]
+    );
+    const ticket = result.rows[0];
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (!canEditTicketDetails(req.user, ticket)) {
+      return res.status(403).json({ error: 'You do not have permission to edit this ticket' });
+    }
+
+    const sets = [];
+    const params = [req.params.id];
+    let idx = 2;
+    if (title !== undefined) { sets.push(`title = $${idx}`); params.push(title); idx++; }
+    if (description !== undefined) { sets.push(`description = $${idx}`); params.push(description); idx++; }
+    if (replicationSteps !== undefined) { sets.push(`replication_steps = $${idx}`); params.push(replicationSteps); idx++; }
+
+    const updated = await db.query(
+      `UPDATE tickets SET ${sets.join(', ')} WHERE id = $1 RETURNING id, title, description, replication_steps`,
+      params
+    );
+
+    await db.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'ticket_details_updated', $2::jsonb)`,
+      [req.user.id, JSON.stringify({ ticket_id: req.params.id, ...req.body })]
+    );
+
+    res.json(updated.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/send-to-qa', async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT t.id, t.title, t.description, t.type, t.priority, t.metadata, t.status,
+              ta.assigned_to,
+              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
+              assignee.job_title AS assigned_to_job_title,
+              assignee.department AS assigned_to_department
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       WHERE t.id = $1`,
+      [req.params.id]
+    );
+    const ticket = result.rows[0];
+    if (!ticket) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (!canSendToQa(req.user, ticket)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Only the developer assignee can send a ticket to QA' });
+    }
+    if (isAssignedToQa(ticket, ticket.assigned_to_department)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ticket is already assigned to QA' });
+    }
+
+    const metadata = ticket.metadata || {};
+    metadata.routing_intent = 'qa_testing';
+
+    const admins = await getAdminWorkloads(client);
+    const qaAdmins = admins.filter((admin) => String(admin.department || '').trim() === 'QA');
+    const pool = qaAdmins.length ? qaAdmins : admins;
+
+    const { chooseAssignee: qaRouting } = require('../lib/ticketRouting');
+    const routing = await qaRouting({ ...ticket, routing_intent: 'qa_testing' }, pool);
+
+    const routingMetadata = {
+      source: routing.source,
+      assigned_admin_id: routing.assignedAdminId,
+      reasoning: routing.reasoning,
+      decision: routing.decision || null,
+      routing_intent: 'qa_testing',
+    };
+
+    await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE`, [
+      ticket.id,
+    ]);
+    await client.query(
+      `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active)
+       VALUES ($1, $2, $3, TRUE)`,
+      [ticket.id, routing.assignedAdminId, req.user.id]
+    );
+    await client.query(
+      `UPDATE tickets
+       SET status = 'assigned'::ticket_status,
+           metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{routing}', $2::jsonb, true)
+       WHERE id = $1`,
+      [ticket.id, JSON.stringify(routingMetadata)]
+    );
+
+    await client.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'ticket_sent_to_qa', $2::jsonb)`,
+      [
+        req.user.id,
+        JSON.stringify({
+          ticket_id: ticket.id,
+          old_assigned_to: ticket.assigned_to,
+          old_assigned_to_name: ticket.assigned_to_name,
+          assigned_admin_id: routing.assignedAdminId,
+          reason: 'Developer requested QA testing',
+        }),
+      ]
+    );
+
+    await client.query('COMMIT');
+    res.json({
+      ticketId: ticket.id,
+      assignedToId: routing.assignedAdminId,
+      message: 'Ticket sent to QA',
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/:id/qa-verify', async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT t.id, t.submitted_by, t.status, ta.assigned_to,
+              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
+              assignee.department AS assigned_to_department
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       WHERE t.id = $1`,
+      [req.params.id]
+    );
+    const ticket = result.rows[0];
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (!canMutateTicket(req.user, ticket)) {
+      return res.status(403).json({ error: 'Only the active assignee can verify this ticket' });
+    }
+    if (String(ticket.assigned_to_department || '').trim() !== 'QA') {
+      return res.status(400).json({ error: 'Only the QA assignee can mark a ticket as verified' });
+    }
+
+    const updated = await db.query(
+      `UPDATE tickets SET status = 'resolved'::ticket_status WHERE id = $1 RETURNING id, status`,
+      [req.params.id]
+    );
+
+    await db.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'ticket_qa_verified', $2::jsonb)`,
+      [req.user.id, JSON.stringify({ ticket_id: req.params.id })]
+    );
+
+    res.json(updated.rows[0]);
   } catch (error) {
     next(error);
   }

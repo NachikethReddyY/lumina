@@ -490,6 +490,26 @@
   cursor: pointer;
 }
 
+.th-create-ticket-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 37px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.th-create-ticket-btn:hover {
+  opacity: 0.85;
+}
+
 .right-rail-collapsed .th-side-rail {
   display: none;
 }

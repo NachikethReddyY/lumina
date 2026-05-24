@@ -1,15 +1,21 @@
+import { Suspense, lazy } from 'react';
 import { Navigate } from 'react-router-dom';
-import UserDashboard from './UserDashboard';
-import AdminDashboard from './AdminDashboard';
-import SuperAdminDashboard from './SuperAdminDashboard';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { isHrAdmin } from '../utils/orgRoles';
+
+const LazyUserDashboard = lazy(() => import('./UserDashboard'));
+const LazyAdminDashboard = lazy(() => import('./AdminDashboard'));
+const LazySuperAdminDashboard = lazy(() => import('./SuperAdminDashboard'));
+
+function DashboardFallback() {
+  return <div style={{ minHeight: '100vh', background: 'var(--color-canvas)' }} />;
+}
 
 export function RoleDashboardPage() {
   const { user, loading } = useCurrentUser();
 
   if (loading) {
-    return <div style={{ minHeight: '100vh', background: 'var(--color-canvas)' }} />;
+    return <DashboardFallback />;
   }
 
   if (!user) {
@@ -17,15 +23,26 @@ export function RoleDashboardPage() {
   }
 
   if (isHrAdmin(user)) {
-    return <SuperAdminDashboard />;
+    return (
+      <Suspense fallback={<DashboardFallback />}>
+        <LazySuperAdminDashboard />
+      </Suspense>
+    );
   }
 
   if (user.role === 'admin') {
-    return <AdminDashboard />;
+    return (
+      <Suspense fallback={<DashboardFallback />}>
+        <LazyAdminDashboard />
+      </Suspense>
+    );
   }
 
-  return <UserDashboard />;
+  return (
+    <Suspense fallback={<DashboardFallback />}>
+      <LazyUserDashboard />
+    </Suspense>
+  );
 }
 
 export default RoleDashboardPage;
-

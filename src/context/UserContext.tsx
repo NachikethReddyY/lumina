@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usersApi, type ApiUser } from '../utils/apiClient';
 import { isSessionExpired, touchSessionActivity, clearAuthSession } from '../utils/sessionAuth';
+import { readApiCache, writeApiCache } from '../hooks/useApiSWR';
 
 type UserContextValue = {
   user: ApiUser | null;
@@ -31,6 +32,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
     try {
+      const cached = readApiCache<ApiUser>('users:me');
+      if (cached) {
+        setUser(cached);
+        setError('');
+        setLoading(false);
+      }
+
       const res = await usersApi.me();
       const data = (await res.json().catch(() => null)) as ApiUser | { error?: string } | null;
       if (!res.ok) {
@@ -41,6 +49,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const nextUser = data as ApiUser;
       setUser(nextUser);
       setError('');
+      writeApiCache('users:me', nextUser);
       touchSessionActivity();
       return nextUser;
     } catch {
@@ -56,8 +65,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     void fetchUser();
   }, [fetchUser]);
 
+  const value = useMemo(() => ({ user, loading, error, refetch: fetchUser, setUser }), [user, loading, error, fetchUser, setUser]);
+
   return (
-    <UserContext.Provider value={{ user, loading, error, refetch: fetchUser, setUser }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );

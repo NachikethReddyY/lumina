@@ -118,6 +118,20 @@ export type ApiRating = {
   avatar_url?: string | null;
 };
 
+export type HrDiagnostics = {
+  lastRunAt: string;
+  resolvedByAssignee: { name: string; department: string; count: number }[];
+  avgTimeToResolveHours: number;
+  workloadByDepartment: { department: string; open_tickets: number }[];
+  qaQueueDepth: number;
+};
+
+export type SolvedByAssignee = {
+  name: string;
+  count: number;
+  department: string;
+};
+
 export type ApiAiDecision = {
   id: string;
   title: string;
@@ -197,7 +211,7 @@ export const authApi = {
   login: (email: string, password: string) =>
     apiRequest('/auth/login', { method: 'POST', body: { email, password } }),
 
-  signup: (data: { email: string; firstName: string; lastName: string; password: string; role?: string }) =>
+  signup: (data: { email: string; password: string }) =>
     apiRequest('/auth/signup', { method: 'POST', body: data }),
 
   google: (data: { credential?: string; accessToken?: string }) =>
@@ -256,6 +270,11 @@ export const usersApi = {
 
   updateName: (firstName: string, lastName: string) =>
     apiRequest('/users/me', { method: 'PATCH', body: { firstName, lastName } }),
+
+  summary: (userId: string) => apiRequest(`/users/${userId}/summary`),
+
+  updateProfile: (id: string, data: { jobTitle?: string; department?: string }) =>
+    apiRequest(`/users/${id}/profile`, { method: 'PATCH', body: data }),
 };
 
 export const categoriesApi = {
@@ -263,7 +282,7 @@ export const categoriesApi = {
 };
 
 export const ticketsApi = {
-  list: (params?: { scope?: 'org' | 'team' | 'assigned'; status?: string } = {}) => {
+  list: (params: { scope?: 'org' | 'team' | 'assigned' | 'submitted'; status?: string } = {}) => {
     const query = new URLSearchParams();
     if (params?.scope) query.set('scope', params.scope);
     if (params?.status) query.set('status', params.status);
@@ -309,12 +328,29 @@ export const ticketsApi = {
     apiRequest(`/tickets/${ticketId}/comments/${commentId}`, { method: 'DELETE' }),
 
   getActivity: (ticketId: string) => apiRequest(`/tickets/${ticketId}/activity`),
+
+  sendToQa: (ticketId: string) =>
+    apiRequest(`/tickets/${ticketId}/send-to-qa`, { method: 'POST' }),
+
+  qaVerify: (ticketId: string) =>
+    apiRequest(`/tickets/${ticketId}/qa-verify`, { method: 'POST' }),
+
+  updateDetails: (ticketId: string, body: Record<string, string>) =>
+    apiRequest(`/tickets/${ticketId}/details`, { method: 'PATCH', body }),
+
+  stats: {
+    solvedByAssignee: (period?: string) => apiRequest(`/tickets/stats/solved-by-assignee${period ? `?period=${period}` : ''}`),
+  },
 };
 
 
 export const notificationsApi = {
   list: () => apiRequest('/notifications'),
   aiDecisions: () => apiRequest('/notifications/ai-decisions'),
+};
+
+export const reportsApi = {
+  hrDiagnostics: () => apiRequest('/reports/hr-diagnostics', { method: 'POST' }),
 };
 
 export default apiRequest;

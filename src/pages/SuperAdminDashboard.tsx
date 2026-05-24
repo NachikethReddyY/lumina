@@ -9,7 +9,7 @@ import { Trash2, ChevronUp, ChevronDown, Search, Cpu } from 'lucide-react';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
-import { ticketsApi, usersApi, notificationsApi, type AdminWorkload, type ApiTicket, type ApiUser, type ApiAiDecision } from '../utils/apiClient';
+import { ticketsApi, usersApi, notificationsApi, reportsApi, type AdminWorkload, type ApiTicket, type ApiUser, type ApiAiDecision, type HrDiagnostics, type SolvedByAssignee } from '../utils/apiClient';
 import { apiAssetUrl } from '../utils/apiBase';
 import {
   DEPARTMENT_GROUP_FILTERS,
@@ -28,6 +28,7 @@ import './SuperAdminDashboard.css';
 
 const PRIORITY_COLOR: Record<string, string> = { P1: '#ff3b30', P2: '#ff9500', P3: '#34c759', P4: '#6b7280' };
 const STATUS_PIE_COLORS = ['#ff6b6b', '#60a5fa', '#fbbf24', '#34c759', '#6b7280', '#d97706'];
+const SOLVED_COLORS = ['#2563eb', '#8b5cf6', '#d97706', '#1f8a65', '#dc2626', '#0891b2', '#ca8a04'];
 const USER_STATUS_COLORS: Record<ApiUser['status'], string> = {
   active: '#2563eb',
   pending: '#d97706',
@@ -174,8 +175,8 @@ export function SuperAdminDashboard() {
   const { user } = useCurrentUser();
   const hrView = isHrAdmin(user);
   const showApprovals = canAccessApprovalQueue(user);
-  const dashboardTabs = useMemo(
-    () => (showApprovals ? ['overview', 'approvals', 'users', 'ai'] : ['overview', 'users', 'ai']) as const,
+  const dashboardTabs: ('overview' | 'approvals' | 'users' | 'ai')[] = useMemo(
+    () => (showApprovals ? ['overview', 'approvals', 'users', 'ai'] : ['overview', 'users', 'ai']),
     [showApprovals]
   );
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
@@ -191,6 +192,21 @@ export function SuperAdminDashboard() {
   const [userStatusFilter, setUserStatusFilter] = useState<StatusFilter>('all');
   const [userSearch, setUserSearch] = useState('');
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null);
+
+  // Diagnostics
+  const [diagnostics, setDiagnostics] = useState<HrDiagnostics | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [showDiagModal, setShowDiagModal] = useState(false);
+
+  // Edit user profile
+  const [editingUser, setEditingUser] = useState<ApiUser | null>(null);
+  const [editJobTitle, setEditJobTitle] = useState('');
+  const [editDepartment, setEditDepartment] = useState('');
+
+  // Solved by assignee chart
+  const [solvedByAssignee, setSolvedByAssignee] = useState<SolvedByAssignee[]>([]);
+  const [solvedPeriod, setSolvedPeriod] = useState('30d');
+  const [solvedLoading, setSolvedLoading] = useState(false);
 
   useEffect(() => {
     if (location.pathname === '/admin/users') setActiveTab('users');
@@ -227,8 +243,23 @@ export function SuperAdminDashboard() {
     return () => { cancelled = true; };
   }, [user?.id, user?.department]);
 
+  useEffect(() => {
+    if (!hrView && !user) return;
+    let cancelled = false;
+    setSolvedLoading(true);
+    (async () => {
+      try {
+        const res = await ticketsApi.stats.solvedByAssignee(solvedPeriod);
+        const body = await res.json();
+        if (!cancelled) setSolvedByAssignee(Array.isArray(body) ? body : []);
+      } finally {
+        if (!cancelled) setSolvedLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [solvedPeriod, user?.id, hrView]);
+
   const pendingUsers = users.filter((u) => u.status === 'pending');
-  const activeAdmins = users.filter((u) => u.role !== 'user' && u.status === 'active');
 
   const filteredUsers = useMemo(() => {
     const statusWeight: Record<ApiUser['status'], number> = { pending: 0, active: 1, suspended: 2 };
@@ -264,6 +295,48 @@ export function SuperAdminDashboard() {
     if (res.ok) {
       setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
       showToast('Role updated.', 'info');
+    }
+  };
+
+  const handleDiagnostics = async () => {
+    setDiagLoading(true);
+    try {
+      const res = await reportsApi.hrDiagnostics();
+      if (res.ok) {
+        const body = await res.json();
+        setDiagnostics(body);
+        setShowDiagModal(true);
+      }
+    } finally {
+      setDiagLoading(false);
+    }
+  };
+
+  const startEditUser = (u: ApiUser) => {
+    setEditingUser(u);
+    setEditJobTitle(u.job_title || '');
+    setEditDepartment(u.department || '');
+  };
+
+  const cancelEditUser = () => {
+    setEditingUser(null);
+    setEditJobTitle('');
+    setEditDepartment('');
+  };
+
+  const saveEditUser = async () => {
+    if (!editingUser) return;
+    const res = await usersApi.updateProfile(editingUser.id, {
+      jobTitle: editJobTitle || undefined,
+      department: editDepartment || undefined,
+    });
+    if (res.ok) {
+      const body = await res.json();
+      setUsers((prev) => prev.map((u) => u.id === editingUser.id ? { ...u, ...body.user } : u));
+      showToast('Profile updated.', 'success');
+      cancelEditUser();
+    } else {
+      showToast('Failed to update profile.', 'error');
     }
   };
 
@@ -323,6 +396,19 @@ export function SuperAdminDashboard() {
                     <div className="stat-card"><h3>Pending Approval</h3><div className="stat-value" style={{ color: '#d97706' }}>{pendingUsers.length}</div></div>
                     <div className="stat-card"><h3>AI Routing Queue</h3><div className="stat-value">{ticketProgress.pendingRouting}</div></div>
                     <div className="stat-card"><h3>Total People</h3><div className="stat-value">{users.length}</div></div>
+                    <div className="stat-card">
+                      <h3>AI Diagnostics</h3>
+                      <div className="stat-value" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>
+                        <button
+                          className="sa-btn approve"
+                          onClick={handleDiagnostics}
+                          disabled={diagLoading}
+                          style={{ padding: '8px 16px', fontSize: '12px' }}
+                        >
+                          {diagLoading ? 'Running...' : 'Generate diagnostics'}
+                        </button>
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -413,6 +499,43 @@ export function SuperAdminDashboard() {
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
+                  </div>
+                )}
+
+                {hrView && (
+                  <div className="chart-card">
+                    <h4 className="chart-card-title">Most Tickets Solved</h4>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                      {(['7d', '30d', '90d'] as const).map((p) => (
+                        <button
+                          key={p}
+                          className={`sa-filter-chip ${solvedPeriod === p ? 'active' : ''}`}
+                          onClick={() => setSolvedPeriod(p)}
+                          style={{ padding: '4px 10px', fontSize: '11px' }}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                    {solvedLoading ? (
+                      <div style={{ padding: '40px 0', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>Loading...</div>
+                    ) : solvedByAssignee.length === 0 ? (
+                      <div style={{ padding: '40px 0', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>No data</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={solvedByAssignee} layout="vertical" margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
+                          <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" width={90} tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar dataKey="count" name="Solved" radius={[0, 4, 4, 0]}>
+                            {solvedByAssignee.map((_, i) => (
+                              <Cell key={i} fill={SOLVED_COLORS[i % SOLVED_COLORS.length]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 )}
 
@@ -585,6 +708,9 @@ export function SuperAdminDashboard() {
                             {showApprovals && u.status === 'suspended' && (
                               <button className="sa-btn approve" onClick={() => handleApproval(u.id, 'active')}>Restore</button>
                             )}
+                            {showApprovals && (
+                              <button className="sa-btn" style={{ background: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db' }} onClick={() => startEditUser(u)}>Edit</button>
+                            )}
                             <select
                               className="sa-role-select"
                               value={u.role}
@@ -607,6 +733,98 @@ export function SuperAdminDashboard() {
                 </table>
                 {/* Space/padding/footer below users table */}
                 <div className="sa-users-table-footer" style={{ minHeight: '64px' }} />
+              </div>
+            </motion.div>
+          )}
+
+          {/* ─── Diagnostics Modal ──────────────────────────────── */}
+          {showDiagModal && diagnostics && (
+            <motion.div className="nt-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setShowDiagModal(false)}>
+              <div className="nt-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+                <div className="nt-modal-header">
+                  <h2>HR Diagnostics</h2>
+                  <div className="nt-modal-header-right">
+                    <span className="nt-shortcut-hint">{new Date(diagnostics.lastRunAt).toLocaleString()}</span>
+                    <button className="nt-close-btn" onClick={() => setShowDiagModal(false)}>✕</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>
+                      Resolved by Assignee
+                    </h4>
+                    <table className="ticket-table" style={{ fontSize: '12px' }}>
+                      <thead><tr><th>Name</th><th>Dept</th><th>Resolved</th></tr></thead>
+                      <tbody>
+                        {diagnostics.resolvedByAssignee.map((r) => (
+                          <tr key={r.name} className="ticket-table-row">
+                            <td>{r.name}</td><td className="tbl-muted">{r.department || '—'}</td><td>{r.count}</td>
+                          </tr>
+                        ))}
+                        {diagnostics.resolvedByAssignee.length === 0 && (
+                          <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>No resolved tickets</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="stat-card" style={{ padding: '16px' }}>
+                      <h3>Avg Time to Resolve</h3>
+                      <div className="stat-value" style={{ fontSize: '24px' }}>{diagnostics.avgTimeToResolveHours}h</div>
+                    </div>
+                    <div className="stat-card" style={{ padding: '16px' }}>
+                      <h3>QA Queue Depth</h3>
+                      <div className="stat-value" style={{ fontSize: '24px' }}>{diagnostics.qaQueueDepth}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>
+                      Workload by Department
+                    </h4>
+                    <table className="ticket-table" style={{ fontSize: '12px' }}>
+                      <thead><tr><th>Department</th><th>Open Tickets</th></tr></thead>
+                      <tbody>
+                        {diagnostics.workloadByDepartment.map((w) => (
+                          <tr key={w.department} className="ticket-table-row">
+                            <td>{w.department}</td><td>{w.open_tickets}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ─── Edit User Modal ──────────────────────────────── */}
+          {editingUser && (
+            <motion.div className="nt-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={cancelEditUser}>
+              <div className="nt-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+                <div className="nt-modal-header">
+                  <h2>Edit Profile</h2>
+                  <button className="nt-close-btn" onClick={cancelEditUser}>✕</button>
+                </div>
+                <div className="nt-form">
+                  <div className="nt-field">
+                    <label>Job Title</label>
+                    <input value={editJobTitle} onChange={(e) => setEditJobTitle(e.target.value)} placeholder="e.g. Senior Developer" />
+                  </div>
+                  <div className="nt-field">
+                    <label>Department</label>
+                    <select value={editDepartment} onChange={(e) => setEditDepartment(e.target.value)}>
+                      <option value="">No department</option>
+                      <option value="Developers">Developers</option>
+                      <option value="QA">QA</option>
+                      <option value="Managers">Managers</option>
+                      <option value="HR">HR</option>
+                    </select>
+                  </div>
+                  <div className="nt-actions">
+                    <Button variant="secondary" onClick={cancelEditUser}>Cancel</Button>
+                    <Button variant="primary" onClick={saveEditUser}>Save</Button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}

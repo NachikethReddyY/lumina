@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, type CSSProperties } from "react"
+import { useState, useRef, useEffect, type CSSProperties } from "react"
 import {
   LayoutDashboard,
   History,
@@ -20,6 +20,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import Logo from "./Logo"
 import { useCurrentUser } from "../hooks/useCurrentUser"
+import { useApiSWR } from "../hooks/useApiSWR"
 import { notificationsApi, usersApi, type ApiNotification, type ApiUser } from "../utils/apiClient"
 import { getUserRoleLabel } from "../utils/userDisplay"
 import { canAccessApprovalQueue } from "../utils/orgRoles"
@@ -70,46 +71,36 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const { user } = useCurrentUser()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState<ApiNotification[]>([])
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
-  const [notifLoading, setNotifLoading] = useState(false)
-  const [pendingApprovalCount, setPendingApprovalCount] = useState(0)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
   const isAdmin = user?.role === "admin"
   const showApprovals = canAccessApprovalQueue(user)
 
-  const fetchNotifications = useCallback(async () => {
-    setNotifLoading(true)
-    try {
+  const { data: notificationsData, loading: notifLoading, revalidate: revalidateNotifications } = useApiSWR<ApiNotification[]>(
+    user ? "notifications:all" : null,
+    async () => {
       const res = await notificationsApi.list()
-      if (res.ok) {
-        const data = await res.json()
-        setNotifications(Array.isArray(data) ? data : [])
-      }
-    } finally {
-      setNotifLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (user) fetchNotifications()
-  }, [user, fetchNotifications])
-
-  useEffect(() => {
-    if (!showApprovals) return
-    let cancelled = false
-    ;(async () => {
-      const res = await usersApi.list()
-      if (!res.ok) return
+      if (!res.ok) throw new Error("Could not load notifications.")
       const data = await res.json()
-      if (!cancelled) {
-        setPendingApprovalCount(Array.isArray(data) ? data.filter((u: ApiUser) => u.status === "pending").length : 0)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [showApprovals])
+      return Array.isArray(data) ? data : []
+    },
+    { ttl: 30_000 }
+  )
+
+  const notifications = notificationsData ?? []
+
+  const { data: pendingApprovalCount = 0 } = useApiSWR<number>(
+    showApprovals ? "users:pending-count" : null,
+    async () => {
+      const res = await usersApi.list()
+      if (!res.ok) throw new Error("Could not load users.")
+      const data = await res.json()
+      return Array.isArray(data) ? data.filter((u: ApiUser) => u.status === "pending").length : 0
+    },
+    { ttl: 60_000 }
+  )
 
   const visibleNotifications = notifications.filter((n) => !hiddenIds.has(n.id))
   const unreadCount = visibleNotifications.length
@@ -207,7 +198,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
             className="notification-btn"
             onClick={() => {
               setShowNotifications(!showNotifications)
-              if (!showNotifications) fetchNotifications()
+              if (!showNotifications) void revalidateNotifications()
             }}
             title={`${unreadCount} unread notifications`}
           >

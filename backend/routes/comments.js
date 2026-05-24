@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireOnboarding } = require('../middleware/auth');
+const { canCommentOnTicket } = require('../lib/ticketPermissions');
 
 const router = express.Router({ mergeParams: true });
 
@@ -31,15 +32,17 @@ router.post('/', async (req, res, next) => {
 
   try {
     const ticket = await db.query(
-      `SELECT id, submitted_by FROM tickets WHERE id = $1`,
+      `SELECT t.id, t.submitted_by, ta.assigned_to
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       WHERE t.id = $1`,
       [req.params.ticketId]
     );
     if (!ticket.rows[0]) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    const isAdmin = req.user.role === 'admin';
-    const isOwner = ticket.rows[0].submitted_by === req.user.id;
-    if (!isAdmin && !isOwner) {
+    const ticketRow = ticket.rows[0];
+    if (!canCommentOnTicket(req.user, { ...ticketRow, submitted_by_id: ticketRow.submitted_by, assigned_to_id: ticketRow.assigned_to })) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

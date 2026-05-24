@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -11,18 +12,32 @@ import OAuthNamePage from './pages/OAuthNamePage';
 import PendingApprovalPage from './pages/PendingApprovalPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ServerErrorPage from './pages/ServerErrorPage';
-import UserDashboard from './pages/UserDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import RoleDashboardPage from './pages/RoleDashboardPage';
-import ProfilePage from './pages/ProfilePage';
-import AccountSettingsPage from './pages/AccountSettingsPage';
-import TicketHistoryPage from './pages/TicketHistoryPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import { ChunkErrorBoundary } from './components/ChunkErrorBoundary';
+import { SetupLoading } from './components/SetupLoading';
 import SessionTimeoutManager from './components/SessionTimeoutManager';
 import { ToastProvider } from './context/ToastContext';
 import { UserProvider } from './context/UserContext';
+import {
+  LazyUserDashboard,
+  LazyAdminDashboard,
+  LazySuperAdminDashboard,
+  LazyRoleDashboardPage,
+  LazyProfilePage,
+  LazyAccountSettingsPage,
+  LazyTicketHistoryPage,
+} from './routes/lazyPages';
 import './App.css';
+
+function LazySuspense({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<SetupLoading />}>
+      <ChunkErrorBoundary>
+        {children}
+      </ChunkErrorBoundary>
+    </Suspense>
+  );
+}
 
 function App() {
   return (
@@ -42,21 +57,21 @@ function App() {
         <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
         <Route path="/pending-approval" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
 
-        <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
-        <Route path="/dashboard/tickets" element={<ProtectedRoute><RoleDashboardPage /></ProtectedRoute>} />
-        <Route path="/tickets" element={<ProtectedRoute><TicketHistoryPage mode="queue" /></ProtectedRoute>} />
-        <Route path="/tickets/:id" element={<ProtectedRoute><TicketHistoryPage mode="queue" /></ProtectedRoute>} />
-        <Route path="/tickets/history" element={<ProtectedRoute><TicketHistoryPage mode="history" /></ProtectedRoute>} />
-        <Route path="/tickets/history/:id" element={<ProtectedRoute><TicketHistoryPage mode="history" /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><LazySuspense><LazyRoleDashboardPage /></LazySuspense></ProtectedRoute>} />
+        <Route path="/dashboard/tickets" element={<ProtectedRoute><LazySuspense><LazyRoleDashboardPage /></LazySuspense></ProtectedRoute>} />
+        <Route path="/tickets" element={<ProtectedRoute><LazySuspense><LazyTicketHistoryPage mode="queue" /></LazySuspense></ProtectedRoute>} />
+        <Route path="/tickets/:id" element={<ProtectedRoute><LazySuspense><LazyTicketHistoryPage mode="queue" /></LazySuspense></ProtectedRoute>} />
+        <Route path="/tickets/history" element={<ProtectedRoute><LazySuspense><LazyTicketHistoryPage mode="history" /></LazySuspense></ProtectedRoute>} />
+        <Route path="/tickets/history/:id" element={<ProtectedRoute><LazySuspense><LazyTicketHistoryPage mode="history" /></LazySuspense></ProtectedRoute>} />
 
-        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="/account-settings" element={<ProtectedRoute><AccountSettingsPage /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><LazySuspense><LazyProfilePage /></LazySuspense></ProtectedRoute>} />
+        <Route path="/account-settings" element={<ProtectedRoute><LazySuspense><LazyAccountSettingsPage /></LazySuspense></ProtectedRoute>} />
 
-        <Route path="/user/dashboard" element={<ProtectedRoute roles={['user']}><UserDashboard /></ProtectedRoute>} />
-        <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/approvals" element={<ProtectedRoute roles={['admin']} hrAdminOnly><SuperAdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><SuperAdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/routing-logs" element={<ProtectedRoute roles={['admin']}><SuperAdminDashboard /></ProtectedRoute>} />
+        <Route path="/user/dashboard" element={<ProtectedRoute roles={['user']}><LazySuspense><LazyUserDashboard /></LazySuspense></ProtectedRoute>} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazyAdminDashboard /></LazySuspense></ProtectedRoute>} />
+        <Route path="/admin/approvals" element={<ProtectedRoute roles={['admin']} hrAdminOnly><LazySuspense><LazySuperAdminDashboard /></LazySuspense></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazySuperAdminDashboard /></LazySuspense></ProtectedRoute>} />
+        <Route path="/admin/routing-logs" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazySuperAdminDashboard /></LazySuspense></ProtectedRoute>} />
 
         <Route path="/500" element={<ServerErrorPage />} />
         <Route path="*" element={<NotFoundPage />} />

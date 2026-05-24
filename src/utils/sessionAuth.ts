@@ -1,3 +1,5 @@
+import { invalidateApiCache } from '../hooks/useApiSWR';
+
 const LAST_ACTIVITY_KEY = 'lumina.session.lastActivity';
 
 const DURATION_PATTERN =
@@ -50,6 +52,7 @@ export function clearAuthSession(): void {
   localStorage.removeItem('authToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem(LAST_ACTIVITY_KEY);
+  invalidateApiCache('users:');
 }
 
 export function getLastActivityTime(): number | null {

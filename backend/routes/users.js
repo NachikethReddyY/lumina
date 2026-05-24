@@ -320,4 +320,84 @@ router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => 
   }
 });
 
+router.patch('/:id/profile', requireAuth, requireOnboarding, requireRole('admin'), (req, res, next) => {
+  if (!isHrAdmin(req.user)) {
+    return res.status(403).json({ error: 'Only HR can update user profiles.' });
+  }
+  next();
+}, async (req, res, next) => {
+  const jobTitle = req.body?.jobTitle !== undefined ? String(req.body.jobTitle).trim() : undefined;
+  const department = req.body?.department !== undefined ? String(req.body.department).trim() : undefined;
+
+  if (!jobTitle && !department) {
+    return res.status(400).json({ error: 'Provide at least one of jobTitle or department' });
+  }
+
+  try {
+    const current = await db.query(
+      `SELECT job_title, department FROM users WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!current.rows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const setClauses = [];
+    const params = [req.params.id];
+    let paramIdx = 2;
+
+    if (jobTitle !== undefined) {
+      setClauses.push(`job_title = $${paramIdx}`);
+      params.push(jobTitle);
+      paramIdx++;
+    }
+    if (department !== undefined) {
+      setClauses.push(`department = $${paramIdx}`);
+      params.push(department);
+      paramIdx++;
+    }
+
+    // Re-derive role from department
+    const finalDept = department !== undefined ? department : current.rows[0].department;
+    const adminDepartments = ['HR', 'Managers'];
+    const userDepartments = ['Developers', 'QA'];
+    const derivedRole = adminDepartments.includes(finalDept)
+      ? 'admin'
+      : userDepartments.includes(finalDept)
+        ? 'user'
+        : null;
+
+    if (derivedRole) {
+      setClauses.push(`role = $${paramIdx}::user_role`);
+      params.push(derivedRole);
+      paramIdx++;
+    }
+
+    const result = await db.query(
+      `UPDATE users
+       SET ${setClauses.join(', ')}
+       WHERE id = $1
+       RETURNING id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
+                 approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed, name_set`,
+      params
+    );
+
+    await db.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'user_profile_updated', $2::jsonb)`,
+      [
+        req.user.id,
+        JSON.stringify({
+          target_id: req.params.id,
+          changes: { jobTitle, department },
+        }),
+      ]
+    );
+
+    res.json({ user: serializeUser(result.rows[0]), message: 'Profile updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
