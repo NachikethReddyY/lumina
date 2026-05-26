@@ -21,6 +21,12 @@ router.get('/', async (req, res, next) => {
          JOIN users u ON u.id = a.actor_id
          WHERE a.metadata->>'ticket_id' IN (
            SELECT id::text FROM tickets WHERE submitted_by = $1
+           UNION
+           SELECT id::text FROM tickets t
+           WHERE EXISTS (
+             SELECT 1 FROM ticket_assignment ta
+             WHERE ta.ticket_id = t.id AND ta.assigned_to = $1 AND ta.is_active = TRUE
+           )
          )
          OR a.actor_id = $1
          ORDER BY a.created_at DESC
@@ -76,22 +82,22 @@ router.get('/ai-decisions', requireAuth, async (req, res, next) => {
   }
   try {
     const result = await db.query(
-      `SELECT t.id, t.title, t.priority, t.type, t.created_at,
+      `SELECT DISTINCT ON (t.id) t.id, t.title, t.priority, t.type, t.created_at,
               t.metadata->'routing' AS routing,
               submitter.department AS submitter_department,
               COALESCE(
-                NULLIF(CONCAT(assignee.first_name, ' ', assignee.last_name), ' '),
+                NULLIF(CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name), ' '),
                 NULLIF(CONCAT(routed_assignee.first_name, ' ', routed_assignee.last_name), ' ')
               ) AS assigned_to_name,
-              COALESCE(NULLIF(TRIM(assignee.job_title), ''), NULLIF(TRIM(routed_assignee.job_title), '')) AS assigned_to_job_title
+              COALESCE(NULLIF(TRIM(qa_assignee.job_title), ''), NULLIF(TRIM(routed_assignee.job_title), '')) AS assigned_to_job_title
        FROM tickets t
        JOIN users submitter ON submitter.id = t.submitted_by
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN users qa_assignee ON qa_assignee.id = ta_qa.assigned_to
        LEFT JOIN users routed_assignee ON routed_assignee.id::text = t.metadata->'routing'->>'assigned_admin_id'
        WHERE t.metadata->'routing' IS NOT NULL
          AND t.metadata->'routing' != 'null'
-       ORDER BY t.created_at DESC
+       ORDER BY t.id, t.created_at DESC
        LIMIT 50`
     );
     res.json(result.rows);

@@ -9,6 +9,7 @@ import { Trash2, ChevronUp, ChevronDown, Search, Cpu } from 'lucide-react';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
+import DeleteUserModal from '../components/DeleteUserModal';
 import { ticketsApi, usersApi, notificationsApi, reportsApi, type AdminWorkload, type ApiTicket, type ApiUser, type ApiAiDecision, type HrDiagnostics, type SolvedByAssignee } from '../utils/apiClient';
 import { apiAssetUrl } from '../utils/apiBase';
 import {
@@ -114,25 +115,37 @@ function buildTicketProgressSummary(tickets: ApiTicket[]) {
   return { active, inProgress, resolved, pendingRouting, total: tickets.length };
 }
 
-function buildPendingAgeBuckets(users: ApiUser[]) {
-  const buckets = [
-    { name: '0-1d', value: 0, fill: '#2563eb' },
-    { name: '2-3d', value: 0, fill: '#60a5fa' },
-    { name: '4-7d', value: 0, fill: '#d97706' },
-    { name: '8d+', value: 0, fill: '#dc2626' },
-  ];
+const RESOLUTION_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May'] as const;
 
-  users
-    .filter((user) => user.status === 'pending')
-    .forEach((user) => {
-      const ageDays = Math.floor((Date.now() - new Date(user.created_at).getTime()) / 86400000);
-      if (ageDays <= 1) buckets[0].value++;
-      else if (ageDays <= 3) buckets[1].value++;
-      else if (ageDays <= 7) buckets[2].value++;
-      else buckets[3].value++;
-    });
+/**
+ * Average hours from created_at → closed_at per calendar month (Jan–May).
+ * Replaces the old "Approval Wait Time" chart — shows how long issues take to resolve.
+ */
+function buildResolutionTimeByMonth(tickets: ApiTicket[]) {
+  const buckets = new Map<string, { totalHours: number; count: number }>();
+  RESOLUTION_MONTHS.forEach((m) => buckets.set(m, { totalHours: 0, count: 0 }));
 
-  return buckets;
+  tickets.forEach((ticket) => {
+    if (!ticket.closed_at || !['resolved', 'closed'].includes(ticket.status)) return;
+    const created = new Date(ticket.created_at);
+    const closed = new Date(ticket.closed_at);
+    const month = created.toLocaleDateString('en-US', { month: 'short' });
+    if (!buckets.has(month)) return;
+    const hours = Math.max(0, (closed.getTime() - created.getTime()) / 3600000);
+    const bucket = buckets.get(month)!;
+    bucket.totalHours += hours;
+    bucket.count += 1;
+  });
+
+  return RESOLUTION_MONTHS.map((month) => {
+    const bucket = buckets.get(month)!;
+    return {
+      month,
+      avgHours: bucket.count > 0 ? Math.round((bucket.totalHours / bucket.count) * 10) / 10 : 0,
+      count: bucket.count,
+      fill: '#2563eb',
+    };
+  });
 }
 
 function buildAdminPriorityLoad(workload: AdminWorkload[]) {
@@ -202,6 +215,16 @@ export function SuperAdminDashboard() {
   const [editingUser, setEditingUser] = useState<ApiUser | null>(null);
   const [editJobTitle, setEditJobTitle] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
+
+  // Delete user modal
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; email: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // HR Report generation
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportPeriod, setReportPeriod] = useState<'7d' | '30d'>('30d');
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState<{ html: string; markdown: string; filename: string } | null>(null);
 
   // Solved by assignee chart
   const [solvedByAssignee, setSolvedByAssignee] = useState<SolvedByAssignee[]>([]);
@@ -276,7 +299,7 @@ export function SuperAdminDashboard() {
   const statusPie = useMemo(() => buildStatusPie(tickets), [tickets]);
   const monthlyLine = useMemo(() => buildMonthlyLine(tickets), [tickets]);
   const peopleByRole = useMemo(() => buildPeopleByDepartmentGroup(users), [users]);
-  const pendingAgeBuckets = useMemo(() => buildPendingAgeBuckets(users), [users]);
+  const resolutionByMonth = useMemo(() => buildResolutionTimeByMonth(tickets), [tickets]);
   const adminPriorityLoad = useMemo(() => buildAdminPriorityLoad(workload), [workload]);
   const headcountByDept = useMemo(() => buildHeadcountByDepartment(users), [users]);
   const ticketsByDept = useMemo(() => buildTicketsByDepartment(tickets, users), [tickets, users]);
@@ -287,14 +310,6 @@ export function SuperAdminDashboard() {
     if (res.ok) {
       setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status } : u));
       showToast(status === 'active' ? 'User approved.' : 'User suspended.', 'success');
-    }
-  };
-
-  const handleRoleChange = async (id: string, role: 'user' | 'admin') => {
-    const res = await usersApi.updateRole(id, role);
-    if (res.ok) {
-      setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
-      showToast('Role updated.', 'info');
     }
   };
 
@@ -310,6 +325,40 @@ export function SuperAdminDashboard() {
     } finally {
       setDiagLoading(false);
     }
+  };
+
+  const handleGenerateReport = async () => {
+    setReportLoading(true);
+    try {
+      const res = await reportsApi.hrGenerate(reportPeriod);
+      if (res.ok) {
+        const body = await res.json();
+        setReportData(body);
+        showToast('Report generated successfully!', 'success');
+      } else {
+        showToast('Failed to generate report.', 'error');
+      }
+    } catch {
+      showToast('Error generating report.', 'error');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const downloadReport = (format: 'html' | 'markdown') => {
+    if (!reportData) return;
+    const content = format === 'html' ? reportData.html : reportData.markdown;
+    const ext = format === 'html' ? 'html' : 'md';
+    const mimeType = format === 'html' ? 'text/html' : 'text/markdown';
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${reportData.filename}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const startEditUser = (u: ApiUser) => {
@@ -340,12 +389,26 @@ export function SuperAdminDashboard() {
     }
   };
 
-  const handleDelete = async (id: string, email: string) => {
-    if (!confirm(`Permanently delete ${email}? This cannot be undone.`)) return;
-    const res = await usersApi.delete(id);
-    if (res.ok) {
-      setUsers((prev) => prev.filter((u) => u.id !== id));
-      showToast(`${email} removed.`, 'success');
+  const handleDelete = (id: string, email: string) => {
+    setDeleteTarget({ id, email });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const res = await usersApi.delete(deleteTarget.id);
+      if (res.ok) {
+        setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+        showToast(`${deleteTarget.email} removed.`, 'success');
+        setDeleteTarget(null);
+      } else {
+        showToast('Failed to delete user.', 'error');
+      }
+    } catch {
+      showToast('Error deleting user.', 'error');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -409,6 +472,18 @@ export function SuperAdminDashboard() {
                         </button>
                       </div>
                     </div>
+                    <div className="stat-card">
+                      <h3>HR Report</h3>
+                      <div className="stat-value" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>
+                        <button
+                          className="sa-btn approve"
+                          onClick={() => setShowReportModal(true)}
+                          style={{ padding: '8px 16px', fontSize: '12px', background: '#8b5cf6' }}
+                        >
+                          Generate report
+                        </button>
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -421,6 +496,38 @@ export function SuperAdminDashboard() {
               </div>
 
               <div className="charts-grid" style={{ marginBottom: '48px' }}>
+                <div className="chart-card" style={{ gridColumn: '1 / -1' }}>
+                  <h4 className="chart-card-title">Amount of time to resolve issues</h4>
+                  <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#6b7280' }}>
+                    Average hours from open to closed (Jan–May), across Developers and QA assignees.
+                  </p>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={resolutionByMonth} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
+                      <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const row = payload[0]?.payload as { avgHours: number; count: number };
+                          return (
+                            <div className="chart-tooltip">
+                              <p>{label}</p>
+                              <strong>{row.avgHours}h avg</strong>
+                              <span style={{ display: 'block', fontSize: '11px' }}>{row.count} tickets closed</span>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar dataKey="avgHours" name="Avg hours" radius={[4, 4, 0, 0]}>
+                        {resolutionByMonth.map((row) => (
+                          <Cell key={row.month} fill={row.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
                 <div className="chart-card">
                   <h4 className="chart-card-title">Ticket Volume (6 Months)</h4>
                   <ResponsiveContainer width="100%" height={200}>
@@ -573,20 +680,6 @@ export function SuperAdminDashboard() {
                   </div>
                 </div>
 
-                <div className="chart-card">
-                  <h4 className="chart-card-title">Approval Wait Time</h4>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={pendingAgeBuckets} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
-                      <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="value" name="Pending users" radius={[4, 4, 0, 0]}>
-                        {pendingAgeBuckets.map((bucket) => <Cell key={bucket.name} fill={bucket.fill} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
               </div>
 
             </motion.div>
@@ -711,14 +804,6 @@ export function SuperAdminDashboard() {
                             {showApprovals && (
                               <button className="sa-btn" style={{ background: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db' }} onClick={() => startEditUser(u)}>Edit</button>
                             )}
-                            <select
-                              className="sa-role-select"
-                              value={u.role}
-                              onChange={(e) => handleRoleChange(u.id, e.target.value as ApiUser['role'])}
-                            >
-                              <option value="user">User</option>
-                              <option value="admin">Admin</option>
-                            </select>
                             <button className="sa-btn delete" onClick={() => handleDelete(u.id, u.email)} title="Delete user">
                               <Trash2 size={12} />
                             </button>
@@ -825,6 +910,135 @@ export function SuperAdminDashboard() {
                     <Button variant="primary" onClick={saveEditUser}>Save</Button>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ─── Delete User Modal ──────────────────────────────── */}
+          {deleteTarget && (
+            <DeleteUserModal
+              email={deleteTarget.email}
+              onConfirm={confirmDelete}
+              onCancel={() => setDeleteTarget(null)}
+              isLoading={deleteLoading}
+            />
+          )}
+
+          {/* ─── HR Report Modal ──────────────────────────────── */}
+          {showReportModal && (
+            <motion.div className="nt-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => !reportLoading && setShowReportModal(false)}>
+              <div className="nt-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+                <div className="nt-modal-header">
+                  <h2>Generate HR Report</h2>
+                  <button className="nt-close-btn" onClick={() => setShowReportModal(false)}>✕</button>
+                </div>
+
+                {!reportData ? (
+                  <div className="nt-form">
+                    <div className="nt-field">
+                      <label>Period</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => setReportPeriod('7d')}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: reportPeriod === '7d' ? '#2563eb' : '#e5e7eb',
+                            color: reportPeriod === '7d' ? 'white' : '#374151',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Weekly (7 days)
+                        </button>
+                        <button
+                          onClick={() => setReportPeriod('30d')}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: reportPeriod === '30d' ? '#2563eb' : '#e5e7eb',
+                            color: reportPeriod === '30d' ? 'white' : '#374151',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Monthly (30 days)
+                        </button>
+                      </div>
+                    </div>
+                    <div className="nt-actions">
+                      <Button variant="secondary" onClick={() => setShowReportModal(false)}>Cancel</Button>
+                      <Button variant="primary" onClick={handleGenerateReport} disabled={reportLoading}>
+                        {reportLoading ? 'Generating…' : 'Generate Report'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '6px', padding: '12px' }}>
+                      <p style={{ margin: 0, color: '#166534', fontSize: '14px', fontWeight: '600' }}>✓ Report generated successfully!</p>
+                    </div>
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: '13px' }}>
+                      Download your report in your preferred format:
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => downloadReport('html')}
+                        style={{
+                          flex: 1,
+                          padding: '10px 12px',
+                          background: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Download HTML
+                      </button>
+                      <button
+                        onClick={() => downloadReport('markdown')}
+                        style={{
+                          flex: 1,
+                          padding: '10px 12px',
+                          background: '#8b5cf6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Download Markdown
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowReportModal(false);
+                        setReportData(null);
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        background: '#e5e7eb',
+                        color: '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

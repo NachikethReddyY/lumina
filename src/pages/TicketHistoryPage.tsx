@@ -34,7 +34,6 @@ import {
   canRerouteTicket,
   canCommentOnTicket,
   canEditTicketDetails,
-  canSendToQa,
   getTicketListScope,
   getTicketQueueListScope,
   isOrgViewer,
@@ -448,6 +447,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
   const [commentSending, setCommentSending] = useState(false);
+  const [commentDeletingId, setCommentDeletingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState('');
@@ -606,13 +606,17 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     setPage(1);
   };
   const isRegularUser = user?.role === 'user';
+  const isQaUser = user?.department === 'QA' || false;
+  const isDevUser = !!(user?.department && user.department !== 'QA');
   const canMutateSelected = Boolean(selectedTicket && canMutateTicket(user, selectedTicket));
   const canReroute = Boolean(selectedTicket && canRerouteTicket(user, selectedTicket));
   const canChangePriority = canMutateSelected;
   const canChangeStatus = canMutateSelected;
   const canComment = Boolean(selectedTicket && canCommentOnTicket(user, selectedTicket));
   const canEditDetails = Boolean(selectedTicket && canEditTicketDetails(user, selectedTicket));
-  const canSendToQaSelected = Boolean(selectedTicket && canSendToQa(user, selectedTicket));
+  const canRouteToDeveloper = Boolean(isQaUser && selectedTicket && selectedTicket.qa_assignee_id === user?.id);
+  const canRerouteQa = Boolean(isQaUser && selectedTicket && selectedTicket.qa_assignee_id === user?.id);
+  const canRouteToQa = Boolean(isDevUser && selectedTicket && selectedTicket.dev_assignee_id === user?.id);
   const ownerEyebrow = isRegularUser ? 'support owner' : 'assigned';
 
   const handlePriorityChange = useCallback(async (priority: ApiTicket['priority']) => {
@@ -696,6 +700,37 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     }
   }, [canComment, commentDraft, commentSending, refreshActivity, refreshComments, selectedTicket, showToast]);
 
+  /** Soft-delete: author removes own comment, or admin moderates with named tombstone. */
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    if (!selectedTicket || commentDeletingId) return;
+    setCommentDeletingId(commentId);
+    try {
+      const res = await ticketsApi.deleteComment(selectedTicket.id, commentId);
+      const data = (await res.json().catch(() => ({}))) as ApiComment & { error?: string };
+      if (!res.ok) {
+        showToast(data.error || 'Could not delete comment.', 'error');
+        return;
+      }
+
+      setCommentsByTicket((current) => {
+        const list = current[selectedTicket.id] || [];
+        return {
+          ...current,
+          [selectedTicket.id]: list.map((c) => (c.id === commentId ? { ...c, ...data } : c)),
+        };
+      });
+      await Promise.all([
+        refreshComments(selectedTicket.id, true),
+        refreshActivity(selectedTicket.id, true),
+      ]);
+      showToast('Comment removed.', 'success');
+    } catch {
+      showToast('Could not delete comment.', 'error');
+    } finally {
+      setCommentDeletingId(null);
+    }
+  }, [commentDeletingId, refreshActivity, refreshComments, selectedTicket, showToast]);
+
   const handleRerouteSelected = useCallback(async () => {
     if (!selectedTicket || reroutingTicket || !canReroute) return;
     setReroutingTicket(true);
@@ -716,23 +751,6 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       setReroutingTicket(false);
     }
   }, [canReroute, refreshActivity, refreshTicketList, reroutingTicket, selectedTicket, showToast]);
-
-  const handleSendToQa = useCallback(async () => {
-    if (!selectedTicket || !canSendToQaSelected) return;
-    try {
-      const res = await ticketsApi.sendToQa(selectedTicket.id);
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        showToast(data.error || 'Could not send to QA.', 'error');
-        return;
-      }
-      await refreshTicketList();
-      await refreshActivity(selectedTicket.id, true);
-      showToast('Ticket sent to QA.', 'success');
-    } catch {
-      showToast('Could not send to QA.', 'error');
-    }
-  }, [canSendToQaSelected, refreshActivity, refreshTicketList, selectedTicket, showToast]);
 
   const handleQaVerify = useCallback(async () => {
     if (!selectedTicket) return;
@@ -776,6 +794,66 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       setSavingDetails(false);
     }
   }, [selectedTicket, savingDetails, editingTitle, editingDesc, editTitleValue, editDescValue, editReplicationValue, refreshTicketList, showToast]);
+
+  const handleRouteToDeveloper = useCallback(async () => {
+    if (!selectedTicket || reroutingTicket) return;
+    setReroutingTicket(true);
+    try {
+      const res = await ticketsApi.routeToDeveloper(selectedTicket.id);
+      const data = (await res.json().catch(() => ({}))) as { error?: string; assignedToName?: string };
+      if (!res.ok) {
+        showToast(data.error || 'Could not route to developer.', 'error');
+        return;
+      }
+      await refreshTicketList();
+      await refreshActivity(selectedTicket.id, true);
+      showToast(data.assignedToName ? `Routed to ${data.assignedToName}.` : 'Routed to developer.', 'success');
+    } catch {
+      showToast('Could not route to developer.', 'error');
+    } finally {
+      setReroutingTicket(false);
+    }
+  }, [reroutingTicket, selectedTicket, refreshActivity, refreshTicketList, showToast]);
+
+  const handleRerouteToAnotherQa = useCallback(async () => {
+    if (!selectedTicket || reroutingTicket) return;
+    setReroutingTicket(true);
+    try {
+      const res = await ticketsApi.rerouteToAnotherQa(selectedTicket.id);
+      const data = (await res.json().catch(() => ({}))) as { error?: string; assignedToName?: string };
+      if (!res.ok) {
+        showToast(data.error || 'Could not reroute to another QA.', 'error');
+        return;
+      }
+      await refreshTicketList();
+      await refreshActivity(selectedTicket.id, true);
+      showToast(data.assignedToName ? `Rerouted to ${data.assignedToName}.` : 'Rerouted to another QA.', 'success');
+    } catch {
+      showToast('Could not reroute to another QA.', 'error');
+    } finally {
+      setReroutingTicket(false);
+    }
+  }, [reroutingTicket, selectedTicket, refreshActivity, refreshTicketList, showToast]);
+
+  const handleRouteToQa = useCallback(async () => {
+    if (!selectedTicket || reroutingTicket) return;
+    setReroutingTicket(true);
+    try {
+      const res = await ticketsApi.routeToQa(selectedTicket.id);
+      const data = (await res.json().catch(() => ({}))) as { error?: string; assignedToName?: string };
+      if (!res.ok) {
+        showToast(data.error || 'Could not route to QA.', 'error');
+        return;
+      }
+      await refreshTicketList();
+      await refreshActivity(selectedTicket.id, true);
+      showToast(data.assignedToName ? `Routed to ${data.assignedToName}.` : 'Routed to QA.', 'success');
+    } catch {
+      showToast('Could not route to QA.', 'error');
+    } finally {
+      setReroutingTicket(false);
+    }
+  }, [reroutingTicket, selectedTicket, refreshActivity, refreshTicketList, showToast]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -970,9 +1048,12 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
               reroutingTicket={reroutingTicket}
               canEditDetails={canEditDetails}
               canComment={canComment}
-              canSendToQa={canSendToQaSelected}
               canMutate={canMutateSelected}
-              isQaUser={user?.department === 'QA'}
+              isQaUser={isQaUser}
+              isDevUser={isDevUser}
+              canRouteToDeveloper={canRouteToDeveloper}
+              canRerouteQa={canRerouteQa}
+              canRouteToQa={canRouteToQa}
               editingTitle={editingTitle}
               editingDesc={editingDesc}
               editTitleValue={editTitleValue}
@@ -982,8 +1063,11 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
               commentsLoading={commentsLoading}
               commentDraft={commentDraft}
               commentSending={commentSending}
+              commentDeletingId={commentDeletingId}
               onReroute={() => { void handleRerouteSelected(); }}
-              onSendToQa={() => { void handleSendToQa(); }}
+              onRouteToDeveloper={() => { void handleRouteToDeveloper(); }}
+              onRerouteToAnotherQa={() => { void handleRerouteToAnotherQa(); }}
+              onRouteToQa={() => { void handleRouteToQa(); }}
               onQaVerify={() => { void handleQaVerify(); }}
               onCloseTicket={() => { void handleStatusChange('closed'); }}
               onEditTitleStart={() => {
@@ -1003,6 +1087,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
               onCancelEditDesc={() => setEditingDesc(false)}
               onDraftChange={setCommentDraft}
               onSubmitComment={() => { void handleAddComment(); }}
+              onDeleteComment={(id) => { void handleDeleteComment(id); }}
               onAvatarClick={setProfileCardUserId}
             />
           </main>

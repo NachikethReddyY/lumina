@@ -35,9 +35,12 @@ export type TicketDetailPanelProps = {
   reroutingTicket: boolean;
   canEditDetails: boolean;
   canComment: boolean;
-  canSendToQa: boolean;
   canMutate: boolean;
   isQaUser: boolean;
+  isDevUser: boolean;
+  canRouteToDeveloper: boolean;
+  canRerouteQa: boolean;
+  canRouteToQa: boolean;
   editingTitle: boolean;
   editingDesc: boolean;
   editTitleValue: string;
@@ -47,8 +50,11 @@ export type TicketDetailPanelProps = {
   commentsLoading: boolean;
   commentDraft: string;
   commentSending: boolean;
+  commentDeletingId?: string | null;
   onReroute: () => void;
-  onSendToQa: () => void;
+  onRouteToDeveloper: () => void;
+  onRerouteToAnotherQa: () => void;
+  onRouteToQa: () => void;
   onQaVerify: () => void;
   onCloseTicket: () => void;
   onEditTitleStart: () => void;
@@ -59,6 +65,7 @@ export type TicketDetailPanelProps = {
   onCancelEditDesc: () => void;
   onDraftChange: (value: string) => void;
   onSubmitComment: () => void;
+  onDeleteComment?: (commentId: string) => void;
   onAvatarClick: (userId: string) => void;
 };
 
@@ -69,9 +76,12 @@ export function TicketDetailPanel({
   reroutingTicket,
   canEditDetails,
   canComment,
-  canSendToQa,
   canMutate,
   isQaUser,
+  isDevUser,
+  canRouteToDeveloper,
+  canRerouteQa,
+  canRouteToQa,
   editingTitle,
   editingDesc,
   editTitleValue,
@@ -81,8 +91,11 @@ export function TicketDetailPanel({
   commentsLoading,
   commentDraft,
   commentSending,
+  commentDeletingId = null,
   onReroute,
-  onSendToQa,
+  onRouteToDeveloper,
+  onRerouteToAnotherQa,
+  onRouteToQa,
   onQaVerify,
   onCloseTicket,
   onEditTitleStart,
@@ -93,6 +106,7 @@ export function TicketDetailPanel({
   onCancelEditDesc,
   onDraftChange,
   onSubmitComment,
+  onDeleteComment,
   onAvatarClick,
 }: TicketDetailPanelProps) {
   if (!ticket) {
@@ -134,18 +148,30 @@ export function TicketDetailPanel({
           </h2>
         )}
         <div className="th-detail-actions">
-          <button
-            type="button"
-            className="th-ticket-reroute"
-            onClick={onReroute}
-            disabled={!canReroute || reroutingTicket}
-          >
-            <RotateCcw size={15} />
-            {reroutingTicket ? 'Rerouting' : 'Reroute'}
-          </button>
-          {canSendToQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-            <button type="button" className="th-ticket-qa-btn" onClick={onSendToQa}>
-              Send to QA
+          {isQaUser && canRouteToDeveloper && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+            <button type="button" className="th-ticket-qa-btn" onClick={onRouteToDeveloper}>
+              Route to Developer
+            </button>
+          )}
+          {isQaUser && canRerouteQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+            <button type="button" className="th-ticket-qa-btn" onClick={onRerouteToAnotherQa}>
+              Reroute to Another QA
+            </button>
+          )}
+          {isDevUser && canRouteToQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+            <button type="button" className="th-ticket-qa-btn" onClick={onRouteToQa}>
+              Route to QA
+            </button>
+          )}
+          {isDevUser && !isQaUser && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+            <button
+              type="button"
+              className="th-ticket-reroute"
+              onClick={onReroute}
+              disabled={!canReroute || reroutingTicket}
+            >
+              <RotateCcw size={15} />
+              {reroutingTicket ? 'Rerouting' : 'Reroute'}
             </button>
           )}
           {isQaUser && canMutate && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
@@ -197,8 +223,10 @@ export function TicketDetailPanel({
           canComment={canComment}
           commentDraft={commentDraft}
           commentSending={commentSending}
+          commentDeletingId={commentDeletingId}
           onDraftChange={onDraftChange}
           onSubmit={onSubmitComment}
+          onDelete={onDeleteComment}
           onAvatarClick={onAvatarClick}
         />
       </div>

@@ -29,6 +29,9 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'oauth_provider') THEN
     CREATE TYPE oauth_provider AS ENUM ('google');
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'assignment_role') THEN
+    CREATE TYPE assignment_role AS ENUM ('qa', 'developer');
+  END IF;
 END $$;
 
 -- Users
@@ -59,6 +62,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS name_set BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_notifications BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Backfill: mark existing users with real names as having completed the name step.
 -- Placeholders: OAuth (Google/New + User) and email signup (User + New).
@@ -79,11 +83,16 @@ WHERE name_set = TRUE
     OR (lower(last_name) = 'new' AND lower(first_name) = 'user')
   );
 
--- Migrate: remove super_admin role, convert existing super_admin users to admin.
-UPDATE users SET role = 'admin'::user_role WHERE role = 'super_admin'::user_role;
+-- Migrate: remove super_admin role (legacy DBs only — skipped on fresh install).
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role' AND enum_range(NULL::user_role) @> ARRAY['super_admin']::text[]) THEN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_enum e
+    JOIN pg_type t ON t.oid = e.enumtypid
+    WHERE t.typname = 'user_role' AND e.enumlabel = 'super_admin'
+  ) THEN
+    UPDATE users SET role = 'admin'::user_role WHERE role::text = 'super_admin';
     ALTER TYPE user_role RENAME TO user_role_old;
     CREATE TYPE user_role AS ENUM ('user', 'admin');
     ALTER TABLE users ALTER COLUMN role TYPE user_role USING role::text::user_role;
@@ -112,8 +121,12 @@ CREATE TABLE IF NOT EXISTS tickets (
   submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   replication_steps TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  closed_at TIMESTAMP,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+-- Upgrade path: Add closed_at column for existing databases
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;
 
 -- Ticket assignments
 CREATE TABLE IF NOT EXISTS ticket_assignment (
@@ -122,8 +135,11 @@ CREATE TABLE IF NOT EXISTS ticket_assignment (
   assigned_to UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   assigned_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   is_active BOOLEAN NOT NULL,
+  assignment_role assignment_role NOT NULL DEFAULT 'developer',
   assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE ticket_assignment ADD COLUMN IF NOT EXISTS assignment_role assignment_role NOT NULL DEFAULT 'developer';
 
 -- Satisfaction ratings (1:1 per ticket)
 CREATE TABLE IF NOT EXISTS satisfaction_ratings (
@@ -152,6 +168,12 @@ CREATE TABLE IF NOT EXISTS ticket_comments (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments (ticket_id, created_at ASC);
+
+-- Soft-delete support: authors and admins remove comments without erasing audit history.
+-- body is cleared on delete so API responses never leak the original text.
+ALTER TABLE ticket_comments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+ALTER TABLE ticket_comments ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id);
+ALTER TABLE ticket_comments ADD COLUMN IF NOT EXISTS deletion_type VARCHAR(20);
 
 -- Chat conversations (one per user-to-support thread)
 CREATE TABLE IF NOT EXISTS chat_conversations (
@@ -232,6 +254,25 @@ CREATE INDEX IF NOT EXISTS idx_tickets_submitted_by ON tickets (submitted_by);
 CREATE INDEX IF NOT EXISTS idx_tickets_category_id ON tickets (category_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status_priority ON tickets (status, priority);
 CREATE INDEX IF NOT EXISTS idx_ticket_assignment_active ON ticket_assignment (ticket_id, assigned_to, is_active);
+
+-- Deactivate duplicate active assignments for the same role before creating unique indexes
+WITH ranked_assignments AS (
+  SELECT
+    id,
+    ticket_id,
+    assignment_role,
+    ROW_NUMBER() OVER (PARTITION BY ticket_id, assignment_role ORDER BY assigned_at DESC) AS rn
+  FROM ticket_assignment
+  WHERE is_active = TRUE
+)
+UPDATE ticket_assignment
+SET is_active = FALSE
+WHERE id IN (
+  SELECT id FROM ranked_assignments WHERE rn > 1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_qa_assignment_unique ON ticket_assignment (ticket_id) WHERE is_active AND assignment_role = 'qa';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_dev_assignment_unique ON ticket_assignment (ticket_id) WHERE is_active AND assignment_role = 'developer';
 CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_email_verifications_user_id ON email_verifications (user_id, used_at, expires_at);
 CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset (user_id, used_at, expires_at);
@@ -320,26 +361,65 @@ SELECT
   seed.department
 FROM (
   VALUES
-    ('admin.platform@lumina.test', 'Testpass1', 'Harper', 'Platform', 'user', 'active', TRUE, 'Platform / Infrastructure Engineer', 'Developers'),
-    ('admin.software@lumina.test', 'Testpass1', 'Sage', 'Software', 'user', 'active', TRUE, 'Software Engineer / Developer', 'Developers'),
-    ('admin.bugs@lumina.test', 'Testpass1', 'Bianca', 'Bugs', 'user', 'active', TRUE, 'QA Engineer / Test Engineer', 'QA'),
-    ('admin.ops@lumina.test', 'Testpass1', 'Opal', 'Ops', 'user', 'active', TRUE, 'DevOps / Site Reliability Engineer', 'Developers'),
-    ('admin.qa@lumina.test', 'Testpass1', 'Quinn', 'Assurance', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
-    ('lumina.ai@lumina.test', 'Testpass1', 'Lumina', 'AI', 'admin', 'active', TRUE, 'Release Manager', 'QA'),
-    ('alice.user@lumina.test', 'Testpass1', 'Alice', 'User', 'user', 'active', TRUE, 'Software Engineer / Developer', 'Developers'),
-    ('qa.tester@lumina.test', 'Testpass1', 'Taylor', 'Tester', 'user', 'active', TRUE, 'QA Engineer / Test Engineer', 'QA'),
-    ('qa.auto@lumina.test', 'Testpass1', 'Jordan', 'Auto', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
-    ('bob.user@lumina.test', 'Testpass1', 'Bob', 'User', 'user', 'active', TRUE, 'Product Designer / UX Designer', 'QA'),
-    ('carol.user@lumina.test', 'Testpass1', 'Carol', 'User', 'user', 'active', TRUE, 'Security Engineer / AppSec', 'QA'),
-    ('dan.user@lumina.test', 'Testpass1', 'Dan', 'User', 'user', 'active', TRUE, 'Architect', 'Developers'),
-    ('eve.user@lumina.test', 'Testpass1', 'Eve', 'Owner', 'admin', 'active', TRUE, 'Product Owner', 'Managers'),
-    ('manager.priya@lumina.test', 'Testpass1', 'Priya', 'Shah', 'admin', 'active', TRUE, 'Product Manager', 'Managers'),
-    ('manager.ian@lumina.test', 'Testpass1', 'Ian', 'Brooks', 'admin', 'active', TRUE, 'Program / Project Manager', 'Managers'),
-    ('pending.user1@lumina.test', 'Testpass1', 'Pending', 'UserOne', 'user', 'pending', TRUE, 'Tech Lead / Lead Engineer', 'Developers'),
-    ('pending.user2@lumina.test', 'Testpass1', 'Pending', 'UserTwo', 'user', 'pending', TRUE, 'UX Researcher', 'QA'),
-    ('pending.user3@lumina.test', 'Testpass1', 'Pending', 'UserThree', 'user', 'pending', TRUE, 'Content Designer / UX Writer', 'QA'),
-    ('pending.admin1@lumina.test', 'Testpass1', 'Pending', 'AdminOne', 'admin', 'pending', TRUE, 'Program / Project Manager', 'Managers'),
-    ('pending.admin2@lumina.test', 'Testpass1', 'Pending', 'AdminTwo', 'admin', 'pending', TRUE, 'Product Owner', 'Managers')
+    -- Developers: Software Engineer (4)
+    ('engineer.maya@lumina.test', 'Testpass1', 'Maya', 'Patel', 'user', 'active', TRUE, 'Software Engineer', 'Developers'),
+    ('engineer.alex@lumina.test', 'Testpass1', 'Alex', 'Chen', 'user', 'active', TRUE, 'Software Engineer', 'Developers'),
+    ('engineer.james@lumina.test', 'Testpass1', 'James', 'O''Connor', 'user', 'active', TRUE, 'Software Engineer', 'Developers'),
+    ('engineer.sophia@lumina.test', 'Testpass1', 'Sophia', 'Rodriguez', 'user', 'active', TRUE, 'Software Engineer', 'Developers'),
+    -- Developers: Platform Engineer (4)
+    ('platform.marcus@lumina.test', 'Testpass1', 'Marcus', 'Johnson', 'user', 'active', TRUE, 'Platform Engineer', 'Developers'),
+    ('platform.elena@lumina.test', 'Testpass1', 'Elena', 'Kowalski', 'user', 'active', TRUE, 'Platform Engineer', 'Developers'),
+    ('platform.david@lumina.test', 'Testpass1', 'David', 'Kim', 'user', 'active', TRUE, 'Platform Engineer', 'Developers'),
+    ('platform.isabella@lumina.test', 'Testpass1', 'Isabella', 'Santos', 'user', 'active', TRUE, 'Platform Engineer', 'Developers'),
+    -- Developers: DevOps / Site Reliability Engineer (4)
+    ('sre.arjun@lumina.test', 'Testpass1', 'Arjun', 'Verma', 'user', 'active', TRUE, 'Site Reliability Engineer', 'Developers'),
+    ('sre.natalie@lumina.test', 'Testpass1', 'Natalie', 'Blake', 'user', 'active', TRUE, 'Site Reliability Engineer', 'Developers'),
+    ('sre.kevin@lumina.test', 'Testpass1', 'Kevin', 'Murphy', 'user', 'active', TRUE, 'DevOps Engineer', 'Developers'),
+    ('sre.jessica@lumina.test', 'Testpass1', 'Jessica', 'Wang', 'user', 'active', TRUE, 'DevOps Engineer', 'Developers'),
+    -- Developers: Architect / Tech Lead (4)
+    ('architect.robert@lumina.test', 'Testpass1', 'Robert', 'Sterling', 'user', 'active', TRUE, 'Architect', 'Developers'),
+    ('architect.priya@lumina.test', 'Testpass1', 'Priya', 'Gupta', 'user', 'active', TRUE, 'Tech Lead', 'Developers'),
+    ('architect.andres@lumina.test', 'Testpass1', 'Andres', 'Lopez', 'user', 'active', TRUE, 'Tech Lead', 'Developers'),
+    ('architect.rachel@lumina.test', 'Testpass1', 'Rachel', 'Green', 'user', 'active', TRUE, 'Architect', 'Developers'),
+    -- QA: QA Engineer (4)
+    ('qa.michael@lumina.test', 'Testpass1', 'Michael', 'Thompson', 'user', 'active', TRUE, 'QA Engineer', 'QA'),
+    ('qa.lisa@lumina.test', 'Testpass1', 'Lisa', 'Anderson', 'user', 'active', TRUE, 'QA Engineer', 'QA'),
+    ('qa.christopher@lumina.test', 'Testpass1', 'Christopher', 'Martinez', 'user', 'active', TRUE, 'QA Engineer', 'QA'),
+    ('qa.emma@lumina.test', 'Testpass1', 'Emma', 'Taylor', 'user', 'active', TRUE, 'QA Engineer', 'QA'),
+    -- QA: Automation Engineer (4)
+    ('automation.victor@lumina.test', 'Testpass1', 'Victor', 'Huang', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
+    ('automation.samantha@lumina.test', 'Testpass1', 'Samantha', 'Brown', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
+    ('automation.daniel@lumina.test', 'Testpass1', 'Daniel', 'Garcia', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
+    ('automation.olivia@lumina.test', 'Testpass1', 'Olivia', 'Miller', 'user', 'active', TRUE, 'Automation Engineer', 'QA'),
+    -- QA: Test Engineer (4)
+    ('test.brandon@lumina.test', 'Testpass1', 'Brandon', 'White', 'user', 'active', TRUE, 'Test Engineer', 'QA'),
+    ('test.sarah@lumina.test', 'Testpass1', 'Sarah', 'Harris', 'user', 'active', TRUE, 'Test Engineer', 'QA'),
+    ('test.nathan@lumina.test', 'Testpass1', 'Nathan', 'Martin', 'user', 'active', TRUE, 'Test Engineer', 'QA'),
+    ('test.megan@lumina.test', 'Testpass1', 'Megan', 'Clark', 'user', 'active', TRUE, 'Test Engineer', 'QA'),
+    -- Managers: Product Manager (4)
+    ('pm.richard@lumina.test', 'Testpass1', 'Richard', 'Lee', 'admin', 'active', TRUE, 'Product Manager', 'Managers'),
+    ('pm.carolina@lumina.test', 'Testpass1', 'Carolina', 'Silva', 'admin', 'active', TRUE, 'Product Manager', 'Managers'),
+    ('pm.benjamin@lumina.test', 'Testpass1', 'Benjamin', 'Schwartz', 'admin', 'active', TRUE, 'Product Manager', 'Managers'),
+    ('pm.michelle@lumina.test', 'Testpass1', 'Michelle', 'Davis', 'admin', 'active', TRUE, 'Product Manager', 'Managers'),
+    -- Managers: Product Owner (4)
+    ('po.xavier@lumina.test', 'Testpass1', 'Xavier', 'Fernandez', 'admin', 'active', TRUE, 'Product Owner', 'Managers'),
+    ('po.stephanie@lumina.test', 'Testpass1', 'Stephanie', 'Nelson', 'admin', 'active', TRUE, 'Product Owner', 'Managers'),
+    ('po.jonathan@lumina.test', 'Testpass1', 'Jonathan', 'Wright', 'admin', 'active', TRUE, 'Product Owner', 'Managers'),
+    ('po.victoria@lumina.test', 'Testpass1', 'Victoria', 'Lewis', 'admin', 'active', TRUE, 'Product Owner', 'Managers'),
+    -- Managers: Program Manager (4)
+    ('prog.timothy@lumina.test', 'Testpass1', 'Timothy', 'Scott', 'admin', 'active', TRUE, 'Program Manager', 'Managers'),
+    ('prog.ashley@lumina.test', 'Testpass1', 'Ashley', 'Walker', 'admin', 'active', TRUE, 'Program Manager', 'Managers'),
+    ('prog.steven@lumina.test', 'Testpass1', 'Steven', 'Hall', 'admin', 'active', TRUE, 'Program Manager', 'Managers'),
+    ('prog.nicole@lumina.test', 'Testpass1', 'Nicole', 'Allen', 'admin', 'active', TRUE, 'Program Manager', 'Managers'),
+    -- Managers: Project Manager (4)
+    ('projmgr.william@lumina.test', 'Testpass1', 'William', 'Young', 'admin', 'active', TRUE, 'Project Manager', 'Managers'),
+    ('projmgr.laura@lumina.test', 'Testpass1', 'Laura', 'Hernandez', 'admin', 'active', TRUE, 'Project Manager', 'Managers'),
+    ('projmgr.christopher.p@lumina.test', 'Testpass1', 'Christopher', 'Peterson', 'admin', 'active', TRUE, 'Project Manager', 'Managers'),
+    ('projmgr.amanda@lumina.test', 'Testpass1', 'Amanda', 'Thompson', 'admin', 'active', TRUE, 'Project Manager', 'Managers'),
+    -- HR (1)
+    ('hr.director@lumina.test', 'Testpass1', 'Patricia', 'Rivera', 'admin', 'active', TRUE, 'HR Director', 'HR'),
+    -- Legacy/System accounts
+    ('lumina.ai@lumina.test', 'Testpass1', 'Lumina', 'AI', 'admin', 'active', TRUE, 'Release Manager', 'QA')
 ) AS seed(email, password, first_name, last_name, role, status, email_is_verified, job_title, department)
 ON CONFLICT (email) DO UPDATE
 SET first_name = EXCLUDED.first_name,
@@ -362,6 +442,8 @@ FROM (
   SELECT 'Software Support', 'Application access, integrations, and configuration help', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
   UNION ALL
   SELECT 'Bug Reports', 'Crashes, defects, and reproducible product issues', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
+  UNION ALL
+  SELECT 'Manager', 'Escalations, general inquiries, and management concerns', (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com')), TRUE
 ) AS seeded_categories(name, description, created_by, is_active)
 ON CONFLICT DO NOTHING;
 
@@ -409,12 +491,13 @@ JOIN users u ON u.email = lower(seed.submitter_email)
 WHERE NOT EXISTS (SELECT 1 FROM tickets);
 
 -- Assign resolved/closed tickets to the final admin who resolved them.
-INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assigned_at)
+INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assignment_role, assigned_at)
 SELECT
   t.id,
   assignee.id,
   approver.id,
   TRUE,
+  'developer'::assignment_role,
   t.created_at + interval '2 days'
 FROM tickets t
 JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
@@ -426,15 +509,25 @@ JOIN users assignee ON assignee.email = lower(
   END
 )
 WHERE t.title IN ('Kubernetes pod crash loop', 'Notification emails delayed', 'SSO callback loop')
-  AND t.status IN ('resolved', 'closed');
+  AND t.status IN ('resolved', 'closed')
+  AND NOT EXISTS (
+    SELECT 1 FROM ticket_assignment ta
+    WHERE ta.ticket_id = t.id
+      AND ta.is_active = TRUE
+      AND ta.assignment_role = 'developer'
+  );
 
 -- Assign active tickets to the best-fit admin by skill area.
-INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assigned_at)
+INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assignment_role, assigned_at)
 SELECT
   t.id,
   assignee.id,
   approver.id,
   TRUE,
+  CASE
+    WHEN assignee.job_title LIKE '%QA%' OR assignee.job_title LIKE '%Test%' OR assignee.job_title LIKE '%Automation%' THEN 'qa'::assignment_role
+    ELSE 'developer'::assignment_role
+  END,
   t.created_at + interval '1 hour'
 FROM tickets t
 JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
@@ -452,15 +545,21 @@ WHERE t.title IN (
   'API latency spike in production', 'VPN login blocked', 'App crashes on startup',
   'Reporting export timeout', 'Search results missing records', 'Mobile UI overlaps buttons'
 )
-AND t.status IN ('assigned', 'in_progress');
+AND t.status IN ('assigned', 'in_progress')
+AND NOT EXISTS (
+  SELECT 1 FROM ticket_assignment ta
+  WHERE ta.ticket_id = t.id
+    AND ta.is_active = TRUE
+);
 
 -- Stage pending_routing tickets with Lumina AI (so routing engine picks them up on next route call).
-INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assigned_at)
+INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assignment_role, assigned_at)
 SELECT
   t.id,
   lumina.id,
   approver.id,
   TRUE,
+  'developer'::assignment_role,
   NOW()
 FROM tickets t
 JOIN users lumina ON lumina.email = lower('lumina.ai@lumina.test')
@@ -469,9 +568,9 @@ WHERE t.status = 'pending_routing'::ticket_status
   AND NOT EXISTS (SELECT 1 FROM ticket_assignment ta WHERE ta.ticket_id = t.id AND ta.is_active = TRUE);
 
 -- Add routing metadata to resolved/closed and active tickets so AI Decision Log shows history.
-UPDATE tickets
+UPDATE tickets t
 SET metadata = jsonb_set(
-  COALESCE(metadata, '{}'::jsonb),
+  COALESCE(t.metadata, '{}'::jsonb),
   '{routing}',
   jsonb_build_object(
     'source', 'seed',
@@ -495,12 +594,12 @@ SET metadata = jsonb_set(
   ),
   true
 )
-FROM tickets t
-JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+FROM ticket_assignment ta
 JOIN users assignee ON assignee.id = ta.assigned_to
-WHERE tickets.id = t.id
+WHERE ta.ticket_id = t.id
+  AND ta.is_active = TRUE
   AND lower(assignee.email) <> lower('lumina.ai@lumina.test')
-  AND tickets.status NOT IN ('pending_routing');
+  AND t.status NOT IN ('pending_routing');
 
 -- Create audit log entries for resolved/closed tickets to show the full lifecycle.
 INSERT INTO audit_logs (actor_id, action, metadata, created_at)
@@ -529,25 +628,20 @@ JOIN tickets t ON t.title = seed.ticket_title
 JOIN users assignee ON assignee.email = lower(seed.actor_email)
 WHERE NOT EXISTS (SELECT 1 FROM audit_logs a WHERE a.metadata->>'ticket_id' = t.id::text AND a.action = seed.action);
 
--- Fix audit_log ticket_id references to point to actual ticket IDs.
+-- Fix audit_log ticket_id references to point to actual ticket IDs (based on actor and timing).
 UPDATE audit_logs a
-SET metadata = jsonb_set(metadata, '{ticket_id}', to_jsonb(t.id::text), false)
+SET metadata = jsonb_set(a.metadata, '{ticket_id}', to_jsonb(t.id::text), false)
 FROM tickets t
 WHERE a.metadata->>'ticket_id' = 'placeholder'
   AND a.metadata->>'action' IS NOT NULL
   AND a.action = 'ticket_created'
-  AND t.title = COALESCE(
-    (SELECT seed.title FROM (VALUES
-      ('Kubernetes pod crash loop'),
-      ('Notification emails delayed'),
-      ('SSO callback loop')
-    ) AS seed(title) WHERE EXISTS (
-      SELECT 1 FROM audit_logs a2
-      WHERE a2.metadata->>'ticket_id' = 'placeholder'
+  AND t.title IN ('Kubernetes pod crash loop', 'Notification emails delayed', 'SSO callback loop')
+  AND (a.created_at - t.created_at) BETWEEN INTERVAL '-1 day' AND INTERVAL '10 minutes'
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs a2
+    WHERE a2.metadata->>'ticket_id' = t.id::text
       AND a2.action = a.action
-      AND a2.ctid = a.ctid
-    )),
-    NULL
+      AND a2.actor_id = a.actor_id
   );
 
 -- Insert satisfaction ratings for resolved/closed tickets.
@@ -644,6 +738,24 @@ WHERE approved_by IN (
   )
 );
 
+-- Update ticket_assignment references for users about to be deleted
+UPDATE ticket_assignment
+SET assigned_by = (SELECT id FROM users WHERE email = lower('ynrdevs@gmail.com'))
+WHERE assigned_by IN (
+  SELECT id FROM users WHERE email IN (
+    lower('admin@example.com'),
+    lower('alice@test.lumina'),
+    lower('bob@test.lumina'),
+    lower('carol@test.lumina'),
+    lower('itsnachikethreddyy@gmail.com'),
+    lower('y.nachiketh.reddy@gmail.com'),
+    lower('itsnachikethreddy@gmail.com'),
+    lower('ynrworks@gmail.com'),
+    lower('rlasya005@gmail.com'),
+    lower('admin.hardware@lumina.test')
+  )
+);
+
 DELETE FROM users
 WHERE email IN (
   lower('admin@example.com'),
@@ -667,26 +779,65 @@ SET job_title = seed.job_title,
 FROM (
   VALUES
     ('ynrdevs@gmail.com', 'HR', 'HR'),
-    ('admin.platform@lumina.test', 'Platform / Infrastructure Engineer', 'Developers'),
-    ('admin.software@lumina.test', 'Software Engineer / Developer', 'Developers'),
-    ('admin.bugs@lumina.test', 'QA Engineer / Test Engineer', 'QA'),
-    ('admin.ops@lumina.test', 'DevOps / Site Reliability Engineer', 'Developers'),
-    ('admin.qa@lumina.test', 'Automation Engineer', 'QA'),
-    ('eve.user@lumina.test', 'Product Owner', 'Managers'),
-    ('lumina.ai@lumina.test', 'Release Manager', 'QA'),
-    ('alice.user@lumina.test', 'Software Engineer / Developer', 'Developers'),
-    ('qa.tester@lumina.test', 'QA Engineer / Test Engineer', 'QA'),
-    ('qa.auto@lumina.test', 'Automation Engineer', 'QA'),
-    ('bob.user@lumina.test', 'Product Designer / UX Designer', 'QA'),
-    ('carol.user@lumina.test', 'Security Engineer / AppSec', 'QA'),
-    ('dan.user@lumina.test', 'Architect', 'Developers'),
-    ('manager.priya@lumina.test', 'Product Manager', 'Managers'),
-    ('manager.ian@lumina.test', 'Program / Project Manager', 'Managers'),
-    ('pending.user1@lumina.test', 'Tech Lead / Lead Engineer', 'Developers'),
-    ('pending.user2@lumina.test', 'UX Researcher', 'QA'),
-    ('pending.user3@lumina.test', 'Content Designer / UX Writer', 'QA'),
-    ('pending.admin1@lumina.test', 'Program / Project Manager', 'Managers'),
-    ('pending.admin2@lumina.test', 'Product Owner', 'Managers')
+    -- Developers: Software Engineer
+    ('engineer.maya@lumina.test', 'Software Engineer', 'Developers'),
+    ('engineer.alex@lumina.test', 'Software Engineer', 'Developers'),
+    ('engineer.james@lumina.test', 'Software Engineer', 'Developers'),
+    ('engineer.sophia@lumina.test', 'Software Engineer', 'Developers'),
+    -- Developers: Platform Engineer
+    ('platform.marcus@lumina.test', 'Platform Engineer', 'Developers'),
+    ('platform.elena@lumina.test', 'Platform Engineer', 'Developers'),
+    ('platform.david@lumina.test', 'Platform Engineer', 'Developers'),
+    ('platform.isabella@lumina.test', 'Platform Engineer', 'Developers'),
+    -- Developers: Site Reliability Engineer / DevOps Engineer
+    ('sre.arjun@lumina.test', 'Site Reliability Engineer', 'Developers'),
+    ('sre.natalie@lumina.test', 'Site Reliability Engineer', 'Developers'),
+    ('sre.kevin@lumina.test', 'DevOps Engineer', 'Developers'),
+    ('sre.jessica@lumina.test', 'DevOps Engineer', 'Developers'),
+    -- Developers: Architect / Tech Lead
+    ('architect.robert@lumina.test', 'Architect', 'Developers'),
+    ('architect.priya@lumina.test', 'Tech Lead', 'Developers'),
+    ('architect.andres@lumina.test', 'Tech Lead', 'Developers'),
+    ('architect.rachel@lumina.test', 'Architect', 'Developers'),
+    -- QA: QA Engineer
+    ('qa.michael@lumina.test', 'QA Engineer', 'QA'),
+    ('qa.lisa@lumina.test', 'QA Engineer', 'QA'),
+    ('qa.christopher@lumina.test', 'QA Engineer', 'QA'),
+    ('qa.emma@lumina.test', 'QA Engineer', 'QA'),
+    -- QA: Automation Engineer
+    ('automation.victor@lumina.test', 'Automation Engineer', 'QA'),
+    ('automation.samantha@lumina.test', 'Automation Engineer', 'QA'),
+    ('automation.daniel@lumina.test', 'Automation Engineer', 'QA'),
+    ('automation.olivia@lumina.test', 'Automation Engineer', 'QA'),
+    -- QA: Test Engineer
+    ('test.brandon@lumina.test', 'Test Engineer', 'QA'),
+    ('test.sarah@lumina.test', 'Test Engineer', 'QA'),
+    ('test.nathan@lumina.test', 'Test Engineer', 'QA'),
+    ('test.megan@lumina.test', 'Test Engineer', 'QA'),
+    -- Managers: Product Manager
+    ('pm.richard@lumina.test', 'Product Manager', 'Managers'),
+    ('pm.carolina@lumina.test', 'Product Manager', 'Managers'),
+    ('pm.benjamin@lumina.test', 'Product Manager', 'Managers'),
+    ('pm.michelle@lumina.test', 'Product Manager', 'Managers'),
+    -- Managers: Product Owner
+    ('po.xavier@lumina.test', 'Product Owner', 'Managers'),
+    ('po.stephanie@lumina.test', 'Product Owner', 'Managers'),
+    ('po.jonathan@lumina.test', 'Product Owner', 'Managers'),
+    ('po.victoria@lumina.test', 'Product Owner', 'Managers'),
+    -- Managers: Program Manager
+    ('prog.timothy@lumina.test', 'Program Manager', 'Managers'),
+    ('prog.ashley@lumina.test', 'Program Manager', 'Managers'),
+    ('prog.steven@lumina.test', 'Program Manager', 'Managers'),
+    ('prog.nicole@lumina.test', 'Program Manager', 'Managers'),
+    -- Managers: Project Manager
+    ('projmgr.william@lumina.test', 'Project Manager', 'Managers'),
+    ('projmgr.laura@lumina.test', 'Project Manager', 'Managers'),
+    ('projmgr.christopher.p@lumina.test', 'Project Manager', 'Managers'),
+    ('projmgr.amanda@lumina.test', 'Project Manager', 'Managers'),
+    -- HR
+    ('hr.director@lumina.test', 'HR Director', 'HR'),
+    -- System
+    ('lumina.ai@lumina.test', 'Release Manager', 'QA')
 ) AS seed(email, job_title, department)
 WHERE u.email = lower(seed.email);
 
@@ -694,19 +845,64 @@ WHERE u.email = lower(seed.email);
 UPDATE users
 SET role = 'user'::user_role
 WHERE email IN (
-  lower('admin.platform@lumina.test'),
-  lower('admin.software@lumina.test'),
-  lower('admin.bugs@lumina.test'),
-  lower('admin.ops@lumina.test'),
-  lower('admin.qa@lumina.test')
+  -- Developers
+  lower('engineer.maya@lumina.test'),
+  lower('engineer.alex@lumina.test'),
+  lower('engineer.james@lumina.test'),
+  lower('engineer.sophia@lumina.test'),
+  lower('platform.marcus@lumina.test'),
+  lower('platform.elena@lumina.test'),
+  lower('platform.david@lumina.test'),
+  lower('platform.isabella@lumina.test'),
+  lower('sre.arjun@lumina.test'),
+  lower('sre.natalie@lumina.test'),
+  lower('sre.kevin@lumina.test'),
+  lower('sre.jessica@lumina.test'),
+  lower('architect.robert@lumina.test'),
+  lower('architect.priya@lumina.test'),
+  lower('architect.andres@lumina.test'),
+  lower('architect.rachel@lumina.test'),
+  -- QA
+  lower('qa.michael@lumina.test'),
+  lower('qa.lisa@lumina.test'),
+  lower('qa.christopher@lumina.test'),
+  lower('qa.emma@lumina.test'),
+  lower('automation.victor@lumina.test'),
+  lower('automation.samantha@lumina.test'),
+  lower('automation.daniel@lumina.test'),
+  lower('automation.olivia@lumina.test'),
+  lower('test.brandon@lumina.test'),
+  lower('test.sarah@lumina.test'),
+  lower('test.nathan@lumina.test'),
+  lower('test.megan@lumina.test')
 );
 
 UPDATE users
 SET role = 'admin'::user_role
 WHERE email IN (
-  lower('manager.priya@lumina.test'),
-  lower('manager.ian@lumina.test'),
-  lower('eve.user@lumina.test'),
+  -- Managers: Product Manager
+  lower('pm.richard@lumina.test'),
+  lower('pm.carolina@lumina.test'),
+  lower('pm.benjamin@lumina.test'),
+  lower('pm.michelle@lumina.test'),
+  -- Managers: Product Owner
+  lower('po.xavier@lumina.test'),
+  lower('po.stephanie@lumina.test'),
+  lower('po.jonathan@lumina.test'),
+  lower('po.victoria@lumina.test'),
+  -- Managers: Program Manager
+  lower('prog.timothy@lumina.test'),
+  lower('prog.ashley@lumina.test'),
+  lower('prog.steven@lumina.test'),
+  lower('prog.nicole@lumina.test'),
+  -- Managers: Project Manager
+  lower('projmgr.william@lumina.test'),
+  lower('projmgr.laura@lumina.test'),
+  lower('projmgr.christopher.p@lumina.test'),
+  lower('projmgr.amanda@lumina.test'),
+  -- HR
+  lower('hr.director@lumina.test'),
+  -- System
   lower('ynrdevs@gmail.com'),
   lower('lumina.ai@lumina.test')
 );

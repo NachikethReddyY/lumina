@@ -28,6 +28,7 @@ export type ApiUser = {
   name_set: boolean;
   needs_profile_name?: boolean;
   is_google_account?: boolean;
+  email_notifications?: boolean;
 };
 
 export type ApiTicket = {
@@ -49,6 +50,16 @@ export type ApiTicket = {
   assigned_to_avatar_url?: string | null;
   assigned_to_name?: string | null;
   assigned_to_job_title?: string | null;
+  qa_assignee_id?: string | null;
+  qa_assignee_avatar_url?: string | null;
+  qa_assignee_name?: string | null;
+  qa_assignee_job_title?: string | null;
+  dev_assignee_id?: string | null;
+  dev_assignee_avatar_url?: string | null;
+  dev_assignee_name?: string | null;
+  dev_assignee_job_title?: string | null;
+  /** Set when status becomes resolved/closed — powers resolution-time analytics. */
+  closed_at?: string | null;
 };
 
 export type ApiCategory = {
@@ -75,7 +86,8 @@ export type AdminWorkload = {
 export type ApiComment = {
   id: string;
   ticket_id: string;
-  body: string;
+  /** null when soft-deleted; use tombstone_message for display. */
+  body: string | null;
   created_at: string;
   author_id: string;
   first_name: string;
@@ -83,6 +95,11 @@ export type ApiComment = {
   email: string;
   avatar_url?: string | null;
   role: ApiUser['role'];
+  is_deleted?: boolean;
+  deletion_type?: 'author' | 'admin' | null;
+  deleted_at?: string | null;
+  deleted_by_name?: string | null;
+  tombstone_message?: string | null;
 };
 
 export type ApiNotification = {
@@ -275,6 +292,9 @@ export const usersApi = {
 
   updateProfile: (id: string, data: { jobTitle?: string; department?: string }) =>
     apiRequest(`/users/${id}/profile`, { method: 'PATCH', body: data }),
+
+  updateNotificationPrefs: (emailNotifications: boolean) =>
+    apiRequest('/users/me/notifications', { method: 'PATCH', body: { email_notifications: emailNotifications } }),
 };
 
 export const categoriesApi = {
@@ -332,6 +352,15 @@ export const ticketsApi = {
   sendToQa: (ticketId: string) =>
     apiRequest(`/tickets/${ticketId}/send-to-qa`, { method: 'POST' }),
 
+  routeToDeveloper: (ticketId: string) =>
+    apiRequest(`/tickets/${ticketId}/route-to-developer`, { method: 'POST' }),
+
+  rerouteToAnotherQa: (ticketId: string) =>
+    apiRequest(`/tickets/${ticketId}/reroute-to-another-qa`, { method: 'POST' }),
+
+  routeToQa: (ticketId: string) =>
+    apiRequest(`/tickets/${ticketId}/route-to-qa`, { method: 'POST' }),
+
   qaVerify: (ticketId: string) =>
     apiRequest(`/tickets/${ticketId}/qa-verify`, { method: 'POST' }),
 
@@ -351,6 +380,8 @@ export const notificationsApi = {
 
 export const reportsApi = {
   hrDiagnostics: () => apiRequest('/reports/hr-diagnostics', { method: 'POST' }),
+  hrGenerate: (period: '7d' | '30d') => apiRequest('/reports/hr-generate', { method: 'POST', body: { period } }),
+  ticketClosureAnalytics: () => apiRequest('/reports/ticket-closure-analytics'),
 };
 
 export default apiRequest;

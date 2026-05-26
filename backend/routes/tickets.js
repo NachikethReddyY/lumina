@@ -44,7 +44,7 @@ function buildRoutingMetadata(routing) {
   };
 }
 
-async function applyRoutingAssignment(client, { ticket, routing, actorId, auditAction, assignmentMode, requestedAssignee = null }) {
+async function applyRoutingAssignment(client, { ticket, routing, actorId, auditAction, assignmentMode, assignmentRole = 'developer', requestedAssignee = null }) {
   if (!routing.assignedAdminId) {
     throw Object.assign(new Error('No admins are available for routing'), { status: 409 });
   }
@@ -60,13 +60,14 @@ async function applyRoutingAssignment(client, { ticket, routing, actorId, auditA
   }
   const assignedToName = userDisplayName(assignedUser);
 
-  await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE`, [
+  await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE AND assignment_role = $2`, [
     ticket.id,
+    assignmentRole,
   ]);
   await client.query(
-    `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active)
-     VALUES ($1, $2, $3, TRUE)`,
-    [ticket.id, routing.assignedAdminId, actorId]
+    `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assignment_role)
+     VALUES ($1, $2, $3, TRUE, $4::assignment_role)`,
+    [ticket.id, routing.assignedAdminId, actorId, assignmentRole]
   );
   await client.query(
     `UPDATE tickets
@@ -115,39 +116,22 @@ router.get('/', async (req, res, next) => {
 
     const scope = String(req.query.scope || '').trim();
 
-    if (req.user.role === 'user') {
+    // Org-wide transparency: default list shows every ticket unless a narrower scope is requested.
+    if (scope === 'submitted') {
       values.push(req.user.id);
-      const userParam = `$${values.length}`;
-      if (scope === 'submitted') {
-        clauses.push(`t.submitted_by = ${userParam}`);
-      } else if (scope === 'assigned') {
-        clauses.push(assignedToUserSql(values.length));
-      } else {
-        clauses.push(`(t.submitted_by = ${userParam} OR ${assignedToUserSql(values.length)})`);
-      }
+      clauses.push(`t.submitted_by = $${values.length}`);
     } else if (scope === 'assigned') {
       values.push(req.user.id);
-      clauses.push(
-        `EXISTS (
-          SELECT 1
-          FROM ticket_assignment ta
-          WHERE ta.ticket_id = t.id AND ta.assigned_to = $${values.length} AND ta.is_active = TRUE
-        )`
-      );
+      clauses.push(assignedToUserSql(values.length));
     } else if (scope === 'team') {
       values.push(TEAM_MEMBER_DEPARTMENTS);
       clauses.push(`submitter.department = ANY($${values.length}::text[])`);
-    } else if (scope === 'org' || isOrgViewer(req.user)) {
-      /* HR / managers: organization-wide tickets */
-    } else if (req.user.role === 'admin') {
+    } else if (scope === 'org' || scope === '' || !scope) {
+      /* All active users: full organization queue (read-only in UI for non-assignees). */
+    } else if (req.user.role === 'user') {
       values.push(req.user.id);
-      clauses.push(
-        `EXISTS (
-          SELECT 1
-          FROM ticket_assignment ta
-          WHERE ta.ticket_id = t.id AND ta.assigned_to = $${values.length} AND ta.is_active = TRUE
-        )`
-      );
+      const userParam = `$${values.length}`;
+      clauses.push(`(t.submitted_by = ${userParam} OR ${assignedToUserSql(values.length)})`);
     }
 
     if (req.query.status) {
@@ -157,21 +141,32 @@ router.get('/', async (req, res, next) => {
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const result = await db.query(
-      `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.replication_steps,
+      `SELECT DISTINCT ON (t.id)
+              t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.closed_at, t.replication_steps,
               t.metadata, c.id AS category_id, c.name AS category_name,
               submitter.id AS submitted_by_id, submitter.email AS submitted_by_email,
               submitter.avatar_url AS submitted_by_avatar_url,
-              assignee.id AS assigned_to_id,
-              assignee.avatar_url AS assigned_to_avatar_url,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
-              assignee.job_title AS assigned_to_job_title
+              qa_assignee.id AS qa_assignee_id,
+              qa_assignee.avatar_url AS qa_assignee_avatar_url,
+              CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name) AS qa_assignee_name,
+              qa_assignee.job_title AS qa_assignee_job_title,
+              dev_assignee.id AS dev_assignee_id,
+              dev_assignee.avatar_url AS dev_assignee_avatar_url,
+              CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name) AS dev_assignee_name,
+              dev_assignee.job_title AS dev_assignee_job_title,
+              COALESCE(qa_assignee.id, dev_assignee.id) AS assigned_to_id,
+              COALESCE(qa_assignee.avatar_url, dev_assignee.avatar_url) AS assigned_to_avatar_url,
+              COALESCE(CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name), CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)) AS assigned_to_name,
+              COALESCE(qa_assignee.job_title, dev_assignee.job_title) AS assigned_to_job_title
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN users qa_assignee ON qa_assignee.id = ta_qa.assigned_to
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
+       LEFT JOIN users dev_assignee ON dev_assignee.id = ta_dev.assigned_to
        ${where}
-       ORDER BY t.created_at DESC`,
+       ORDER BY t.id, t.created_at DESC`,
       values
     );
     res.json(result.rows);
@@ -220,14 +215,16 @@ router.get('/stats/solved-by-assignee', async (req, res, next) => {
 router.get('/:id/activity', async (req, res, next) => {
   try {
     const ticketRow = await db.query(
-      `SELECT t.id, t.submitted_by, ta.assigned_to
+      `SELECT DISTINCT ON (t.id) t.id, t.submitted_by, ta_qa.assigned_to AS qa_assigned_to, ta_dev.assigned_to AS dev_assigned_to
        FROM tickets t
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
        WHERE t.id = $1`,
       [req.params.id]
     );
     const accessTicket = ticketRow.rows[0];
     if (!accessTicket) return res.status(404).json({ error: 'Ticket not found' });
+    accessTicket.assigned_to = accessTicket.qa_assigned_to || accessTicket.dev_assigned_to;
     if (!canViewTicket(req.user, accessTicket)) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -265,19 +262,29 @@ router.get('/:id/activity', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const result = await db.query(
-      `SELECT t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.replication_steps,
+      `SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.type, t.priority, t.status, t.created_at, t.closed_at, t.replication_steps,
               t.metadata, c.id AS category_id, c.name AS category_name,
               submitter.id AS submitted_by_id, submitter.email AS submitted_by_email,
               submitter.avatar_url AS submitted_by_avatar_url,
-              assignee.id AS assigned_to_id,
-              assignee.avatar_url AS assigned_to_avatar_url,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
-              assignee.job_title AS assigned_to_job_title
+              qa_assignee.id AS qa_assignee_id,
+              qa_assignee.avatar_url AS qa_assignee_avatar_url,
+              CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name) AS qa_assignee_name,
+              qa_assignee.job_title AS qa_assignee_job_title,
+              dev_assignee.id AS dev_assignee_id,
+              dev_assignee.avatar_url AS dev_assignee_avatar_url,
+              CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name) AS dev_assignee_name,
+              dev_assignee.job_title AS dev_assignee_job_title,
+              qa_assignee.id AS assigned_to_id,
+              qa_assignee.avatar_url AS assigned_to_avatar_url,
+              CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name) AS assigned_to_name,
+              qa_assignee.job_title AS assigned_to_job_title
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN users qa_assignee ON qa_assignee.id = ta_qa.assigned_to
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
+       LEFT JOIN users dev_assignee ON dev_assignee.id = ta_dev.assigned_to
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -490,7 +497,7 @@ router.post('/:id/assign', async (req, res, next) => {
     }
 
     const assignee = await client.query(
-      `SELECT id, email, first_name, last_name FROM users
+      `SELECT id, email, first_name, last_name, department FROM users
        WHERE id = $1 AND status = 'active'`,
       [parsed.value.assignedTo]
     );
@@ -523,13 +530,15 @@ router.post('/:id/assign', async (req, res, next) => {
       });
     }
 
-    await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE`, [
+    const assignmentRole = assigneeRow.department === 'QA' ? 'qa' : 'developer';
+    await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE AND assignment_role = $2`, [
       req.params.id,
+      assignmentRole,
     ]);
     await client.query(
-      `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active)
-       VALUES ($1, $2, $3, TRUE)`,
-      [req.params.id, parsed.value.assignedTo, req.user.id]
+      `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active, assignment_role)
+       VALUES ($1, $2, $3, TRUE, $4::assignment_role)`,
+      [req.params.id, parsed.value.assignedTo, req.user.id, assignmentRole]
     );
     await client.query(`UPDATE tickets SET status = 'assigned'::ticket_status WHERE id = $1`, [req.params.id]);
     await client.query(
@@ -569,13 +578,13 @@ router.post('/:id/route', async (req, res, next) => {
   try {
     await client.query('BEGIN');
     const result = await client.query(
-      `SELECT t.id, t.title, t.description, t.type, t.priority, t.metadata,
-              ta.assigned_to,
-              ta.assigned_to AS old_assigned_to,
-              CONCAT(old_assignee.first_name, ' ', old_assignee.last_name) AS old_assigned_to_name
+      `SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.type, t.priority, t.metadata,
+              ta_dev.assigned_to AS dev_assigned_to,
+              ta_dev.assigned_to AS old_assigned_to,
+              CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name) AS old_assigned_to_name
        FROM tickets t
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-       LEFT JOIN users old_assignee ON old_assignee.id = ta.assigned_to
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
+       LEFT JOIN users dev_assignee ON dev_assignee.id = ta_dev.assigned_to
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -597,6 +606,7 @@ router.post('/:id/route', async (req, res, next) => {
       actorId: req.user.id,
       auditAction: 'ticket_rerouted',
       assignmentMode: 'ai_routing',
+      assignmentRole: 'developer',
     });
     await client.query('COMMIT');
     res.json({
@@ -637,11 +647,16 @@ router.patch('/:id/status', async (req, res, next) => {
       return res.status(403).json({ error: 'Only the active assignee can change this ticket status' });
     }
 
+    // Stamp closed_at when resolving so dashboard "time to resolve" charts use live data, not seed-only.
     const updated = await db.query(
       `UPDATE tickets
-       SET status = $2::ticket_status
+       SET status = $2::ticket_status,
+           closed_at = CASE
+             WHEN $2::text IN ('resolved', 'closed') AND closed_at IS NULL THEN NOW()
+             ELSE closed_at
+           END
        WHERE id = $1
-       RETURNING id, status`,
+       RETURNING id, status, closed_at`,
       [req.params.id, parsed.value.status]
     );
     await db.query(
@@ -803,19 +818,15 @@ router.patch('/:id/details', async (req, res, next) => {
   }
 });
 
-router.post('/:id/send-to-qa', async (req, res, next) => {
+router.post('/:id/route-to-developer', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const result = await client.query(
-      `SELECT t.id, t.title, t.description, t.type, t.priority, t.metadata, t.status,
-              ta.assigned_to,
-              CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
-              assignee.job_title AS assigned_to_job_title,
-              assignee.department AS assigned_to_department
+      `SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.type, t.priority, t.metadata,
+              ta_qa.assigned_to AS qa_assigned_to
        FROM tickets t
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-       LEFT JOIN users assignee ON assignee.id = ta.assigned_to
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -824,69 +835,127 @@ router.post('/:id/send-to-qa', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (!canSendToQa(req.user, ticket)) {
+    if (req.user.department !== 'QA') {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Only the developer assignee can send a ticket to QA' });
+      return res.status(403).json({ error: 'Only QA users can route to developer' });
     }
-    if (isAssignedToQa(ticket, ticket.assigned_to_department)) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Ticket is already assigned to QA' });
-    }
-
-    const metadata = ticket.metadata || {};
-    metadata.routing_intent = 'qa_testing';
 
     const admins = await getAdminWorkloads(client);
-    const qaAdmins = admins.filter((admin) => String(admin.department || '').trim() === 'QA');
-    const pool = qaAdmins.length ? qaAdmins : admins;
+    const devAdmins = admins.filter((admin) => admin.department && admin.department !== 'QA' && admin.department !== 'HR');
+    const pool = devAdmins.length ? devAdmins : admins;
 
-    const { chooseAssignee: qaRouting } = require('../lib/ticketRouting');
-    const routing = await qaRouting({ ...ticket, routing_intent: 'qa_testing' }, pool);
-
-    const routingMetadata = {
-      source: routing.source,
-      assigned_admin_id: routing.assignedAdminId,
-      reasoning: routing.reasoning,
-      decision: routing.decision || null,
-      routing_intent: 'qa_testing',
-    };
-
-    await client.query(`UPDATE ticket_assignment SET is_active = FALSE WHERE ticket_id = $1 AND is_active = TRUE`, [
-      ticket.id,
-    ]);
-    await client.query(
-      `INSERT INTO ticket_assignment (ticket_id, assigned_to, assigned_by, is_active)
-       VALUES ($1, $2, $3, TRUE)`,
-      [ticket.id, routing.assignedAdminId, req.user.id]
-    );
-    await client.query(
-      `UPDATE tickets
-       SET status = 'assigned'::ticket_status,
-           metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{routing}', $2::jsonb, true)
-       WHERE id = $1`,
-      [ticket.id, JSON.stringify(routingMetadata)]
-    );
-
-    await client.query(
-      `INSERT INTO audit_logs (actor_id, action, metadata)
-       VALUES ($1, 'ticket_sent_to_qa', $2::jsonb)`,
-      [
-        req.user.id,
-        JSON.stringify({
-          ticket_id: ticket.id,
-          old_assigned_to: ticket.assigned_to,
-          old_assigned_to_name: ticket.assigned_to_name,
-          assigned_admin_id: routing.assignedAdminId,
-          reason: 'Developer requested QA testing',
-        }),
-      ]
-    );
-
+    const routing = await chooseAssignee(ticket, pool);
+    const applied = await applyRoutingAssignment(client, {
+      ticket,
+      routing,
+      actorId: req.user.id,
+      auditAction: 'ticket_routed_to_developer',
+      assignmentMode: 'qa_routing',
+      assignmentRole: 'developer',
+    });
     await client.query('COMMIT');
     res.json({
       ticketId: ticket.id,
       assignedToId: routing.assignedAdminId,
-      message: 'Ticket sent to QA',
+      assignedToName: applied.assignedToName,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/:id/reroute-to-another-qa', async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.type, t.priority, t.metadata,
+              ta_qa.assigned_to AS qa_assigned_to
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       WHERE t.id = $1`,
+      [req.params.id]
+    );
+    const ticket = result.rows[0];
+    if (!ticket) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (req.user.department !== 'QA') {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Only QA users can reroute to another QA' });
+    }
+
+    const admins = await getAdminWorkloads(client);
+    const qaAdmins = admins.filter((admin) => admin.department === 'QA');
+    const pool = qaAdmins.length ? qaAdmins : admins;
+
+    const routing = await chooseAssignee(ticket, pool);
+    const applied = await applyRoutingAssignment(client, {
+      ticket,
+      routing,
+      actorId: req.user.id,
+      auditAction: 'ticket_rerouted_qa',
+      assignmentMode: 'qa_routing',
+      assignmentRole: 'qa',
+    });
+    await client.query('COMMIT');
+    res.json({
+      ticketId: ticket.id,
+      assignedToId: routing.assignedAdminId,
+      assignedToName: applied.assignedToName,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/:id/route-to-qa', async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.type, t.priority, t.metadata,
+              ta_qa.assigned_to AS qa_assigned_to
+       FROM tickets t
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       WHERE t.id = $1`,
+      [req.params.id]
+    );
+    const ticket = result.rows[0];
+    if (!ticket) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (req.user.department === 'QA') {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'QA users cannot route to QA' });
+    }
+
+    const admins = await getAdminWorkloads(client);
+    const qaAdmins = admins.filter((admin) => admin.department === 'QA');
+    const pool = qaAdmins.length ? qaAdmins : admins;
+
+    const routing = await chooseAssignee(ticket, pool);
+    const applied = await applyRoutingAssignment(client, {
+      ticket,
+      routing,
+      actorId: req.user.id,
+      auditAction: 'ticket_routed_to_qa',
+      assignmentMode: 'dev_routing',
+      assignmentRole: 'qa',
+    });
+    await client.query('COMMIT');
+    res.json({
+      ticketId: ticket.id,
+      assignedToId: routing.assignedAdminId,
+      assignedToName: applied.assignedToName,
     });
   } catch (error) {
     await client.query('ROLLBACK');

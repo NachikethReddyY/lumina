@@ -26,6 +26,7 @@ import {
   LazyProfilePage,
   LazyAccountSettingsPage,
   LazyTicketHistoryPage,
+  LazyTicketClosureAnalyticsPage,
 } from './routes/lazyPages';
 import './App.css';
 
@@ -63,6 +64,7 @@ function App() {
         <Route path="/tickets/:id" element={<ProtectedRoute><LazySuspense><LazyTicketHistoryPage mode="queue" /></LazySuspense></ProtectedRoute>} />
         <Route path="/tickets/history" element={<ProtectedRoute><LazySuspense><LazyTicketHistoryPage mode="history" /></LazySuspense></ProtectedRoute>} />
         <Route path="/tickets/history/:id" element={<ProtectedRoute><LazySuspense><LazyTicketHistoryPage mode="history" /></LazySuspense></ProtectedRoute>} />
+        <Route path="/tickets/analytics" element={<ProtectedRoute><LazySuspense><LazyTicketClosureAnalyticsPage /></LazySuspense></ProtectedRoute>} />
 
         <Route path="/profile" element={<ProtectedRoute><LazySuspense><LazyProfilePage /></LazySuspense></ProtectedRoute>} />
         <Route path="/account-settings" element={<ProtectedRoute><LazySuspense><LazyAccountSettingsPage /></LazySuspense></ProtectedRoute>} />

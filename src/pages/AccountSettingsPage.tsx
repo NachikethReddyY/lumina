@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Trash2, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import Container from '../components/Container';
@@ -77,7 +77,7 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export function AccountSettingsPage() {
-  const { user } = useCurrentUser();
+  const { user, refetch } = useCurrentUser();
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -86,6 +86,32 @@ export function AccountSettingsPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [emailNotifications, setEmailNotifications] = useState(user?.email_notifications ?? false);
+  const [notifStatus, setNotifStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [notifErrorMsg, setNotifErrorMsg] = useState('');
+
+  const handleNotificationToggle = async (enabled: boolean) => {
+    setNotifStatus('loading');
+    setNotifErrorMsg('');
+    try {
+      const res = await usersApi.updateNotificationPrefs(enabled);
+      if (res.ok) {
+        setEmailNotifications(enabled);
+        setNotifStatus('success');
+        await refetch();
+        setTimeout(() => setNotifStatus('idle'), 4000);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setNotifErrorMsg((body as { error?: string }).error || 'Failed to update preferences.');
+        setNotifStatus('error');
+        setTimeout(() => setNotifStatus('idle'), 4000);
+      }
+    } catch {
+      setNotifErrorMsg('Network error. Please try again.');
+      setNotifStatus('error');
+      setTimeout(() => setNotifStatus('idle'), 4000);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,6 +229,44 @@ export function AccountSettingsPage() {
                   {status === 'loading' ? 'Updating…' : 'Update Password'}
                 </button>
               </form>
+            </div>
+
+            <div className="as-section" style={{ marginTop: '32px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '32px' }}>
+              <h2 className="as-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Mail size={18} />
+                Email Notifications
+              </h2>
+              <p style={{ margin: '4px 0 16px 0', color: '#6b7280', fontSize: '13px' }}>
+                Receive email updates about ticket assignments and status changes
+              </p>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1 }}>
+                  <input
+                    type="checkbox"
+                    checked={emailNotifications}
+                    onChange={(e) => handleNotificationToggle(e.target.checked)}
+                    disabled={notifStatus === 'loading'}
+                    style={{
+                      cursor: notifStatus === 'loading' ? 'not-allowed' : 'pointer',
+                      width: '16px',
+                      height: '16px',
+                    }}
+                  />
+                  <span style={{ color: '#d1d5db', fontSize: '14px' }}>
+                    {emailNotifications ? 'Email notifications enabled' : 'Email notifications disabled'}
+                  </span>
+                </label>
+                {notifStatus === 'loading' && <span style={{ fontSize: '12px', color: '#60a5fa' }}>Updating…</span>}
+                {notifStatus === 'success' && <CheckCircle2 size={16} style={{ color: '#34c759' }} />}
+              </div>
+
+              {notifErrorMsg && (
+                <div className="as-error" style={{ marginTop: '12px' }}>
+                  <AlertCircle size={14} />
+                  {notifErrorMsg}
+                </div>
+              )}
             </div>
 
             <div className="as-section" style={{ marginTop: '32px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '32px' }}>

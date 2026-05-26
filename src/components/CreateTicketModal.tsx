@@ -21,7 +21,6 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
     type: 'software' as 'software' | 'bug' | 'incident',
     priority: 'P2' as 'P1' | 'P2' | 'P3' | 'P4',
     replicationSteps: '',
-    requestQaTesting: false,
   });
 
   useEffect(() => {
@@ -68,7 +67,6 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
         type: newTicket.type,
         priority: newTicket.priority,
         replicationSteps: newTicket.replicationSteps || undefined,
-        requestQaTesting: newTicket.requestQaTesting,
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -78,7 +76,7 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
         return;
       }
       onCreated(body as ApiTicket);
-      setNewTicket({ title: '', description: '', categoryId: activeCategories[0]?.id || '', type: 'software', priority: 'P2', replicationSteps: '', requestQaTesting: false });
+      setNewTicket({ title: '', description: '', categoryId: activeCategories[0]?.id || '', type: 'software', priority: 'P2', replicationSteps: '' });
       onClose();
     } catch {
       setFormError('Could not create ticket. Check your connection and try again.');
@@ -139,16 +137,6 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
                     <option value="P4">P4 — Low</option>
                   </select>
                 </div>
-              </div>
-              <div className="nt-field nt-checkbox-row">
-                <label className="nt-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={newTicket.requestQaTesting}
-                    onChange={(e) => setNewTicket((p) => ({ ...p, requestQaTesting: e.target.checked }))}
-                  />
-                  <span>Request QA testing — route to a QA engineer for verification</span>
-                </label>
               </div>
               <div className="nt-field">
                 <label>Replication Steps</label>

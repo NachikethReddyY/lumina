@@ -129,4 +129,68 @@ function escapeHtmlAttr(s) {
   return escapeHtml(s).replace(/'/g, '&#39;');
 }
 
-module.exports = { verificationEmailHtml, passwordResetEmailHtml, passwordResetOtpEmailHtml };
+function ticketAssignedEmailHtml({ assigneeName, ticketTitle, ticketId, appUrl }) {
+  const ticketUrl = appUrl ? `${appUrl}/tickets/${ticketId}` : '';
+  return card({
+    title: 'You have been assigned a ticket',
+    preview: `New ticket assignment: ${ticketTitle}`,
+    intro: `Hi ${escapeHtml(assigneeName)},\n\nYou have been assigned a new ticket.`,
+    buttonText: 'View ticket',
+    url: ticketUrl,
+    footer: 'Reply to this email or log in to Lumina to see more details.',
+    extraHtml: `<div style="margin:16px 0 0 0;background:#f9fafb;border-radius:6px;padding:12px;border-left:4px solid #111827;">
+      <p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">
+        <strong>Ticket:</strong> ${escapeHtml(ticketTitle)}
+      </p>
+    </div>`,
+  });
+}
+
+function ticketStatusChangedEmailHtml({ recipientName, ticketTitle, ticketId, oldStatus, newStatus, appUrl }) {
+  const ticketUrl = appUrl ? `${appUrl}/tickets/${ticketId}` : '';
+  return card({
+    title: 'Ticket status updated',
+    preview: `Status changed: ${ticketTitle}`,
+    intro: `Hi ${escapeHtml(recipientName)},\n\nA ticket you are involved with has been updated.`,
+    buttonText: 'View ticket',
+    url: ticketUrl,
+    footer: 'Log in to Lumina to see more details about this ticket.',
+    extraHtml: `<div style="margin:16px 0 0 0;background:#f9fafb;border-radius:6px;padding:12px;border-left:4px solid #111827;">
+      <p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">
+        <strong>Ticket:</strong> ${escapeHtml(ticketTitle)}<br/>
+        <strong>Status:</strong> ${escapeHtml(oldStatus)} → ${escapeHtml(newStatus)}
+      </p>
+    </div>`,
+  });
+}
+
+function userSuspendedEmailHtml({ firstName, adminEmail }) {
+  return card({
+    title: 'Your account has been suspended',
+    preview: 'Your Lumina account has been suspended',
+    intro: `Hi ${escapeHtml(firstName)},\n\nYour account has been suspended. Please contact your administrator for more information.`,
+    footer: `Contact ${escapeHtml(adminEmail)} if you have questions.`,
+  });
+}
+
+function userApprovedEmailHtml({ firstName, appUrl }) {
+  const loginUrl = appUrl ? `${appUrl}/login` : '';
+  return card({
+    title: 'Your account has been approved',
+    preview: 'Your Lumina account is ready to use',
+    intro: `Hi ${escapeHtml(firstName)},\n\nYour Lumina account has been approved and is ready to use.`,
+    buttonText: 'Log in to Lumina',
+    url: loginUrl,
+    footer: 'Welcome to the team!',
+  });
+}
+
+module.exports = {
+  verificationEmailHtml,
+  passwordResetEmailHtml,
+  passwordResetOtpEmailHtml,
+  ticketAssignedEmailHtml,
+  ticketStatusChangedEmailHtml,
+  userSuspendedEmailHtml,
+  userApprovedEmailHtml,
+};

@@ -162,6 +162,80 @@ async function requestLuminaRoutingText({ provider, apiKey, model, systemPrompt,
   throw new Error(`Unsupported Lumina AI provider: ${provider}`);
 }
 
+function openAiCompatiblePlainBody({ model, systemPrompt, userContent }) {
+  return {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ],
+    temperature: 0.4,
+  };
+}
+
+async function callGeminiPlainText({ apiKey, model, systemPrompt, userContent }) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userContent }] }],
+        generationConfig: { temperature: 0.4 },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Lumina AI request failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
+  if (!text) {
+    throw new Error('Lumina AI returned an empty response');
+  }
+  return text;
+}
+
+/** Plain-text Lumina chat (no routing JSON schema) — used for HR reports and summaries. */
+async function requestLuminaPlainText({ provider, apiKey, model, systemPrompt, userContent }) {
+  if (provider === 'groq') {
+    return callOpenAiCompatibleProvider({
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      apiKey,
+      body: openAiCompatiblePlainBody({ model, systemPrompt, userContent }),
+    });
+  }
+
+  if (provider === 'openrouter') {
+    return callOpenAiCompatibleProvider({
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      apiKey,
+      headers: {
+        'HTTP-Referer': process.env.FRONTEND_URL?.split(',')[0]?.trim() || 'http://localhost:5173',
+        'X-Title': 'Lumina',
+      },
+      body: openAiCompatiblePlainBody({ model, systemPrompt, userContent }),
+    });
+  }
+
+  if (provider === 'opencode') {
+    return callOpenAiCompatibleProvider({
+      url: 'https://opencode.ai/zen/v1/chat/completions',
+      apiKey,
+      body: openAiCompatiblePlainBody({ model, systemPrompt, userContent }),
+    });
+  }
+
+  if (provider === 'gemini') {
+    return callGeminiPlainText({ apiKey, model, systemPrompt, userContent });
+  }
+
+  throw new Error(`Unsupported Lumina AI provider: ${provider}`);
+}
+
 const ROUTING_RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
@@ -600,5 +674,10 @@ module.exports = {
   eligibleRoutingAdmins,
   getAdminWorkloads,
   getLuminaAiUserId,
+  getLuminaApiKey,
+  getLuminaModel,
+  getLuminaProvider,
   isLuminaAIUser,
+  requestLuminaPlainText,
+  requestLuminaRoutingText,
 };

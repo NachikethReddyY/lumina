@@ -7,3 +7,4 @@ export const LazyRoleDashboardPage = lazy(() => import('../pages/RoleDashboardPa
 export const LazyProfilePage = lazy(() => import('../pages/ProfilePage'));
 export const LazyAccountSettingsPage = lazy(() => import('../pages/AccountSettingsPage'));
 export const LazyTicketHistoryPage = lazy(() => import('../pages/TicketHistoryPage'));
+export const LazyTicketClosureAnalyticsPage = lazy(() => import('../pages/TicketClosureAnalyticsPage'));

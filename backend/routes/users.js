@@ -151,6 +151,30 @@ router.post('/me/avatar', requireAuthAny, avatarUpload.single('avatar'), async (
   }
 });
 
+router.patch('/me/notifications', requireAuth, requireOnboarding, async (req, res, next) => {
+  const emailNotifications = req.body?.email_notifications;
+  if (typeof emailNotifications !== 'boolean') {
+    return res.status(400).json(validationError({ email_notifications: 'Must be a boolean' }));
+  }
+
+  try {
+    const result = await db.query(
+      `UPDATE users
+       SET email_notifications = $2
+       WHERE id = $1
+       RETURNING id, email_notifications`,
+      [req.user.id, emailNotifications]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ email_notifications: user.email_notifications, message: 'Notification preferences updated' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /me/name — update first_name and last_name (used by NamePrompt after OAuth)
 router.patch('/me', requireAuthAny, async (req, res, next) => {
   const firstName = String(req.body?.firstName ?? '').trim();

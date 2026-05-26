@@ -175,6 +175,18 @@ export function TicketSideRail({
                 <dt>Owner</dt>
                 <dd>{ticket ? assigneeDisplay(ticket) : 'No ticket selected'}</dd>
               </div>
+              {ticket && (
+                <>
+                  <div>
+                    <dt>QA</dt>
+                    <dd>{ticket.qa_assignee_name ? `${ticket.qa_assignee_name}${ticket.qa_assignee_job_title ? ` · ${ticket.qa_assignee_job_title}` : ''}` : '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Developer</dt>
+                    <dd>{ticket.dev_assignee_name ? `${ticket.dev_assignee_name}${ticket.dev_assignee_job_title ? ` · ${ticket.dev_assignee_job_title}` : ''}` : '—'}</dd>
+                  </div>
+                </>
+              )}
               <div>
                 <dt>Lane</dt>
                 <dd>{ticket ? teamFor(ticket) : 'Awaiting selection'}</dd>
