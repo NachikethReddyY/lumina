@@ -1,5 +1,13 @@
 import { useCallback } from 'react';
-import { categoriesApi, ticketsApi, type AdminWorkload, type ApiCategory, type ApiTicket, type SolvedByAssignee } from '../utils/apiClient';
+import {
+  categoriesApi,
+  ticketsApi,
+  type AdminWorkload,
+  type ApiCategory,
+  type ApiTicket,
+  type SolvedByAssignee,
+  type TicketThroughput,
+} from '../utils/apiClient';
 import { invalidateApiCache, useApiSWR } from './useApiSWR';
 
 function ticketsCacheKey(scope: { scope?: string; status?: string } | undefined): string | null {
@@ -82,4 +90,21 @@ export function useSolvedByAssignee(period: string, enabled = true) {
   );
 
   return { solvedByAssignee: data ?? [], loading };
+}
+
+export function useTicketThroughput(enabled = true) {
+  const fetcher = useCallback(async () => {
+    const res = await ticketsApi.stats.throughput();
+    if (!res.ok) throw new Error('Could not load throughput stats.');
+    const body = await res.json().catch(() => []);
+    return Array.isArray(body) ? body as TicketThroughput[] : [];
+  }, []);
+
+  const { data, loading } = useApiSWR<TicketThroughput[]>(
+    enabled ? 'tickets:throughput:7d' : null,
+    fetcher,
+    { ttl: 60_000 },
+  );
+
+  return { throughput: data ?? [], loading };
 }

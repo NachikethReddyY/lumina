@@ -1,0 +1,591 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2580" height="1540" viewBox="0 0 2580 1540">
+  <style>
+    svg { background: #fbfcfd; }
+    .title { font: 700 14px Georgia, 'Times New Roman', serif; fill: #17251c; }
+    .cell { font: 12.5px Georgia, 'Times New Roman', serif; fill: #161616; }
+    .key { font: 700 10.5px Georgia, 'Times New Roman', serif; fill: #2d2d2d; }
+    .pk { fill: #e11d2f; }
+    .fk { fill: #f47b20; }
+    .rel { fill: none; stroke: #606b76; stroke-width: 1.25; }
+    .end { fill: #fbfcfd; stroke: #606b76; stroke-width: 1.25; }
+    .label { font: 700 10.5px Georgia, 'Times New Roman', serif; fill: #3d454d; }
+    .card { font: 10px Georgia, 'Times New Roman', serif; fill: #4c5660; }
+    .note { font: 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #4b5563; }
+    .heading { font: 700 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #111827; }
+  </style>
+  <rect x="0" y="0" width="2580" height="1540" fill="#fbfcfd"/>
+  <text x="58" y="32" class="heading">Lumina Normalized ERD Design</text>
+  <text x="58" y="54" class="note">3NF update: departments/job titles extracted, audit ticket FK added, routing decisions separated, comments retained, and removed legacy chat entities.</text>
+  <g class="relationships">
+    
+    <path d="M 490 594 C 490 416, 520 416, 520 238" class="rel"/>
+    <circle cx="490" cy="594" r="4.5" class="end"/>
+    <circle cx="520" cy="238" r="4.5" class="end"/>
+    <text x="513" y="416" class="label">classifies</text>
+
+    <path d="M 1070 648 C 780 648, 780 594, 490 594" class="rel"/>
+    <circle cx="1070" cy="648" r="4.5" class="end"/>
+    <circle cx="490" cy="594" r="4.5" class="end"/>
+    <text x="780" y="614" class="label">creates</text>
+
+    <path d="M 2000 228 C 2000 244, 2015 244, 2015 260" class="rel"/>
+    <circle cx="2000" cy="228" r="4.5" class="end"/>
+    <circle cx="2015" cy="260" r="4.5" class="end"/>
+    <text x="2015.5" y="244" class="label">contains</text>
+
+    <path d="M 1800 334 C 1800 491, 1670 491, 1670 648" class="rel"/>
+    <circle cx="1800" cy="334" r="4.5" class="end"/>
+    <circle cx="1670" cy="648" r="4.5" class="end"/>
+    <text x="1743" y="491" class="label">classifies</text>
+
+    <path d="M 1070 648 C 1070 443, 1120 443, 1120 238" class="rel"/>
+    <circle cx="1070" cy="648" r="4.5" class="end"/>
+    <circle cx="1120" cy="238" r="4.5" class="end"/>
+    <text x="1103" y="443" class="label">submits</text>
+
+    <path d="M 820 396 C 820 558, 760 558, 760 720" class="rel"/>
+    <circle cx="820" cy="396" r="4.5" class="end"/>
+    <circle cx="760" cy="720" r="4.5" class="end"/>
+    <text x="798" y="558" class="label">has</text>
+
+    <path d="M 1070 648 C 1070 733, 1020 733, 1020 818" class="rel"/>
+    <circle cx="1070" cy="648" r="4.5" class="end"/>
+    <circle cx="1020" cy="818" r="4.5" class="end"/>
+    <text x="1053" y="733" class="label">assigned to/by</text>
+
+    <path d="M 820 396 C 1112.5 396, 1112.5 870, 1405 870" class="rel"/>
+    <circle cx="820" cy="396" r="4.5" class="end"/>
+    <circle cx="1405" cy="870" r="4.5" class="end"/>
+    <text x="1112.5" y="626" class="label">routes through</text>
+
+    <path d="M 1370 866 C 1387.5 878, 1387.5 882, 1405 870" class="rel"/>
+    <circle cx="1370" cy="866" r="4.5" class="end"/>
+    <circle cx="1405" cy="870" r="4.5" class="end"/>
+    <text x="1387.5" y="873" class="label">selected by</text>
+
+    <path d="M 1120 238 C 1210 226, 1210 148, 1300 160" class="rel"/>
+    <circle cx="1120" cy="238" r="4.5" class="end"/>
+    <circle cx="1300" cy="160" r="4.5" class="end"/>
+    <text x="1210" y="180" class="label">rated by</text>
+
+    <path d="M 1370 430 C 1370 332, 1535 332, 1535 234" class="rel"/>
+    <circle cx="1370" cy="430" r="4.5" class="end"/>
+    <circle cx="1535" cy="234" r="4.5" class="end"/>
+    <text x="1460.5" y="332" class="label">provides</text>
+
+    <path d="M 1670 648 C 1860 660, 1860 548, 2050 536" class="rel"/>
+    <circle cx="1670" cy="648" r="4.5" class="end"/>
+    <circle cx="2050" cy="536" r="4.5" class="end"/>
+    <text x="1860" y="597" class="label">performs</text>
+
+    <path d="M 1120 238 C 1585 226, 1585 524, 2050 536" class="rel"/>
+    <circle cx="1120" cy="238" r="4.5" class="end"/>
+    <circle cx="2050" cy="536" r="4.5" class="end"/>
+    <text x="1585" y="368" class="label">has audit</text>
+
+    <path d="M 820 396 C 560 396, 560 900, 300 900" class="rel"/>
+    <circle cx="820" cy="396" r="4.5" class="end"/>
+    <circle cx="300" cy="900" r="4.5" class="end"/>
+    <text x="560" y="641" class="label">has</text>
+
+    <path d="M 1070 648 C 800 660, 800 1022, 530 1010" class="rel"/>
+    <circle cx="1070" cy="648" r="4.5" class="end"/>
+    <circle cx="530" cy="1010" r="4.5" class="end"/>
+    <text x="800" y="834" class="label">writes/deletes</text>
+
+    <path d="M 1670 648 C 1815 636, 1815 746, 1960 758" class="rel"/>
+    <circle cx="1670" cy="648" r="4.5" class="end"/>
+    <circle cx="1960" cy="758" r="4.5" class="end"/>
+    <text x="1815" y="684" class="label">authenticates</text>
+
+    <path d="M 1370 866 C 1370 973, 1315 973, 1315 1080" class="rel"/>
+    <circle cx="1370" cy="866" r="4.5" class="end"/>
+    <circle cx="1315" cy="1080" r="4.5" class="end"/>
+    <text x="1350.5" y="973" class="label">verifies</text>
+
+    <path d="M 1070 648 C 1070 913, 1000 913, 1000 1178" class="rel"/>
+    <circle cx="1070" cy="648" r="4.5" class="end"/>
+    <circle cx="1000" cy="1178" r="4.5" class="end"/>
+    <text x="1043" y="913" class="label">requests</text>
+
+    <path d="M 1370 866 C 1370 1093, 1330 1093, 1330 1320" class="rel"/>
+    <circle cx="1370" cy="866" r="4.5" class="end"/>
+    <circle cx="1330" cy="1320" r="4.5" class="end"/>
+    <text x="1358" y="1093" class="label">manages</text>
+
+      <path d="M 1670 520 C 1740 520, 1740 398, 1466 398 S 1358 430, 1358 430" class="rel"/>
+      <text x="1744" y="392" class="label">approves</text>
+  </g>
+  <g class="tables">
+    
+    <g class="table">
+      <rect x="1070" y="430" width="600" height="436" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1070 458 H 1670" stroke="#222" stroke-width="1"/>
+      <rect x="1070" y="430" width="600" height="28" rx="7" fill="#e8f1fb" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1070 458 H 1670" stroke="#222" stroke-width="1"/>
+      <path d="M 1222 458 V 866" stroke="#222" stroke-width="1"/>
+      <path d="M 1392 458 V 866" stroke="#222" stroke-width="1"/>
+      <text x="1370" y="449" class="title" text-anchor="middle">Users</text>
+      
+      <text x="1146" y="475" class="key pk" text-anchor="middle">PK</text>
+      <text x="1230" y="475" class="cell">id</text>
+      <text x="1400" y="475" class="cell">UUID</text>
+      <text x="1146" y="499" class="key" text-anchor="middle">UNIQUE, NN</text>
+      <text x="1230" y="499" class="cell">email</text>
+      <text x="1400" y="499" class="cell">VARCHAR(255)</text>
+      <text x="1146" y="523" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1230" y="523" class="cell">password_hash</text>
+      <text x="1400" y="523" class="cell">VARCHAR(255)</text>
+      <text x="1146" y="547" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="547" class="cell">first_name</text>
+      <text x="1400" y="547" class="cell">VARCHAR(255)</text>
+      <text x="1146" y="571" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="571" class="cell">last_name</text>
+      <text x="1400" y="571" class="cell">VARCHAR(255)</text>
+      <text x="1146" y="595" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="595" class="cell">role</text>
+      <text x="1400" y="595" class="cell">user_role enum</text>
+      <text x="1146" y="619" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="619" class="cell">status</text>
+      <text x="1400" y="619" class="cell">user_status enum</text>
+      <text x="1146" y="643" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="643" class="cell">email_is_verified</text>
+      <text x="1400" y="643" class="cell">BOOLEAN default false</text>
+      <text x="1146" y="667" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1230" y="667" class="cell">avatar_url</text>
+      <text x="1400" y="667" class="cell">VARCHAR(255)</text>
+      <text x="1146" y="691" class="key fk" text-anchor="middle">FK, NULL</text>
+      <text x="1230" y="691" class="cell">approved_by</text>
+      <text x="1400" y="691" class="cell">UUID</text>
+      <text x="1146" y="715" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1230" y="715" class="cell">approved_at</text>
+      <text x="1400" y="715" class="cell">TIMESTAMP</text>
+      <text x="1146" y="739" class="key fk" text-anchor="middle">FK, NULL</text>
+      <text x="1230" y="739" class="cell">job_title_id</text>
+      <text x="1400" y="739" class="cell">UUID</text>
+      <text x="1146" y="763" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="763" class="cell">onboarding_completed</text>
+      <text x="1400" y="763" class="cell">BOOLEAN default false</text>
+      <text x="1146" y="787" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="787" class="cell">name_set</text>
+      <text x="1400" y="787" class="cell">BOOLEAN default false</text>
+      <text x="1146" y="811" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="811" class="cell">email_notifications</text>
+      <text x="1400" y="811" class="cell">BOOLEAN default false</text>
+      <text x="1146" y="835" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1230" y="835" class="cell">created_at</text>
+      <text x="1400" y="835" class="cell">TIMESTAMP default</text>
+      <text x="1146" y="859" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1230" y="859" class="cell">last_login_at</text>
+      <text x="1400" y="859" class="cell">TIMESTAMP</text>
+    </g>
+
+    <g class="table">
+      <rect x="520" y="80" width="600" height="316" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 520 108 H 1120" stroke="#222" stroke-width="1"/>
+      <rect x="520" y="80" width="600" height="28" rx="7" fill="#ddf4df" stroke="#222" stroke-width="1.4"/>
+      <path d="M 520 108 H 1120" stroke="#222" stroke-width="1"/>
+      <path d="M 672 108 V 396" stroke="#222" stroke-width="1"/>
+      <path d="M 842 108 V 396" stroke="#222" stroke-width="1"/>
+      <text x="820" y="99" class="title" text-anchor="middle">Tickets</text>
+      
+      <text x="596" y="125" class="key pk" text-anchor="middle">PK</text>
+      <text x="680" y="125" class="cell">id</text>
+      <text x="850" y="125" class="cell">UUID</text>
+      <text x="596" y="149" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="680" y="149" class="cell">title</text>
+      <text x="850" y="149" class="cell">VARCHAR(255)</text>
+      <text x="596" y="173" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="680" y="173" class="cell">description</text>
+      <text x="850" y="173" class="cell">TEXT</text>
+      <text x="596" y="197" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="680" y="197" class="cell">category_id</text>
+      <text x="850" y="197" class="cell">UUID</text>
+      <text x="596" y="221" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="680" y="221" class="cell">type</text>
+      <text x="850" y="221" class="cell">ticket_type enum</text>
+      <text x="596" y="245" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="680" y="245" class="cell">priority</text>
+      <text x="850" y="245" class="cell">ticket_priority enum</text>
+      <text x="596" y="269" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="680" y="269" class="cell">status</text>
+      <text x="850" y="269" class="cell">ticket_status enum</text>
+      <text x="596" y="293" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="680" y="293" class="cell">submitted_by</text>
+      <text x="850" y="293" class="cell">UUID</text>
+      <text x="596" y="317" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="680" y="317" class="cell">replication_steps</text>
+      <text x="850" y="317" class="cell">TEXT</text>
+      <text x="596" y="341" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="680" y="341" class="cell">created_at</text>
+      <text x="850" y="341" class="cell">TIMESTAMP default</text>
+      <text x="596" y="365" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="680" y="365" class="cell">closed_at</text>
+      <text x="850" y="365" class="cell">TIMESTAMP</text>
+      <text x="596" y="389" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="680" y="389" class="cell">metadata</text>
+      <text x="850" y="389" class="cell">JSONB default &#39;{}&#39;</text>
+    </g>
+
+    <g class="table">
+      <rect x="1800" y="80" width="400" height="148" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1800 108 H 2200" stroke="#222" stroke-width="1"/>
+      <rect x="1800" y="80" width="400" height="28" rx="7" fill="#e8f1fb" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1800 108 H 2200" stroke="#222" stroke-width="1"/>
+      <path d="M 1952 108 V 228" stroke="#222" stroke-width="1"/>
+      <path d="M 2122 108 V 228" stroke="#222" stroke-width="1"/>
+      <text x="2000" y="99" class="title" text-anchor="middle">Departments</text>
+      
+      <text x="1876" y="125" class="key pk" text-anchor="middle">PK</text>
+      <text x="1960" y="125" class="cell">id</text>
+      <text x="2130" y="125" class="cell">UUID</text>
+      <text x="1876" y="149" class="key" text-anchor="middle">UNIQUE, NN</text>
+      <text x="1960" y="149" class="cell">name</text>
+      <text x="2130" y="149" class="cell">VARCHAR(100)</text>
+      <text x="1876" y="173" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1960" y="173" class="cell">description</text>
+      <text x="2130" y="173" class="cell">TEXT</text>
+      <text x="1876" y="197" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1960" y="197" class="cell">is_active</text>
+      <text x="2130" y="197" class="cell">BOOLEAN default true</text>
+      <text x="1876" y="221" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1960" y="221" class="cell">created_at</text>
+      <text x="2130" y="221" class="cell">TIMESTAMP default</text>
+    </g>
+
+    <g class="table">
+      <rect x="1800" y="260" width="430" height="148" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1800 288 H 2230" stroke="#222" stroke-width="1"/>
+      <rect x="1800" y="260" width="430" height="28" rx="7" fill="#e8f1fb" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1800 288 H 2230" stroke="#222" stroke-width="1"/>
+      <path d="M 1952 288 V 408" stroke="#222" stroke-width="1"/>
+      <path d="M 2122 288 V 408" stroke="#222" stroke-width="1"/>
+      <text x="2015" y="279" class="title" text-anchor="middle">Job_Titles</text>
+      
+      <text x="1876" y="305" class="key pk" text-anchor="middle">PK</text>
+      <text x="1960" y="305" class="cell">id</text>
+      <text x="2130" y="305" class="cell">UUID</text>
+      <text x="1876" y="329" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="1960" y="329" class="cell">department_id</text>
+      <text x="2130" y="329" class="cell">UUID</text>
+      <text x="1876" y="353" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1960" y="353" class="cell">title</text>
+      <text x="2130" y="353" class="cell">VARCHAR(255)</text>
+      <text x="1876" y="377" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1960" y="377" class="cell">is_active</text>
+      <text x="2130" y="377" class="cell">BOOLEAN default true</text>
+      <text x="1876" y="401" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1960" y="401" class="cell">created_at</text>
+      <text x="2130" y="401" class="cell">TIMESTAMP default</text>
+    </g>
+
+    <g class="table">
+      <rect x="70" y="520" width="420" height="148" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 70 548 H 490" stroke="#222" stroke-width="1"/>
+      <rect x="70" y="520" width="420" height="28" rx="7" fill="#ddf4df" stroke="#222" stroke-width="1.4"/>
+      <path d="M 70 548 H 490" stroke="#222" stroke-width="1"/>
+      <path d="M 222 548 V 668" stroke="#222" stroke-width="1"/>
+      <path d="M 392 548 V 668" stroke="#222" stroke-width="1"/>
+      <text x="280" y="539" class="title" text-anchor="middle">Categories</text>
+      
+      <text x="146" y="565" class="key pk" text-anchor="middle">PK</text>
+      <text x="230" y="565" class="cell">id</text>
+      <text x="400" y="565" class="cell">UUID</text>
+      <text x="146" y="589" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="230" y="589" class="cell">name</text>
+      <text x="400" y="589" class="cell">VARCHAR(100)</text>
+      <text x="146" y="613" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="230" y="613" class="cell">description</text>
+      <text x="400" y="613" class="cell">TEXT</text>
+      <text x="146" y="637" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="230" y="637" class="cell">created_by</text>
+      <text x="400" y="637" class="cell">UUID</text>
+      <text x="146" y="661" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="230" y="661" class="cell">is_active</text>
+      <text x="400" y="661" class="cell">BOOLEAN</text>
+    </g>
+
+    <g class="table">
+      <rect x="500" y="720" width="520" height="196" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 500 748 H 1020" stroke="#222" stroke-width="1"/>
+      <rect x="500" y="720" width="520" height="28" rx="7" fill="#ddf4df" stroke="#222" stroke-width="1.4"/>
+      <path d="M 500 748 H 1020" stroke="#222" stroke-width="1"/>
+      <path d="M 652 748 V 916" stroke="#222" stroke-width="1"/>
+      <path d="M 822 748 V 916" stroke="#222" stroke-width="1"/>
+      <text x="760" y="739" class="title" text-anchor="middle">Ticket_Assignment</text>
+      
+      <text x="576" y="765" class="key pk" text-anchor="middle">PK</text>
+      <text x="660" y="765" class="cell">id</text>
+      <text x="830" y="765" class="cell">UUID</text>
+      <text x="576" y="789" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="660" y="789" class="cell">ticket_id</text>
+      <text x="830" y="789" class="cell">UUID</text>
+      <text x="576" y="813" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="660" y="813" class="cell">assigned_to</text>
+      <text x="830" y="813" class="cell">UUID</text>
+      <text x="576" y="837" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="660" y="837" class="cell">assigned_by</text>
+      <text x="830" y="837" class="cell">UUID</text>
+      <text x="576" y="861" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="660" y="861" class="cell">is_active</text>
+      <text x="830" y="861" class="cell">BOOLEAN</text>
+      <text x="576" y="885" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="660" y="885" class="cell">assignment_role</text>
+      <text x="830" y="885" class="cell">assignment_role enum</text>
+      <text x="576" y="909" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="660" y="909" class="cell">assigned_at</text>
+      <text x="830" y="909" class="cell">TIMESTAMP default</text>
+    </g>
+
+    <g class="table">
+      <rect x="1300" y="86" width="470" height="148" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1300 114 H 1770" stroke="#222" stroke-width="1"/>
+      <rect x="1300" y="86" width="470" height="28" rx="7" fill="#ddf4df" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1300 114 H 1770" stroke="#222" stroke-width="1"/>
+      <path d="M 1452 114 V 234" stroke="#222" stroke-width="1"/>
+      <path d="M 1622 114 V 234" stroke="#222" stroke-width="1"/>
+      <text x="1535" y="105" class="title" text-anchor="middle">Satisfaction_Ratings</text>
+      
+      <text x="1376" y="131" class="key pk" text-anchor="middle">PK</text>
+      <text x="1460" y="131" class="cell">id</text>
+      <text x="1630" y="131" class="cell">UUID</text>
+      <text x="1376" y="155" class="key fk" text-anchor="middle">FK, UNIQUE, NN</text>
+      <text x="1460" y="155" class="cell">ticket_id</text>
+      <text x="1630" y="155" class="cell">UUID</text>
+      <text x="1376" y="179" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="1460" y="179" class="cell">rated_by</text>
+      <text x="1630" y="179" class="cell">UUID</text>
+      <text x="1376" y="203" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1460" y="203" class="cell">rating</text>
+      <text x="1630" y="203" class="cell">INTEGER</text>
+      <text x="1376" y="227" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1460" y="227" class="cell">comment</text>
+      <text x="1630" y="227" class="cell">TEXT</text>
+    </g>
+
+    <g class="table">
+      <rect x="2050" y="450" width="470" height="172" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 2050 478 H 2520" stroke="#222" stroke-width="1"/>
+      <rect x="2050" y="450" width="470" height="28" rx="7" fill="#ddf4df" stroke="#222" stroke-width="1.4"/>
+      <path d="M 2050 478 H 2520" stroke="#222" stroke-width="1"/>
+      <path d="M 2202 478 V 622" stroke="#222" stroke-width="1"/>
+      <path d="M 2372 478 V 622" stroke="#222" stroke-width="1"/>
+      <text x="2285" y="469" class="title" text-anchor="middle">Audit_Logs</text>
+      
+      <text x="2126" y="495" class="key pk" text-anchor="middle">PK</text>
+      <text x="2210" y="495" class="cell">id</text>
+      <text x="2380" y="495" class="cell">UUID</text>
+      <text x="2126" y="519" class="key fk" text-anchor="middle">FK, NULL</text>
+      <text x="2210" y="519" class="cell">ticket_id</text>
+      <text x="2380" y="519" class="cell">UUID</text>
+      <text x="2126" y="543" class="key fk" text-anchor="middle">FK, NULL</text>
+      <text x="2210" y="543" class="cell">actor_id</text>
+      <text x="2380" y="543" class="cell">UUID</text>
+      <text x="2126" y="567" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="2210" y="567" class="cell">action</text>
+      <text x="2380" y="567" class="cell">VARCHAR(100)</text>
+      <text x="2126" y="591" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="2210" y="591" class="cell">metadata</text>
+      <text x="2380" y="591" class="cell">JSONB default &#39;{}&#39;</text>
+      <text x="2126" y="615" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="2210" y="615" class="cell">created_at</text>
+      <text x="2380" y="615" class="cell">TIMESTAMP default</text>
+    </g>
+
+    <g class="table">
+      <rect x="70" y="900" width="460" height="220" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 70 928 H 530" stroke="#222" stroke-width="1"/>
+      <rect x="70" y="900" width="460" height="28" rx="7" fill="#ddf4df" stroke="#222" stroke-width="1.4"/>
+      <path d="M 70 928 H 530" stroke="#222" stroke-width="1"/>
+      <path d="M 222 928 V 1120" stroke="#222" stroke-width="1"/>
+      <path d="M 392 928 V 1120" stroke="#222" stroke-width="1"/>
+      <text x="300" y="919" class="title" text-anchor="middle">Ticket_Comments</text>
+      
+      <text x="146" y="945" class="key pk" text-anchor="middle">PK</text>
+      <text x="230" y="945" class="cell">id</text>
+      <text x="400" y="945" class="cell">UUID</text>
+      <text x="146" y="969" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="230" y="969" class="cell">ticket_id</text>
+      <text x="400" y="969" class="cell">UUID</text>
+      <text x="146" y="993" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="230" y="993" class="cell">author_id</text>
+      <text x="400" y="993" class="cell">UUID</text>
+      <text x="146" y="1017" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="230" y="1017" class="cell">body</text>
+      <text x="400" y="1017" class="cell">TEXT</text>
+      <text x="146" y="1041" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="230" y="1041" class="cell">created_at</text>
+      <text x="400" y="1041" class="cell">TIMESTAMP default</text>
+      <text x="146" y="1065" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="230" y="1065" class="cell">deleted_at</text>
+      <text x="400" y="1065" class="cell">TIMESTAMP</text>
+      <text x="146" y="1089" class="key fk" text-anchor="middle">FK, NULL</text>
+      <text x="230" y="1089" class="cell">deleted_by</text>
+      <text x="400" y="1089" class="cell">UUID</text>
+      <text x="146" y="1113" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="230" y="1113" class="cell">deletion_type</text>
+      <text x="400" y="1113" class="cell">comment_deletion_type enum</text>
+    </g>
+
+    <g class="table">
+      <rect x="1960" y="660" width="500" height="196" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1960 688 H 2460" stroke="#222" stroke-width="1"/>
+      <rect x="1960" y="660" width="500" height="28" rx="7" fill="#e8f1fb" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1960 688 H 2460" stroke="#222" stroke-width="1"/>
+      <path d="M 2112 688 V 856" stroke="#222" stroke-width="1"/>
+      <path d="M 2282 688 V 856" stroke="#222" stroke-width="1"/>
+      <text x="2210" y="679" class="title" text-anchor="middle">Oauth_Accounts</text>
+      
+      <text x="2036" y="705" class="key pk" text-anchor="middle">PK</text>
+      <text x="2120" y="705" class="cell">id</text>
+      <text x="2290" y="705" class="cell">UUID</text>
+      <text x="2036" y="729" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="2120" y="729" class="cell">user_id</text>
+      <text x="2290" y="729" class="cell">UUID</text>
+      <text x="2036" y="753" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="2120" y="753" class="cell">provider</text>
+      <text x="2290" y="753" class="cell">oauth_provider enum</text>
+      <text x="2036" y="777" class="key" text-anchor="middle">UNIQUE, NN</text>
+      <text x="2120" y="777" class="cell">provider_user_id</text>
+      <text x="2290" y="777" class="cell">VARCHAR(255)</text>
+      <text x="2036" y="801" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="2120" y="801" class="cell">access_token</text>
+      <text x="2290" y="801" class="cell">TEXT</text>
+      <text x="2036" y="825" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="2120" y="825" class="cell">refresh_token</text>
+      <text x="2290" y="825" class="cell">TEXT</text>
+      <text x="2036" y="849" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="2120" y="849" class="cell">created_at</text>
+      <text x="2290" y="849" class="cell">TIMESTAMP default</text>
+    </g>
+
+    <g class="table">
+      <rect x="1140" y="870" width="530" height="196" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1140 898 H 1670" stroke="#222" stroke-width="1"/>
+      <rect x="1140" y="870" width="530" height="28" rx="7" fill="#ddf4df" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1140 898 H 1670" stroke="#222" stroke-width="1"/>
+      <path d="M 1292 898 V 1066" stroke="#222" stroke-width="1"/>
+      <path d="M 1462 898 V 1066" stroke="#222" stroke-width="1"/>
+      <text x="1405" y="889" class="title" text-anchor="middle">Routing_Decisions</text>
+      
+      <text x="1216" y="915" class="key pk" text-anchor="middle">PK</text>
+      <text x="1300" y="915" class="cell">id</text>
+      <text x="1470" y="915" class="cell">UUID</text>
+      <text x="1216" y="939" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="1300" y="939" class="cell">ticket_id</text>
+      <text x="1470" y="939" class="cell">UUID</text>
+      <text x="1216" y="963" class="key fk" text-anchor="middle">FK, NULL</text>
+      <text x="1300" y="963" class="cell">assigned_admin_id</text>
+      <text x="1470" y="963" class="cell">UUID</text>
+      <text x="1216" y="987" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1300" y="987" class="cell">source</text>
+      <text x="1470" y="987" class="cell">VARCHAR(50)</text>
+      <text x="1216" y="1011" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1300" y="1011" class="cell">confidence</text>
+      <text x="1470" y="1011" class="cell">NUMERIC(4,2)</text>
+      <text x="1216" y="1035" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1300" y="1035" class="cell">reasoning</text>
+      <text x="1470" y="1035" class="cell">TEXT</text>
+      <text x="1216" y="1059" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1300" y="1059" class="cell">created_at</text>
+      <text x="1470" y="1059" class="cell">TIMESTAMP default</text>
+    </g>
+
+    <g class="table">
+      <rect x="1080" y="1080" width="470" height="196" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1080 1108 H 1550" stroke="#222" stroke-width="1"/>
+      <rect x="1080" y="1080" width="470" height="28" rx="7" fill="#e8f1fb" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1080 1108 H 1550" stroke="#222" stroke-width="1"/>
+      <path d="M 1232 1108 V 1276" stroke="#222" stroke-width="1"/>
+      <path d="M 1402 1108 V 1276" stroke="#222" stroke-width="1"/>
+      <text x="1315" y="1099" class="title" text-anchor="middle">Email_Verifications</text>
+      
+      <text x="1156" y="1125" class="key pk" text-anchor="middle">PK</text>
+      <text x="1240" y="1125" class="cell">id</text>
+      <text x="1410" y="1125" class="cell">UUID</text>
+      <text x="1156" y="1149" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="1240" y="1149" class="cell">user_id</text>
+      <text x="1410" y="1149" class="cell">UUID</text>
+      <text x="1156" y="1173" class="key" text-anchor="middle">UNIQUE, NN</text>
+      <text x="1240" y="1173" class="cell">token</text>
+      <text x="1410" y="1173" class="cell">VARCHAR(255)</text>
+      <text x="1156" y="1197" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1240" y="1197" class="cell">otp_hash</text>
+      <text x="1410" y="1197" class="cell">TEXT</text>
+      <text x="1156" y="1221" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1240" y="1221" class="cell">otp_expires_at</text>
+      <text x="1410" y="1221" class="cell">TIMESTAMP</text>
+      <text x="1156" y="1245" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1240" y="1245" class="cell">expires_at</text>
+      <text x="1410" y="1245" class="cell">TIMESTAMP</text>
+      <text x="1156" y="1269" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="1240" y="1269" class="cell">used_at</text>
+      <text x="1410" y="1269" class="cell">TIMESTAMP</text>
+    </g>
+
+    <g class="table">
+      <rect x="530" y="1080" width="470" height="196" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 530 1108 H 1000" stroke="#222" stroke-width="1"/>
+      <rect x="530" y="1080" width="470" height="28" rx="7" fill="#e8f1fb" stroke="#222" stroke-width="1.4"/>
+      <path d="M 530 1108 H 1000" stroke="#222" stroke-width="1"/>
+      <path d="M 682 1108 V 1276" stroke="#222" stroke-width="1"/>
+      <path d="M 852 1108 V 1276" stroke="#222" stroke-width="1"/>
+      <text x="765" y="1099" class="title" text-anchor="middle">Password_Reset</text>
+      
+      <text x="606" y="1125" class="key pk" text-anchor="middle">PK</text>
+      <text x="690" y="1125" class="cell">id</text>
+      <text x="860" y="1125" class="cell">UUID</text>
+      <text x="606" y="1149" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="690" y="1149" class="cell">user_id</text>
+      <text x="860" y="1149" class="cell">UUID</text>
+      <text x="606" y="1173" class="key" text-anchor="middle">UNIQUE, NN</text>
+      <text x="690" y="1173" class="cell">token</text>
+      <text x="860" y="1173" class="cell">VARCHAR(255)</text>
+      <text x="606" y="1197" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="690" y="1197" class="cell">otp_hash</text>
+      <text x="860" y="1197" class="cell">TEXT</text>
+      <text x="606" y="1221" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="690" y="1221" class="cell">otp_expires_at</text>
+      <text x="860" y="1221" class="cell">TIMESTAMP</text>
+      <text x="606" y="1245" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="690" y="1245" class="cell">expires_at</text>
+      <text x="860" y="1245" class="cell">TIMESTAMP</text>
+      <text x="606" y="1269" class="key" text-anchor="middle">NULLABLE</text>
+      <text x="690" y="1269" class="cell">used_at</text>
+      <text x="860" y="1269" class="cell">TIMESTAMP</text>
+    </g>
+
+    <g class="table">
+      <rect x="1080" y="1320" width="500" height="196" rx="7" fill="#fff" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1080 1348 H 1580" stroke="#222" stroke-width="1"/>
+      <rect x="1080" y="1320" width="500" height="28" rx="7" fill="#e8f1fb" stroke="#222" stroke-width="1.4"/>
+      <path d="M 1080 1348 H 1580" stroke="#222" stroke-width="1"/>
+      <path d="M 1232 1348 V 1516" stroke="#222" stroke-width="1"/>
+      <path d="M 1402 1348 V 1516" stroke="#222" stroke-width="1"/>
+      <text x="1330" y="1339" class="title" text-anchor="middle">Sessions</text>
+      
+      <text x="1156" y="1365" class="key pk" text-anchor="middle">PK</text>
+      <text x="1240" y="1365" class="cell">id</text>
+      <text x="1410" y="1365" class="cell">UUID</text>
+      <text x="1156" y="1389" class="key fk" text-anchor="middle">FK, NOT NULL</text>
+      <text x="1240" y="1389" class="cell">user_id</text>
+      <text x="1410" y="1389" class="cell">UUID</text>
+      <text x="1156" y="1413" class="key" text-anchor="middle">UNIQUE, NN</text>
+      <text x="1240" y="1413" class="cell">session_token</text>
+      <text x="1410" y="1413" class="cell">VARCHAR(255)</text>
+      <text x="1156" y="1437" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1240" y="1437" class="cell">expires_at</text>
+      <text x="1410" y="1437" class="cell">TIMESTAMP</text>
+      <text x="1156" y="1461" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1240" y="1461" class="cell">created_at</text>
+      <text x="1410" y="1461" class="cell">TIMESTAMP default</text>
+      <text x="1156" y="1485" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1240" y="1485" class="cell">user_agent</text>
+      <text x="1410" y="1485" class="cell">TEXT</text>
+      <text x="1156" y="1509" class="key" text-anchor="middle">NOT NULL</text>
+      <text x="1240" y="1509" class="cell">ipaddress</text>
+      <text x="1410" y="1509" class="cell">TEXT</text>
+    </g>
+  </g>
+</svg>

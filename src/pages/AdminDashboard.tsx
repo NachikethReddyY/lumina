@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
+  BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, Legend, Label,
 } from 'recharts';
 import Container from '../components/Container';
 import DashboardLayout from '../components/DashboardLayout';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { getUserRoleLabel } from '../utils/userDisplay';
-import { getTicketListScope, isTeamManager } from '../utils/orgRoles';
-import { useAdminWorkload, useSolvedByAssignee, useTicketList } from '../hooks/useTicketData';
+import { getTicketListScope } from '../utils/orgRoles';
+import { useSolvedByAssignee, useTicketList, useTicketThroughput } from '../hooks/useTicketData';
 import { SolvedByAssigneeChart } from '../components/charts/SolvedByAssigneeChart';
-import { type AdminWorkload, type ApiTicket } from '../utils/apiClient';
+import { type ApiTicket } from '../utils/apiClient';
+import { formatStatusLabel } from './admin/dashboardShared';
 import './Dashboard.css';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -19,27 +19,11 @@ const STATUS_COLOR: Record<string, string> = {
 };
 const ACTIVE_TICKET_STATUSES = new Set<ApiTicket['status']>(['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing']);
 
-function buildWeeklyLine(tickets: ApiTicket[]) {
-  const days: Record<string, { resolved: number; created: number }> = {};
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400000);
-    days[d.toLocaleDateString('en-US', { weekday: 'short' })] = { resolved: 0, created: 0 };
-  }
-  tickets.forEach((t) => {
-    const label = new Date(t.created_at).toLocaleDateString('en-US', { weekday: 'short' });
-    if (label in days) {
-      days[label].created++;
-      if (['resolved', 'closed'].includes(t.status)) days[label].resolved++;
-    }
-  });
-  return Object.entries(days).map(([day, vals]) => ({ day, ...vals }));
-}
-
 function buildStatusMix(tickets: ApiTicket[]) {
   const labels: ApiTicket['status'][] = ['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing', 'resolved', 'closed'];
   return labels
     .map((status) => ({
-      name: status.replace(/_/g, ' '),
+      name: formatStatusLabel(status),
       value: tickets.filter((ticket) => ticket.status === status).length,
       color: STATUS_COLOR[status],
     }))
@@ -67,22 +51,13 @@ function buildAgeBuckets(tickets: ApiTicket[]) {
   return buckets;
 }
 
-function buildPriorityWorkload(workload: AdminWorkload[]) {
-  return workload.map((a) => ({
-    name: a.first_name,
-    P1: a.p1_count,
-    P2: a.p2_count,
-    P3: a.p3_count,
-    P4: a.p4_count,
-    score: a.load_score,
-  }));
-}
-
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color?: string }[]; label?: string }) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color?: string; payload?: { detail?: string } }[]; label?: string }) => {
   if (!active || !payload?.length) return null;
+  const detail = payload[0]?.payload?.detail;
   return (
     <div style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', padding: '8px 12px', borderRadius: '8px', minWidth: '100px' }}>
       <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 4px' }}>{label}</p>
+      {detail ? <p style={{ color: '#9ca3af', fontSize: '11px', margin: '0 0 6px' }}>{detail}</p> : null}
       {payload.map((p) => (
         <p key={p.name} style={{ color: p.color || '#f7f8f8', fontSize: '13px', fontWeight: 600, margin: '2px 0' }}>
           {p.name}: {p.value}
@@ -96,14 +71,15 @@ export function AdminDashboard() {
   const { user } = useCurrentUser();
   const ticketScope = useMemo(() => getTicketListScope(user), [user]);
   const { tickets: orgTickets } = useTicketList(user ? ticketScope : undefined);
-  const { tickets: personalTickets } = useTicketList(user ? {} : undefined);
-  const { workload } = useAdminWorkload(Boolean(user));
+  const { tickets: personalTickets } = useTicketList(user ? { scope: 'assigned' } : undefined);
+  const { throughput } = useTicketThroughput(Boolean(user));
   const [solvedPeriod, setSolvedPeriod] = useState('7d');
   const { solvedByAssignee, loading: solvedLoading } = useSolvedByAssignee(solvedPeriod, Boolean(user));
 
   const counts = useMemo(() => ({
     p1: orgTickets.filter((t) => t.priority === 'P1').length,
     p2: orgTickets.filter((t) => t.priority === 'P2').length,
+    p3: orgTickets.filter((t) => t.priority === 'P3').length,
     active: orgTickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length,
     inProgress: orgTickets.filter((t) => t.status === 'in_progress').length,
     resolved: orgTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
@@ -115,12 +91,8 @@ export function AdminDashboard() {
     resolved: personalTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
   }), [personalTickets]);
 
-  const myLoad = workload.find((e) => e.id === user?.id);
-
-  const weeklyLine = useMemo(() => buildWeeklyLine(orgTickets), [orgTickets]);
   const statusMix = useMemo(() => buildStatusMix(orgTickets), [orgTickets]);
   const ageBuckets = useMemo(() => buildAgeBuckets(orgTickets), [orgTickets]);
-  const priorityWorkload = useMemo(() => buildPriorityWorkload(workload), [workload]);
   const completionPct = orgTickets.length ? Math.round((counts.resolved / orgTickets.length) * 100) : 0;
 
   return (
@@ -131,17 +103,6 @@ export function AdminDashboard() {
             <div className="header-content">
               <div>
                 <h1 className="dashboard-title">Dashboard</h1>
-                <p className="dashboard-subtitle">
-                  {getUserRoleLabel(user) ? (
-                    <>
-                      <span className="dashboard-role-label">{getUserRoleLabel(user)}</span>
-                      {' · '}
-                    </>
-                  ) : null}
-                  {isTeamManager(user)
-                    ? 'Organization-wide ticket metrics — read-only oversight across all departments.'
-                    : 'Review reported issues, manage resolution queue, optimize workflow.'}
-                </p>
               </div>
             </div>
           </motion.div>
@@ -170,7 +131,7 @@ export function AdminDashboard() {
                 {[
                   { label: 'P1 Critical', val: counts.p1, color: '#ff3b30', pct: orgTickets.length ? (counts.p1 / orgTickets.length) * 100 : 0 },
                   { label: 'P2 High', val: counts.p2, color: '#ff9500', pct: orgTickets.length ? (counts.p2 / orgTickets.length) * 100 : 0 },
-                  { label: 'Your Load Score', val: myLoad?.load_score ?? 0, color: '#3b82f6', pct: Math.min(100, ((myLoad?.load_score ?? 0) / 20) * 100) },
+                  { label: 'P3 Tickets', val: counts.p3, color: '#34c759', pct: orgTickets.length ? (counts.p3 / orgTickets.length) * 100 : 0 },
                 ].map((item) => (
                   <div key={item.label} className="workload-card">
                     <h4>{item.label}</h4>
@@ -185,15 +146,17 @@ export function AdminDashboard() {
               {/* Charts */}
               <motion.div className="charts-grid" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <div className="chart-card">
-              <h4 className="chart-card-title">Throughput: Created vs Resolved</h4>
+              <h4 className="chart-card-title">Throughput: Created vs Resolved vs Rerouted</h4>
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={weeklyLine} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <LineChart data={throughput} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                   <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
                   <Line type="monotone" dataKey="created" name="Created" stroke="#60a5fa" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="resolved" name="Resolved" stroke="#34c759" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="rerouted" name="Rerouted" stroke="#f97316" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -224,28 +187,14 @@ export function AdminDashboard() {
             </div>
 
             <div className="chart-card">
-              <h4 className="chart-card-title">Priority Load by Owner</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={priorityWorkload} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="P1" stackId="priority" name="P1" fill="#ff3b30" />
-                  <Bar dataKey="P2" stackId="priority" name="P2" fill="#ff9500" />
-                  <Bar dataKey="P3" stackId="priority" name="P3" fill="#34c759" />
-                  <Bar dataKey="P4" stackId="priority" name="P4" fill="#6b7280" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="chart-card">
               <h4 className="chart-card-title">Aging Risk</h4>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={ageBuckets} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <BarChart data={ageBuckets} margin={{ top: 4, right: 12, bottom: 0, left: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                   <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis width={46} tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={true} axisLine={true} allowDecimals={false}>
+                    <Label value="Tickets" angle={-90} position="insideLeft" offset={8} fill="#6b7280" style={{ fontSize: 10 }} />
+                  </YAxis>
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="value" name="Active tickets" radius={[4, 4, 0, 0]}>
                     {ageBuckets.map((bucket) => <Cell key={bucket.name} fill={bucket.fill} />)}

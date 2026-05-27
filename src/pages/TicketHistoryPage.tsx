@@ -29,6 +29,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useTicketCategories, useTicketList, invalidateTicketListCache } from '../hooks/useTicketData';
 import { useToast } from '../context/useToast';
 import { ticketsApi, type ApiTicket, type ApiActivityEvent, type ApiComment } from '../utils/apiClient';
+import { formatTicketStatusLabel } from '../utils/ticketStatusLabel';
 import {
   canMutateTicket,
   canRerouteTicket,
@@ -37,6 +38,8 @@ import {
   getTicketListScope,
   getTicketQueueListScope,
   isOrgViewer,
+  isTeamManager,
+  isQaManager,
   showQueueOwnershipFilter,
   type QueueOwnershipFilter,
 } from '../utils/orgRoles';
@@ -94,19 +97,25 @@ function timeAgo(timestamp: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function cleanLabel(value?: string | null): string {
+  return value?.trim() || '';
+}
+
 function assigneeLabel(ticket: ApiTicket) {
-  if (ticket.assigned_to_name) return ticket.assigned_to_name;
+  const assignedName = cleanLabel(ticket.assigned_to_name);
+  if (assignedName) return assignedName;
   const routing = getRouting(ticket);
-  if (routing?.decision?.assignee_name) return routing.decision.assignee_name;
+  const decisionName = cleanLabel(routing?.decision?.assignee_name);
+  if (decisionName) return decisionName;
   if (ticket.status === 'pending_routing') return 'Pending routing';
   if (routing?.assigned_admin_id) return 'Assignment missing';
   return 'Unassigned';
 }
 
 function assigneeRoleLabel(ticket: ApiTicket): string {
-  const fromAssignee = ticket.assigned_to_job_title?.trim();
+  const fromAssignee = cleanLabel(ticket.assigned_to_job_title);
   if (fromAssignee) return fromAssignee;
-  const fromDecision = getRouting(ticket)?.decision?.assignee_job_title?.trim();
+  const fromDecision = cleanLabel(getRouting(ticket)?.decision?.assignee_job_title);
   return fromDecision || '';
 }
 
@@ -191,7 +200,7 @@ function priorityLabel(priority: ApiTicket['priority']): string {
 }
 
 function activityActor(event: ApiActivityEvent): string {
-  return `${event.first_name || ''} ${event.last_name || ''}`.trim() || event.actor_email || 'Someone';
+  return `${event.first_name || ''} ${event.last_name || ''}`.trim() || event.actor_email || 'Deleted user';
 }
 
 function metadataText(metadata: Record<string, unknown> | undefined, key: string): string | null {
@@ -226,7 +235,7 @@ function activityTimelineEvents(ticket: ApiTicket, event: ApiActivityEvent): Tim
   const time = timeAgo(event.created_at);
   const occurredAt = new Date(event.created_at).getTime();
   const id = event.id || `${event.action}-${event.created_at}`;
-  const assignedTo = metadataText(metadata, 'assigned_to_name') || assigneeLabel(ticket);
+  const assignedTo = cleanLabel(metadataText(metadata, 'assigned_to_name')) || assigneeLabel(ticket);
   const oldAssignee = metadataText(metadata, 'old_assigned_to_name');
   const routingReason = luminaVoice(metadataText(metadata, 'routing_reasoning') || metadataText(metadata, 'reasoning'));
 
@@ -308,7 +317,7 @@ function activityTimelineEvents(ticket: ApiTicket, event: ApiActivityEvent): Tim
       id,
       icon: CheckCircle2,
       title: 'Status changed',
-      detail: `${actor} moved status from ${humanize(oldStatus)} to ${humanize(newStatus)}.`,
+      detail: `${actor} moved status from ${formatTicketStatusLabel(oldStatus)} to ${formatTicketStatusLabel(newStatus)}.`,
       time,
       occurredAt,
       order: 1,
@@ -407,8 +416,8 @@ function fallbackTimelineEvents(ticket: ApiTicket): TimelineEvent[] {
     events.push({
       id: `${ticket.id}-${ticket.status}`,
       icon: CheckCircle2,
-      title: humanize(ticket.status),
-      detail: `Ticket is marked ${humanize(ticket.status)} and visible in completed history.`,
+      title: formatTicketStatusLabel(ticket.status),
+      detail: `Ticket is marked ${formatTicketStatusLabel(ticket.status)} and visible in completed history.`,
       time: timeAgo(ticket.created_at),
       occurredAt: new Date(ticket.created_at).getTime(),
       order: 3,
@@ -479,7 +488,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const [editDescValue, setEditDescValue] = useState('');
   const [editReplicationValue, setEditReplicationValue] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
-  const [queueOwnership, setQueueOwnership] = useState<QueueOwnershipFilter>('assigned');
+  const [queueOwnership, setQueueOwnership] = useState<QueueOwnershipFilter>('team');
   const [profileCardUserId, setProfileCardUserId] = useState<string | null>(null);
   const [showNewTicket, setShowNewTicket] = useState(false);
 
@@ -641,15 +650,16 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const isRegularUser = user?.role === 'user';
   const isQaUser = user?.department === 'QA' || false;
   const isDevUser = !!(user?.department && user.department !== 'QA');
+  const canManageReroutes = isTeamManager(user) || isQaManager(user);
   const canMutateSelected = Boolean(selectedTicket && canMutateTicket(user, selectedTicket));
   const canReroute = Boolean(selectedTicket && canRerouteTicket(user, selectedTicket));
   const canChangePriority = canMutateSelected;
   const canChangeStatus = canMutateSelected;
   const canComment = Boolean(selectedTicket && canCommentOnTicket(user, selectedTicket));
   const canEditDetails = Boolean(selectedTicket && canEditTicketDetails(user, selectedTicket));
-  const canRouteToDeveloper = Boolean(isQaUser && selectedTicket && selectedTicket.qa_assignee_id === user?.id);
-  const canRerouteQa = Boolean(isQaUser && selectedTicket && selectedTicket.qa_assignee_id === user?.id);
-  const canRouteToQa = Boolean(isDevUser && selectedTicket && selectedTicket.dev_assignee_id === user?.id);
+  const canRouteToDeveloper = Boolean(selectedTicket && (canManageReroutes || (isQaUser && selectedTicket.qa_assignee_id === user?.id)));
+  const canRerouteQa = Boolean(selectedTicket && (canManageReroutes || (isQaUser && selectedTicket.qa_assignee_id === user?.id)));
+  const canRouteToQa = Boolean(selectedTicket && (canManageReroutes || (isDevUser && selectedTicket.dev_assignee_id === user?.id)));
   const ownerEyebrow = isRegularUser ? 'support owner' : 'assigned';
 
   const handlePriorityChange = useCallback(async (priority: ApiTicket['priority']) => {
@@ -694,7 +704,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       )));
       await refreshTicketList();
       await refreshActivity(selectedTicket.id, true);
-      showToast(`Status changed to ${humanize(nextStatus)}.`, 'success');
+      showToast(`Status changed to ${formatTicketStatusLabel(nextStatus)}.`, 'success');
     } catch {
       showToast('Could not change ticket status.', 'error');
     } finally {
@@ -972,13 +982,13 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                   {mode === 'history' ? (
                     <>
                       <option value="all">Completed statuses</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="closed">Closed</option>
+                      <option value="resolved">{formatTicketStatusLabel('resolved')}</option>
+                      <option value="closed">{formatTicketStatusLabel('closed')}</option>
                     </>
                   ) : (
                     <>
                       <option value="all">All statuses</option>
-                      <option value="open">Open</option>
+                      <option value="open">To Do</option>
                       <option value="assigned">Assigned</option>
                       <option value="in_progress">In progress</option>
                       <option value="on_hold">On hold</option>
@@ -1145,7 +1155,12 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
         open={showNewTicket}
         onClose={() => setShowNewTicket(false)}
         onCreated={(ticket) => {
-          mutateTickets((prev) => [ticket, ...(prev ?? [])]);
+          invalidateTicketListCache();
+          if (ticketListScope.scope === 'assigned' && ticket.assigned_to_id !== user?.id) {
+            void revalidateTickets();
+          } else {
+            mutateTickets((prev) => [ticket, ...(prev ?? [])]);
+          }
           setShowNewTicket(false);
         }}
       />

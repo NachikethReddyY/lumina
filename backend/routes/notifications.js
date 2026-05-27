@@ -18,7 +18,7 @@ router.get('/', async (req, res, next) => {
         `SELECT a.id, a.action, a.metadata, a.created_at,
                 u.first_name, u.last_name, u.email AS actor_email
          FROM audit_logs a
-         JOIN users u ON u.id = a.actor_id
+         LEFT JOIN users u ON u.id = a.actor_id
          WHERE a.metadata->>'ticket_id' IN (
            SELECT id::text FROM tickets WHERE submitted_by = $1
            UNION
@@ -38,7 +38,7 @@ router.get('/', async (req, res, next) => {
         `SELECT a.id, a.action, a.metadata, a.created_at,
                 u.first_name, u.last_name, u.email AS actor_email
          FROM audit_logs a
-         JOIN users u ON u.id = a.actor_id
+         LEFT JOIN users u ON u.id = a.actor_id
          ORDER BY a.created_at DESC
          LIMIT 50`
       );
@@ -47,7 +47,7 @@ router.get('/', async (req, res, next) => {
         `SELECT a.id, a.action, a.metadata, a.created_at,
                 u.first_name, u.last_name, u.email AS actor_email
          FROM audit_logs a
-         JOIN users u ON u.id = a.actor_id
+         LEFT JOIN users u ON u.id = a.actor_id
          WHERE a.metadata->>'ticket_id' IN (
            SELECT id::text FROM tickets t
            WHERE EXISTS (
@@ -65,7 +65,7 @@ router.get('/', async (req, res, next) => {
         `SELECT a.id, a.action, a.metadata, a.created_at,
                 u.first_name, u.last_name, u.email AS actor_email
          FROM audit_logs a
-         JOIN users u ON u.id = a.actor_id
+         LEFT JOIN users u ON u.id = a.actor_id
          ORDER BY a.created_at DESC
          LIMIT 50`
       );
@@ -86,10 +86,10 @@ router.get('/ai-decisions', requireAuth, async (req, res, next) => {
               t.metadata->'routing' AS routing,
               submitter.department AS submitter_department,
               COALESCE(
-                NULLIF(CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name), ' '),
-                NULLIF(CONCAT(routed_assignee.first_name, ' ', routed_assignee.last_name), ' ')
+                NULLIF(TRIM(CONCAT(routed_assignee.first_name, ' ', routed_assignee.last_name)), ''),
+                NULLIF(TRIM(CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)), '')
               ) AS assigned_to_name,
-              COALESCE(NULLIF(TRIM(qa_assignee.job_title), ''), NULLIF(TRIM(routed_assignee.job_title), '')) AS assigned_to_job_title
+              COALESCE(NULLIF(TRIM(routed_assignee.job_title), ''), NULLIF(TRIM(qa_assignee.job_title), '')) AS assigned_to_job_title
        FROM tickets t
        JOIN users submitter ON submitter.id = t.submitted_by
        LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'

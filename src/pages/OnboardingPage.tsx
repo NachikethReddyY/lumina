@@ -34,16 +34,22 @@ type Status = 'idle' | 'loading' | 'success' | 'error';
 type Category = {
   id: string;
   label: string;
-  subtitles: string[];
   Icon: LucideIcon;
 };
 
 const CATEGORIES: Category[] = [
-  { id: 'HR', label: 'HR', subtitles: ['HR'], Icon: User },
-  { id: 'Managers', label: 'Managers', subtitles: ['Product Manager', 'Product Owner', 'Program / Project Manager', 'Head of Product / VP Product'], Icon: ClipboardList },
-  { id: 'Developers', label: 'Developers', subtitles: ['Software Engineer / Developer', 'Tech Lead / Lead Engineer', 'Architect', 'Platform / Infrastructure Engineer', 'DevOps / Site Reliability Engineer'], Icon: Monitor },
-  { id: 'QA', label: 'QA', subtitles: ['Product Designer / UX Designer', 'UI / Visual Designer', 'UX Researcher', 'Content Designer / UX Writer', 'QA Engineer / Test Engineer', 'Automation Engineer', 'Security Engineer / AppSec', 'Compliance / Privacy Specialist', 'Release Manager'], Icon: Search },
+  { id: 'HR', label: 'HR', Icon: User },
+  { id: 'Managers', label: 'Managers', Icon: ClipboardList },
+  { id: 'Developers', label: 'Developers', Icon: Monitor },
+  { id: 'QA', label: 'QA', Icon: Search },
 ];
+
+const ROLE_OPTIONS: Record<string, string[]> = {
+  HR: ['HR'],
+  Managers: ['Product Manager', 'Project Manager', 'QA Manager'],
+  Developers: ['Software Engineer', 'Tech Lead', 'Architect', 'Platform Engineer', 'DevOps / Site Reliability Engineer'],
+  QA: ['QA Engineer', 'Automation Engineer'],
+};
 
 async function cropImageToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
   const canvas = document.createElement('canvas');
@@ -86,7 +92,7 @@ export function OnboardingPage() {
   const cropImgRef = useRef<HTMLImageElement>(null);
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedSubtitle, setSelectedSubtitle] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [rawImage, setRawImage] = useState<string>('');
@@ -112,9 +118,13 @@ export function OnboardingPage() {
     const category =
       draft.category ??
       (user.department && CATEGORIES.some((c) => c.id === user.department) ? user.department : null);
-    const subtitle = draft.subtitle ?? user.job_title ?? null;
+    const roleOptions = category ? ROLE_OPTIONS[category] ?? [] : [];
+    const role =
+      draft.subtitle ??
+      (roleOptions.includes(user.job_title || '') ? user.job_title : null) ??
+      (roleOptions.length === 1 ? roleOptions[0] : null);
     if (category) setSelectedCategory(category);
-    if (subtitle) setSelectedSubtitle(subtitle);
+    if (role) setSelectedRole(role);
     setRestored(true);
   }, [user?.id, user?.department, user?.job_title]);
 
@@ -122,9 +132,9 @@ export function OnboardingPage() {
     if (!user || !restored) return;
     saveOnboardingDraft(user.id, {
       category: selectedCategory,
-      subtitle: selectedSubtitle,
+      subtitle: selectedRole,
     });
-  }, [user?.id, selectedCategory, selectedSubtitle, restored]);
+  }, [user?.id, selectedCategory, selectedRole, restored]);
 
   const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { width, height } = e.currentTarget;
@@ -192,8 +202,8 @@ export function OnboardingPage() {
       showToast('Please select your role category', 'error');
       return;
     }
-    if (!selectedSubtitle) {
-      showToast('Please select your specific role', 'error');
+    if (!selectedRole) {
+      showToast('Please select your role', 'error');
       return;
     }
     setShowConfirmation(true);
@@ -217,8 +227,8 @@ export function OnboardingPage() {
         }
       }
 
-      // Save onboarding info — subtitle becomes job title, category becomes department
-      const res = await usersApi.saveOnboarding(selectedSubtitle!, selectedCategory!);
+      // Save onboarding info — selected role becomes job title and team becomes department.
+      const res = await usersApi.saveOnboarding(selectedRole!, selectedCategory!);
       const data = (await res.json().catch(() => ({}))) as {
         message?: string;
         error?: string;
@@ -342,8 +352,8 @@ export function OnboardingPage() {
 
                 {/* Role Selection */}
                 <div className="role-category-select">
-                  <label>Your Role</label>
-                  <p className="onboarding-field-desc">AI routes tickets to the right team based on your selection</p>
+                  <label>Your Team</label>
+                  <p className="onboarding-field-desc">Choose the team that best matches your work</p>
                   <div className="category-cards">
                     {CATEGORIES.filter((cat) => cat.id !== 'HR' || user.email === 'ynrdevs@gmail.com').map((cat) => (
                       <button
@@ -352,7 +362,7 @@ export function OnboardingPage() {
                         className={`category-card ${selectedCategory === cat.id ? 'active' : ''}`}
                         onClick={() => {
                           setSelectedCategory(cat.id);
-                          setSelectedSubtitle(null);
+                          setSelectedRole(null);
                         }}
                       >
                         <span className="category-icon" aria-hidden>
@@ -369,14 +379,15 @@ export function OnboardingPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2 }}
                     >
-                      {CATEGORIES.find((c) => c.id === selectedCategory)?.subtitles.map((st) => (
+                      <div className="onboarding-field-desc" style={{ marginBottom: 8 }}>Choose your role</div>
+                      {ROLE_OPTIONS[selectedCategory]?.map((role) => (
                         <button
-                          key={st}
+                          key={role}
                           type="button"
-                          className={`subtitle-chip ${selectedSubtitle === st ? 'active' : ''}`}
-                          onClick={() => setSelectedSubtitle(st)}
+                          className={`subtitle-chip ${selectedRole === role ? 'active' : ''}`}
+                          onClick={() => setSelectedRole(role)}
                         >
-                          {st}
+                          {role}
                         </button>
                       ))}
                     </motion.div>
@@ -391,7 +402,7 @@ export function OnboardingPage() {
               type="submit"
               size="lg"
               loading={status === 'loading'}
-              disabled={!selectedSubtitle || status === 'loading'}
+              disabled={!selectedCategory || !selectedRole || status === 'loading'}
               className="w-full onboarding-submit-btn"
             >
               Continue to Approval

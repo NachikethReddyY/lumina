@@ -1,24 +1,24 @@
 import type { ApiUser } from './apiClient';
 
 /** Onboarding department bucket for Super Admin filters and charts. */
-export type DepartmentGroup = 'manager' | 'developer' | 'user';
+export type DepartmentGroup = 'manager' | 'developer' | 'qa';
 
 export type DepartmentGroupFilter = 'all' | DepartmentGroup;
 
 const DEPARTMENT_GROUP_LABELS: Record<DepartmentGroup, string> = {
   manager: 'Manager',
   developer: 'Developer',
-  user: 'User',
+  qa: 'QA',
 };
 
-export const DEPARTMENT_GROUP_FILTERS: DepartmentGroupFilter[] = ['all', 'manager', 'developer', 'user'];
+export const DEPARTMENT_GROUP_FILTERS: DepartmentGroupFilter[] = ['all', 'manager', 'developer', 'qa'];
 
 export function getDepartmentGroupLabel(filter: DepartmentGroupFilter): string {
   if (filter === 'all') return 'All Roles';
   return DEPARTMENT_GROUP_LABELS[filter];
 }
 
-/** Maps onboarding `department` to Manager / Developer / User filter groups. */
+/** Maps onboarding `department` to Manager / Developer / QA filter groups. */
 export function getUserDepartmentGroup(user: ApiUser | null | undefined): DepartmentGroup | null {
   switch (user?.department?.trim()) {
     case 'Managers':
@@ -27,7 +27,7 @@ export function getUserDepartmentGroup(user: ApiUser | null | undefined): Depart
     case 'Developers':
       return 'developer';
     case 'QA':
-      return 'user';
+      return 'qa';
     default:
       return null;
   }

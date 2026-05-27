@@ -650,6 +650,61 @@
   margin: 0 0 20px 0;
 }
 
+.chart-tooltip {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-hairline-strong);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(38, 37, 30, 0.08);
+}
+
+.chart-tooltip p {
+  color: var(--color-muted);
+  font-size: 11px;
+  margin: 0 0 2px;
+}
+
+.chart-tooltip strong {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 700;
+  display: block;
+  margin: 2px 0;
+}
+
+.sa-chart-clickable {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.sa-chart-clickable:hover,
+.sa-chart-clickable:focus-visible {
+  outline: 2px solid color-mix(in srgb, #2563eb 35%, transparent);
+  outline-offset: 2px;
+}
+
+.sa-leaderboard-modal {
+  max-width: 640px;
+  max-height: min(85vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.sa-leaderboard-table-wrap {
+  overflow: auto;
+  padding: 0 20px 20px;
+  flex: 1;
+  min-height: 0;
+}
+
 .progress-donut-shell {
   position: relative;
   min-height: 200px;

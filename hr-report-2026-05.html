@@ -9,11 +9,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    /* ── Shared tokens (Ollama DESIGN.md) ── */
+    /* Ollama design tokens — ollama/DESIGN.md */
     :root {
       --primary: #000000;
       --on-primary: #ffffff;
       --ink: #000000;
+      --ink-deep: #090909;
       --charcoal: #525252;
       --body: #737373;
       --mute: #a3a3a3;
@@ -33,135 +34,163 @@
       --negative: #7f1d1d;
       --negative-bg: #fef2f2;
       --negative-border: #fecaca;
-      --chart-managers: #d97706;
-      --chart-hr: #1f8a65;
-      --chart-dev: #2563eb;
-      --chart-qa: #8b5cf6;
       --font-display: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
       --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       --font-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
       --rounded-lg: 12px;
       --rounded-full: 9999px;
       --section: 64px;
-      --content-max: 960px;
     }
-
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: var(--font-body);
       font-size: 16px;
+      font-weight: 400;
       line-height: 1.5;
       color: var(--ink);
       background: var(--canvas);
       -webkit-font-smoothing: antialiased;
     }
-
-    .doc {
-      max-width: var(--content-max);
+    .primary-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--hairline);
+      max-width: 960px;
       margin: 0 auto;
-      padding: 48px 24px 88px;
     }
-
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .llama-mark { width: 28px; height: 32px; color: var(--ink); flex-shrink: 0; }
+    .nav-pill {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--ink);
+      background: var(--surface-soft);
+      padding: 8px 16px;
+      border-radius: var(--rounded-full);
+      white-space: nowrap;
+    }
+    .doc {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: var(--section) 24px 88px;
+    }
     .hero {
       text-align: center;
-      margin-bottom: 48px;
+      margin-bottom: var(--section);
     }
-    .brand-logo {
-      width: 48px;
-      height: 48px;
-      display: block;
-      margin: 0 auto 16px;
+    .hero-mascot {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+      color: var(--ink);
     }
+    .hero-mascot .llama-mark { width: 56px; height: 64px; }
     .hero h1 {
-      margin: 0 0 8px;
+      margin: 0 0 12px;
       font-family: var(--font-display);
       font-size: clamp(28px, 5vw, 36px);
       font-weight: 500;
       line-height: 1.11;
-      letter-spacing: 0.02em;
+      letter-spacing: 0;
+      color: var(--ink);
     }
     .hero-sub {
-      margin: 0 0 16px;
+      margin: 0 0 20px;
       font-size: 14px;
       color: var(--body);
+      line-height: 1.43;
     }
     .meta-snippet {
-      display: inline-block;
+      display: inline-flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px 16px;
       font-family: var(--font-mono);
-      font-size: 13px;
-      background: var(--surface-soft);
-      padding: 10px 18px;
-      border-radius: var(--rounded-full);
+      font-size: 14px;
       color: var(--ink);
-      line-height: 1.5;
+      background: var(--surface-soft);
+      padding: 12px 20px;
+      border-radius: var(--rounded-full);
+      max-width: 100%;
     }
-    .meta-snippet .sep { color: var(--mute); }
-
-    .people-section {
-      margin-bottom: 40px;
+    .meta-snippet span { color: var(--mute); }
+    .section { margin-bottom: var(--section); }
+    .section-title {
+      margin: 0 0 8px;
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1.33;
+      color: var(--ink);
     }
-    .people-heading {
-      margin: 0 0 14px;
+    .section-lead { margin: 0 0 24px; font-size: 14px; color: var(--body); line-height: 1.43; }
+    .spotlight-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: var(--section);
+    }
+    @media (max-width: 768px) { .spotlight-grid { grid-template-columns: 1fr; } }
+    .pricing-card {
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      border-radius: var(--rounded-lg);
+      padding: 32px;
+    }
+    .pricing-card-dark {
+      background: var(--surface-dark);
+      border: 1px solid var(--surface-dark);
+      border-radius: var(--rounded-lg);
+      padding: 32px;
+      color: var(--on-dark);
+    }
+    .pricing-card h2, .pricing-card-dark h2 {
+      margin: 0 0 20px;
       font-family: var(--font-display);
       font-size: 20px;
       font-weight: 500;
       line-height: 1.4;
     }
-    .people-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-      gap: 10px;
+    .pricing-card-dark h2 { color: var(--on-dark); }
+    .feature-row {
+      display: flex;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--hairline);
     }
-    .mini-card {
-      border: 1px solid var(--hairline);
-      border-radius: var(--rounded-lg);
-      padding: 12px 14px;
-      background: var(--canvas);
-    }
-    .mini-card--success {
-      background: var(--positive-bg);
-      border-color: var(--positive-border);
-    }
-    .mini-card--attention {
-      background: var(--negative-bg);
-      border-color: var(--negative-border);
-    }
-    .mini-card-tag {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--mute);
-      margin-bottom: 6px;
-    }
-    .mini-card--success .mini-card-tag { color: var(--positive); }
-    .mini-card--attention .mini-card-tag { color: var(--negative); }
-    .mini-card-name {
-      margin: 0 0 2px;
+    .feature-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .feature-check, .feature-mark {
+      flex-shrink: 0;
+      width: 20px;
       font-size: 14px;
-      font-weight: 500;
-      line-height: 1.25;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.5;
     }
-    .mini-card-role {
-      margin: 0 0 8px;
-      font-size: 11px;
-      color: var(--body);
-      line-height: 1.3;
-    }
-    .mini-card--attention .mini-card-role { color: #991b1b; }
-    .mini-card-stat {
-      margin: 0;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 500;
-      line-height: 1.35;
-    }
-    .mini-card-note {
-      margin: 6px 0 0;
-      font-size: 10px;
-      line-height: 1.3;
-      color: var(--negative);
-    }
-
+    .feature-row--on-dark { border-bottom-color: rgba(255,255,255,0.12); }
+    .feature-row--on-dark .feature-mark { color: var(--on-dark); }
+    .feature-name { margin: 0 0 4px; font-size: 16px; font-weight: 500; color: var(--ink); }
+    .feature-row--on-dark .feature-name { color: var(--on-dark); }
+    .feature-meta { margin: 0; font-size: 14px; color: var(--charcoal); line-height: 1.43; }
+    .feature-row--on-dark .feature-meta { color: var(--on-dark-mute); }
+    .feature-stat { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); }
+    .feature-row--on-dark .feature-stat { color: var(--on-dark); }
+    .feature-reason { margin: 6px 0 0; font-size: 12px; color: var(--on-dark-mute); }
+    .panel-empty { margin: 0; font-size: 14px; color: var(--body); }
+    .panel-empty--on-dark { color: var(--on-dark-mute); }
+    .meta-snippet .sep { color: var(--mute); }
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
@@ -172,36 +201,26 @@
       overflow: hidden;
       margin-bottom: var(--section);
     }
-    @media (max-width: 900px) {
-      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
-    }
-    @media (max-width: 500px) {
-      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 500px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
     .kpi {
       background: var(--canvas);
-      padding: 18px 12px;
+      padding: 20px 16px;
       text-align: center;
     }
-    .kpi-label { font-size: 12px; color: var(--body); margin-bottom: 6px; }
+    .kpi-label {
+      font-size: 12px;
+      color: var(--body);
+      margin-bottom: 8px;
+      line-height: 1.33;
+    }
     .kpi-value {
       font-family: var(--font-display);
-      font-size: 28px;
+      font-size: 30px;
       font-weight: 500;
       line-height: 1.2;
       color: var(--ink);
     }
-    .kpi-delta {
-      margin-top: 6px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      line-height: 1.3;
-      color: var(--body);
-    }
-    .kpi-delta--positive { color: var(--positive); font-weight: 500; }
-    .kpi-delta--negative { color: var(--negative); font-weight: 500; }
-    .kpi-delta--neutral { color: var(--mute); }
-
     .charts-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -209,7 +228,6 @@
       margin-bottom: var(--section);
     }
     @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
-
     .terminal-card {
       background: var(--canvas);
       border: 1px solid var(--hairline);
@@ -230,90 +248,70 @@
     }
     .chart-wrap { position: relative; height: 200px; }
     .terminal-card--wide .chart-wrap { height: 230px; }
-
-    .section-block {
-      margin-bottom: var(--section);
-      padding-bottom: var(--section);
-      border-bottom: 1px solid var(--hairline);
-    }
-    .section-block:last-of-type { border-bottom: none; }
-    .section-title {
-      margin: 0 0 8px;
-      font-family: var(--font-display);
-      font-size: 24px;
-      font-weight: 600;
-      line-height: 1.33;
-    }
-    .section-lead { margin: 0 0 20px; font-size: 14px; color: var(--body); }
-
+    .panel { margin-bottom: var(--section); padding-bottom: var(--section); border-bottom: 1px solid var(--hairline); }
+    .panel:last-of-type { border-bottom: none; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th {
+      padding: 12px 0;
       text-align: left;
       font-size: 12px;
       font-weight: 500;
       color: var(--body);
-      padding: 10px 12px 10px 0;
       border-bottom: 1px solid var(--hairline);
+      white-space: nowrap;
     }
-    td {
-      padding: 14px 12px 14px 0;
-      border-bottom: 1px solid var(--hairline);
-      color: var(--charcoal);
-    }
+    td { padding: 16px 12px 16px 0; border-bottom: 1px solid var(--hairline); color: var(--charcoal); }
     td strong { color: var(--ink); font-weight: 500; }
     tbody tr:hover td { background: var(--surface-soft); }
     tr.highlight td { background: var(--surface-soft); }
-
     .toolbar {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
     .toolbar input {
       flex: 1;
-      min-width: 180px;
+      min-width: 200px;
       height: 40px;
       padding: 8px 16px;
       font: inherit;
-      font-size: 15px;
+      font-size: 16px;
+      color: var(--ink);
+      background: var(--canvas);
       border: 1px solid var(--hairline);
       border-radius: var(--rounded-full);
-      background: var(--canvas);
-      color: var(--ink);
     }
     .toolbar input:focus {
       outline: none;
       border-color: var(--ink);
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.45);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.5);
     }
     .toolbar select {
       height: 36px;
-      padding: 0 14px;
+      padding: 8px 16px;
       font: inherit;
-      font-size: 13px;
+      font-size: 14px;
+      color: var(--ink);
+      background: var(--surface-soft);
       border: none;
       border-radius: var(--rounded-full);
-      background: var(--surface-soft);
-      color: var(--ink);
       cursor: pointer;
     }
     .toolbar-meta { font-size: 12px; color: var(--body); margin-left: auto; }
-
     .badge {
       display: inline-block;
-      padding: 5px 11px;
+      padding: 6px 12px;
       border-radius: var(--rounded-full);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 500;
       line-height: 1;
     }
     .badge--exceptional { background: var(--positive-bg); color: var(--positive); border: 1px solid var(--positive-border); }
     .badge--steady { background: var(--surface-soft); color: var(--charcoal); }
     .badge--attention { background: var(--negative-bg); color: var(--negative); border: 1px solid var(--negative-border); }
-    .rank-cell { font-family: var(--font-mono); font-size: 13px; color: var(--mute); width: 36px; }
-
+    .rank-cell { font-family: var(--font-mono); font-size: 14px; color: var(--mute); width: 40px; }
     .table-scroll { overflow-x: auto; }
     .pagination {
       display: flex;
@@ -321,47 +319,106 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-top: 16px;
-      padding-top: 16px;
+      margin-top: 20px;
+      padding-top: 20px;
       border-top: 1px solid var(--hairline);
     }
     .btn {
       font: inherit;
       font-size: 14px;
       font-weight: 500;
+      line-height: 1;
       height: 36px;
-      padding: 0 20px;
+      padding: 8px 20px;
       border-radius: var(--rounded-full);
+      cursor: pointer;
       border: 1px solid var(--hairline-strong);
       background: var(--canvas);
       color: var(--ink);
-      cursor: pointer;
     }
     .btn:disabled { background: var(--surface-soft); color: var(--mute); cursor: not-allowed; }
-
+    .btn:not(:disabled):active { background: var(--surface-soft); }
     .faq-block { margin-bottom: var(--section); }
     .faq-block h3 {
-      margin: 0 0 10px;
+      margin: 0 0 8px;
       font-size: 18px;
       font-weight: 500;
       line-height: 1.56;
+      color: var(--ink);
     }
     .faq-block p {
       margin: 0;
       font-size: 16px;
-      line-height: 1.6;
+      line-height: 1.5;
       color: var(--body);
       white-space: pre-wrap;
     }
-
     .site-footer {
-      padding-top: 32px;
+      padding: 32px 0 0;
       border-top: 1px solid var(--hairline);
       font-size: 12px;
       color: var(--body);
       text-align: center;
+      line-height: 1.33;
     }
-
+    .brand-logo { width: 48px; height: 48px; display: block; margin: 0 auto 16px; }
+    .people-section { margin-bottom: 40px; }
+    .people-heading {
+      margin: 0 0 14px;
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .people-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+      gap: 10px;
+    }
+    .mini-card {
+      border: 1px solid var(--hairline);
+      border-radius: var(--rounded-lg);
+      padding: 12px 14px;
+      background: var(--canvas);
+    }
+    .mini-card--success { background: var(--positive-bg); border-color: var(--positive-border); }
+    .mini-card--attention { background: var(--negative-bg); border-color: var(--negative-border); }
+    .mini-card-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--mute);
+      margin-bottom: 6px;
+    }
+    .mini-card--success .mini-card-tag { color: var(--positive); }
+    .mini-card--attention .mini-card-tag { color: var(--negative); }
+    .mini-card-name { margin: 0 0 2px; font-size: 14px; font-weight: 500; line-height: 1.25; }
+    .mini-card-role { margin: 0 0 8px; font-size: 11px; color: var(--body); line-height: 1.3; }
+    .mini-card--attention .mini-card-role { color: #991b1b; }
+    .mini-card-stat {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.35;
+    }
+    .mini-card-note { margin: 6px 0 0; font-size: 10px; line-height: 1.3; color: var(--negative); }
+    .panel-empty { margin: 0; font-size: 14px; color: var(--body); }
+    .kpi-delta {
+      margin-top: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.3;
+      color: var(--body);
+    }
+    .kpi-delta--positive { color: var(--positive); font-weight: 500; }
+    .kpi-delta--negative { color: var(--negative); font-weight: 500; }
+    .kpi-delta--neutral { color: var(--mute); }
+    .section-block {
+      margin-bottom: var(--section);
+      padding-bottom: var(--section);
+      border-bottom: 1px solid var(--hairline);
+    }
+    .section-block:last-of-type { border-bottom: none; }
     @media print {
       .toolbar, .pagination .btn { display: none; }
     }
@@ -371,21 +428,21 @@
   <main class="doc">
     <header class="hero">
       <svg class="brand-logo" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <linearGradient id="hr-lumina-grad" x1="64" y1="0" x2="64" y2="128" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#FF8A5B"/>
-            <stop offset="34%" stop-color="#FF7AAE"/>
-            <stop offset="68%" stop-color="#C084FC"/>
-            <stop offset="100%" stop-color="#A78BFA"/>
-          </linearGradient>
-        </defs>
-        <path d="M64 0Q64 64 128 64Q64 64 64 128Q64 64 0 64Q64 64 64 0Z" fill="url(#hr-lumina-grad)"/>
-      </svg>
+  <defs>
+    <linearGradient id="hr-lumina-grad" x1="64" y1="0" x2="64" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF8A5B"/>
+      <stop offset="34%" stop-color="#FF7AAE"/>
+      <stop offset="68%" stop-color="#C084FC"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 0Q64 64 128 64Q64 64 64 128Q64 64 0 64Q64 64 64 0Z" fill="url(#hr-lumina-grad)"/>
+</svg>
       <h1>MAY 2026 REPORT</h1>
       <p class="hero-sub">May 2026 (month to date)</p>
       <div class="meta-snippet">
-        Generated Tuesday, May 26, 2026 at 7:18 PM
-        <span class="sep"> · </span>55 people
+        Generated Wednesday, May 27, 2026 at 9:34 PM
+        <span class="sep"> · </span>38 people
         <span class="sep"> · </span>ranked best → needs support
       </div>
     </header>
@@ -400,146 +457,94 @@
           <p class="mini-card-stat">4 closed · 2 active</p>
         </article>
         <article class="mini-card mini-card--success">
-          <div class="mini-card-tag">#2 · 56</div>
-          <p class="mini-card-name">Victor Huang</p>
-          <p class="mini-card-role">QA</p>
-          <p class="mini-card-stat">4 closed · 2 active</p>
-        </article>
-        <article class="mini-card mini-card--success">
-          <div class="mini-card-tag">#3 · 54</div>
-          <p class="mini-card-name">Michael Thompson</p>
-          <p class="mini-card-role">QA</p>
-          <p class="mini-card-stat">4 closed · 3 active</p>
-        </article>
-        <article class="mini-card mini-card--success">
-          <div class="mini-card-tag">#4 · 53</div>
+          <div class="mini-card-tag">#2 · 54</div>
           <p class="mini-card-name">Priya Gupta</p>
           <p class="mini-card-role">Developers</p>
           <p class="mini-card-stat">4 closed · 3 active</p>
         </article>
-      </div>
+        <article class="mini-card mini-card--success">
+          <div class="mini-card-tag">#3 · 52</div>
+          <p class="mini-card-name">Michael Thompson</p>
+          <p class="mini-card-role">QA</p>
+          <p class="mini-card-stat">4 closed · 2 active</p>
+        </article>
+        <article class="mini-card mini-card--success">
+          <div class="mini-card-tag">#4 · 40</div>
+          <p class="mini-card-name">Victor Huang</p>
+          <p class="mini-card-role">QA</p>
+          <p class="mini-card-stat">3 closed · 0 active</p>
+        </article></div>
     </section>
 
     <section class="people-section" aria-label="Needs attention">
       <h2 class="people-heading">Needs attention</h2>
       <div class="people-grid">
         <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">HR</div>
-          <p class="mini-card-name">Nachiketh Reddy</p>
-          <p class="mini-card-role">HR</p>
-          <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">Below baseline</p>
+          <div class="mini-card-tag">#32 · 3</div>
+          <p class="mini-card-name">Brandon White</p>
+          <p class="mini-card-role">QA</p>
+          <p class="mini-card-stat">1 closed · 2 active</p>
+          <p class="mini-card-note">Low closure volume for support role</p>
         </article>
         <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">HR</div>
-          <p class="mini-card-name">Patricia Rivera</p>
-          <p class="mini-card-role">HR Director</p>
-          <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">Below baseline</p>
+          <div class="mini-card-tag">#33 · 2</div>
+          <p class="mini-card-name">Jordan Reed</p>
+          <p class="mini-card-role">QA</p>
+          <p class="mini-card-stat">0 closed · 1 active</p>
+          <p class="mini-card-note">Low closure volume for support role</p>
         </article>
         <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">Managers</div>
-          <p class="mini-card-name">Nicole Allen</p>
-          <p class="mini-card-role">Program Manager</p>
-          <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">No activity</p>
+          <div class="mini-card-tag">#34 · 0</div>
+          <p class="mini-card-name">David Kim</p>
+          <p class="mini-card-role">Developers</p>
+          <p class="mini-card-stat">0 closed · 2 active</p>
+          <p class="mini-card-note">Low closure volume for support role</p>
         </article>
         <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">Managers</div>
-          <p class="mini-card-name">Tyler Brooks</p>
-          <p class="mini-card-role">Project Manager</p>
+          <div class="mini-card-tag">#35 · -35</div>
+          <p class="mini-card-name">Delete Probe</p>
+          <p class="mini-card-role">Developers</p>
           <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">No activity</p>
+          <p class="mini-card-note">Low closure volume for support role</p>
         </article>
         <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">Managers</div>
-          <p class="mini-card-name">Alexandra Cole</p>
-          <p class="mini-card-role">Product Manager</p>
+          <div class="mini-card-tag">#36 · -35</div>
+          <p class="mini-card-name">Bob Martinez</p>
+          <p class="mini-card-role">QA</p>
           <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">No activity</p>
+          <p class="mini-card-note">Low closure volume for support role</p>
         </article>
         <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">Managers</div>
-          <p class="mini-card-name">Michelle Davis</p>
-          <p class="mini-card-role">Product Manager</p>
+          <div class="mini-card-tag">#37 · -35</div>
+          <p class="mini-card-name">Lasya Reddy</p>
+          <p class="mini-card-role">QA</p>
           <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">No activity</p>
-        </article>
-        <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">Managers</div>
-          <p class="mini-card-name">Xavier Fernandez</p>
-          <p class="mini-card-role">Product Owner</p>
-          <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">No activity</p>
-        </article>
-        <article class="mini-card mini-card--attention">
-          <div class="mini-card-tag">Managers</div>
-          <p class="mini-card-name">Steven Hall</p>
-          <p class="mini-card-role">Program Manager</p>
-          <p class="mini-card-stat">0 closed · 0 active</p>
-          <p class="mini-card-note">No activity</p>
-        </article>
-      </div>
+          <p class="mini-card-note">Low closure volume for support role</p>
+        </article></div>
     </section>
 
     <div class="kpi-grid">
-      <div class="kpi">
-        <div class="kpi-label">Closed this period</div>
-        <div class="kpi-value">39</div>
-        <div class="kpi-delta kpi-delta--positive">↑ 18% vs last month</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Active now</div>
-        <div class="kpi-value">72</div>
-        <div class="kpi-delta kpi-delta--negative">↑ 9% vs last month</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Avg resolution</div>
-        <div class="kpi-value">50h</div>
-        <div class="kpi-delta kpi-delta--negative">↑ 12% vs last month</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Team size</div>
-        <div class="kpi-value">55</div>
-        <div class="kpi-delta kpi-delta--neutral">→ unchanged</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Overload risk</div>
-        <div class="kpi-value">1</div>
-        <div class="kpi-delta kpi-delta--negative">↑ 1 vs last month</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">High reroutes</div>
-        <div class="kpi-value">0</div>
-        <div class="kpi-delta kpi-delta--positive">↓ 100% vs last month</div>
-      </div>
+      <div class="kpi"><div class="kpi-label">Closed this period</div><div class="kpi-value">41</div><div class="kpi-delta kpi-delta--negative">↓ 5% vs last month</div></div>
+      <div class="kpi"><div class="kpi-label">Active now</div><div class="kpi-value">76</div></div>
+      <div class="kpi"><div class="kpi-label">Avg resolution</div><div class="kpi-value">50h</div><div class="kpi-delta kpi-delta--negative">↑ 43% vs last month</div></div>
+      <div class="kpi"><div class="kpi-label">Team size</div><div class="kpi-value">38</div><div class="kpi-delta kpi-delta--neutral">→ unchanged</div></div>
+      <div class="kpi"><div class="kpi-label">Overload risk</div><div class="kpi-value">0</div><div class="kpi-delta kpi-delta--neutral">→ unchanged</div></div>
+      <div class="kpi"><div class="kpi-label">High reroutes</div><div class="kpi-value">0</div><div class="kpi-delta kpi-delta--neutral">→ unchanged</div></div>
     </div>
 
     <div class="charts-grid">
       <div class="terminal-card">
-        <div class="terminal-header">
-          <span class="traffic traffic--red"></span>
-          <span class="traffic traffic--yellow"></span>
-          <span class="traffic traffic--green"></span>
-        </div>
+        <div class="terminal-header"><span class="traffic traffic--red"></span><span class="traffic traffic--yellow"></span><span class="traffic traffic--green"></span></div>
         <h3>Headcount by department</h3>
         <div class="chart-wrap"><canvas id="headcountChart"></canvas></div>
       </div>
       <div class="terminal-card">
-        <div class="terminal-header">
-          <span class="traffic traffic--red"></span>
-          <span class="traffic traffic--yellow"></span>
-          <span class="traffic traffic--green"></span>
-        </div>
+        <div class="terminal-header"><span class="traffic traffic--red"></span><span class="traffic traffic--yellow"></span><span class="traffic traffic--green"></span></div>
         <h3>Active workload</h3>
         <div class="chart-wrap"><canvas id="workloadChart"></canvas></div>
       </div>
       <div class="terminal-card terminal-card--wide">
-        <div class="terminal-header">
-          <span class="traffic traffic--red"></span>
-          <span class="traffic traffic--yellow"></span>
-          <span class="traffic traffic--green"></span>
-        </div>
+        <div class="terminal-header"><span class="traffic traffic--red"></span><span class="traffic traffic--yellow"></span><span class="traffic traffic--green"></span></div>
         <h3>Top performers — closed vs active</h3>
         <div class="chart-wrap"><canvas id="performersChart"></canvas></div>
       </div>
@@ -551,11 +556,30 @@
         <table>
           <thead><tr><th>Department</th><th>Size</th><th>Closed</th><th>Active</th><th>Tickets/person</th><th>Avg resolution</th></tr></thead>
           <tbody>
-            <tr><td><strong>Managers</strong></td><td>20</td><td>0</td><td>0</td><td>0</td><td>0h</td></tr>
-            <tr><td><strong>HR</strong></td><td>2</td><td>0</td><td>0</td><td>0</td><td>0h</td></tr>
-            <tr><td><strong>Developers</strong></td><td>18</td><td>21</td><td>37</td><td>2.1</td><td>52h</td></tr>
-            <tr><td><strong>QA</strong></td><td>15</td><td>18</td><td>35</td><td>2.3</td><td>56h</td></tr>
-          </tbody>
+      <tr class="">
+        <td><strong>Developers</strong></td>
+        <td>20</td>
+        <td>21</td>
+        <td>40</td>
+        <td>2</td>
+        <td>52h</td>
+      </tr>
+      <tr class="">
+        <td><strong>QA</strong></td>
+        <td>18</td>
+        <td>18</td>
+        <td>35</td>
+        <td>1.9</td>
+        <td>52h</td>
+      </tr>
+      <tr class="">
+        <td><strong>Unassigned</strong></td>
+        <td>0</td>
+        <td>0</td>
+        <td>1</td>
+        <td>0</td>
+        <td>0h</td>
+      </tr></tbody>
         </table>
       </div>
     </section>
@@ -599,22 +623,21 @@
 
     <section class="faq-block">
       <h3>Analysis &amp; recommendations</h3>
-      <p>During the May 2026 report period, the team closed 39 tickets with an average resolution time of 50 hours, while 72 tickets remain active. This indicates steady output but highlights potential inefficiencies in the resolution process that warrant attention.
+      <p>During the May 2026 report period, the team closed 41 tickets while managing an active queue of 76, resulting in an average resolution time of 50 hours. This gap between closure volume and active tickets highlights a growing backlog that requires immediate focus on throughput and workflow efficiency.
 
-Exceptional performers Alex Chen, Victor Huang, Michael Thompson, and Priya Gupta have driven high closure rates with top scores, setting a clear standard. In contrast, Nachiketh Reddy, Patricia Rivera, Nicole Allen, and others need targeted support to improve their contributions. Workload is spread across Developers and QA departments, but Developers carry a higher volume of active tickets, suggesting an imbalance that could impact team throughput.
+Exceptional performance was driven by Alex Chen, Priya Gupta, Michael Thompson, and Victor Huang, who led the rankings through high closure rates and efficiency. However, Brandon White, Jordan Reed, David Kim, Delete Probe, Bob Martinez, and Lasya Reddy have been flagged as needing attention due to lower output. The workload is split between Developers and QA, with strong performers emerging in both departments, though the active queue is skewed toward a few individuals.
 
-To boost performance, pair top performers as mentors for those needing attention to elevate skills and closure rates. Investigate the drivers of the 50-hour average resolution to identify and address process bottlenecks. Finally, reassess ticket allocation between Developers and QA to ensure balanced workload distribution and prevent burnout.</p>
+To improve metrics next period, I recommend providing targeted coaching for the listed underperformers, conducting a root cause analysis on the 50-hour resolution bottleneck, and pairing the top four performers as mentors to elevate team-wide closure rates.</p>
     </section>
 
     <footer class="site-footer">Lumina HR Intelligence · May 2026 (month to date)</footer>
   </main>
 
   <script>
-    const chartData = {"headcount":[{"label":"Managers","value":20,"color":"#d97706"},{"label":"HR","value":2,"color":"#1f8a65"},{"label":"Developers","value":18,"color":"#2563eb"},{"label":"QA","value":15,"color":"#8b5cf6"}],"workload":[{"label":"Managers","value":0,"color":"#d97706"},{"label":"HR","value":0,"color":"#1f8a65"},{"label":"Developers","value":37,"color":"#2563eb"},{"label":"QA","value":35,"color":"#8b5cf6"}],"performers":[{"label":"Alex","resolved":4,"active":2},{"label":"Victor","resolved":4,"active":2},{"label":"Michael","resolved":4,"active":3},{"label":"Priya","resolved":4,"active":3},{"label":"Marcus","resolved":1,"active":3},{"label":"Lumina","resolved":1,"active":8},{"label":"Kevin","resolved":1,"active":2},{"label":"Olivia","resolved":1,"active":2}]};
+    const chartData = {"headcount":[{"label":"Developers","value":20,"color":"#2563eb"},{"label":"QA","value":18,"color":"#8b5cf6"}],"workload":[{"label":"Developers","value":40,"color":"#2563eb"},{"label":"QA","value":35,"color":"#8b5cf6"}],"performers":[{"label":"Alex","resolved":4,"active":2},{"label":"Priya","resolved":4,"active":3},{"label":"Michael","resolved":4,"active":2},{"label":"Victor","resolved":3,"active":0},{"label":"Rachel","resolved":1,"active":2},{"label":"Daniel","resolved":1,"active":2},{"label":"Andres","resolved":1,"active":2},{"label":"Nathan","resolved":1,"active":2}]};
     const CHART_CLOSED = '#16a34a';
     const CHART_ACTIVE = '#2563eb';
-
-    const workforceData = [{"name":"Alex Chen","id":"edfd9a62-8f89-44a5-b36b-0356f1693eb0","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":4,"active":2,"avgResolutionHours":28,"reroutes":0,"performanceScore":56,"rank":1,"tier":"exceptional","attentionReason":""},{"name":"Victor Huang","id":"012a3b92-c961-4397-8317-31a5dd3983a3","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":4,"active":2,"avgResolutionHours":32,"reroutes":0,"performanceScore":56,"rank":2,"tier":"exceptional","attentionReason":""},{"name":"Michael Thompson","id":"bf04d41a-8b0e-46fd-98a8-9af9850d70c9","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":4,"active":3,"avgResolutionHours":50,"reroutes":0,"performanceScore":54,"rank":3,"tier":"exceptional","attentionReason":""},{"name":"Priya Gupta","id":"f3d4f4fa-4d35-4fb5-a091-fa76347cfede","department":"Developers","jobTitle":"Tech Lead","systemRole":"User","resolved":4,"active":3,"avgResolutionHours":60,"reroutes":0,"performanceScore":53,"rank":4,"tier":"exceptional","attentionReason":""},{"name":"Marcus Johnson","id":"dec40b7e-7f39-4cf6-b96c-55fa0aa5a585","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":1,"active":3,"avgResolutionHours":2,"reroutes":0,"performanceScore":26,"rank":5,"tier":"steady","attentionReason":""},{"name":"Lumina AI","id":"25cd7d3c-3ccf-4ec9-908f-9c225c7c3fd3","department":"QA","jobTitle":"Release Manager","systemRole":"Admin","resolved":1,"active":8,"avgResolutionHours":61,"reroutes":0,"performanceScore":23,"rank":6,"tier":"steady","attentionReason":""},{"name":"Kevin Murphy","id":"0927bb70-4800-4695-b5f7-80832360236f","department":"Developers","jobTitle":"DevOps Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":48,"reroutes":0,"performanceScore":20,"rank":7,"tier":"steady","attentionReason":""},{"name":"Olivia Miller","id":"c31316b4-1a30-4239-81fb-a6784817b091","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":47,"reroutes":0,"performanceScore":20,"rank":8,"tier":"steady","attentionReason":""},{"name":"James O'Connor","id":"12cc9d8f-9037-4327-889c-5c36b4e2b524","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":3,"avgResolutionHours":49,"reroutes":0,"performanceScore":18,"rank":9,"tier":"steady","attentionReason":""},{"name":"Lisa Anderson","id":"c27b9402-bb25-433c-8493-f04f4ff72f44","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":1,"active":3,"avgResolutionHours":62,"reroutes":0,"performanceScore":17,"rank":10,"tier":"steady","attentionReason":""},{"name":"Maya Patel","id":"8118199a-ad33-49cb-9625-41805380366e","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":50,"reroutes":0,"performanceScore":16,"rank":11,"tier":"steady","attentionReason":""},{"name":"Sophia Rodriguez","id":"95682729-bf2d-4db8-b64d-7da8684280cc","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":53,"reroutes":0,"performanceScore":16,"rank":12,"tier":"steady","attentionReason":""},{"name":"Isabella Santos","id":"204c2ae3-fedb-4d5b-9b93-4875e0ea849f","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":54,"reroutes":0,"performanceScore":16,"rank":13,"tier":"steady","attentionReason":""},{"name":"Robert Sterling","id":"85cab510-0beb-4455-98c6-310179ebbe72","department":"Developers","jobTitle":"Architect","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":55,"reroutes":0,"performanceScore":16,"rank":14,"tier":"steady","attentionReason":""},{"name":"Arjun Verma","id":"08341e9a-ba89-43e6-b7ce-c222f82e8e55","department":"Developers","jobTitle":"Site Reliability Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":58,"reroutes":0,"performanceScore":16,"rank":15,"tier":"steady","attentionReason":""},{"name":"Jessica Wang","id":"d1ced91c-8484-49dd-b1d0-cc9acb53ed7b","department":"Developers","jobTitle":"DevOps Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":59,"reroutes":0,"performanceScore":16,"rank":16,"tier":"steady","attentionReason":""},{"name":"Derek Powell","id":"03035dcb-1927-4b22-bb01-23f760b0093f","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":51,"reroutes":0,"performanceScore":16,"rank":17,"tier":"steady","attentionReason":""},{"name":"Hannah Reed","id":"2ee10641-197a-4257-b22e-b88ef8af9824","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":52,"reroutes":0,"performanceScore":16,"rank":18,"tier":"steady","attentionReason":""},{"name":"Emma Taylor","id":"79146361-ebfd-412d-a4e3-87db580e8d34","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":56,"reroutes":0,"performanceScore":16,"rank":19,"tier":"steady","attentionReason":""},{"name":"Natalie Blake","id":"29f8da3d-de51-46bc-8789-c41289d442fd","department":"Developers","jobTitle":"Site Reliability Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":63,"reroutes":0,"performanceScore":15,"rank":20,"tier":"steady","attentionReason":""},{"name":"Nina Brooks","id":"3dec8940-9f2c-4967-8e5a-df69a645bb98","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":64,"reroutes":0,"performanceScore":15,"rank":21,"tier":"steady","attentionReason":""},{"name":"Brandon White","id":"aae4fc43-651e-4725-a37c-f69fcaa610bd","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":60,"reroutes":0,"performanceScore":15,"rank":22,"tier":"steady","attentionReason":""},{"name":"Ryan Foster","id":"16baa9a1-fd70-46e0-88c1-f51e269841ff","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":1,"avgResolutionHours":68,"reroutes":0,"performanceScore":13,"rank":23,"tier":"steady","attentionReason":""},{"name":"Rachel Green","id":"6bd2a08e-bd9f-45c4-ad0d-f8bcc5f14c1d","department":"Developers","jobTitle":"Architect","systemRole":"User","resolved":1,"active":1,"avgResolutionHours":70,"reroutes":0,"performanceScore":13,"rank":24,"tier":"steady","attentionReason":""},{"name":"Samantha Brown","id":"69a74cf8-748f-41c0-a5e2-74c6f5aa4116","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":1,"active":1,"avgResolutionHours":65,"reroutes":0,"performanceScore":13,"rank":25,"tier":"steady","attentionReason":""},{"name":"Megan Clark","id":"00c81e94-341d-4de3-ab96-4ab99d45b3bd","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":1,"active":1,"avgResolutionHours":67,"reroutes":0,"performanceScore":13,"rank":26,"tier":"steady","attentionReason":""},{"name":"Daniel Garcia","id":"9c4b3815-1905-40e6-9499-bd2eaa14c5a1","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":1,"active":1,"avgResolutionHours":69,"reroutes":0,"performanceScore":13,"rank":27,"tier":"steady","attentionReason":""},{"name":"David Kim","id":"cd4f0675-e875-4435-ba0e-bc619d1d49a1","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":28,"tier":"steady","attentionReason":""},{"name":"Elena Kowalski","id":"33d83c2b-5c2a-45f8-8d93-637192d7f674","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":29,"tier":"steady","attentionReason":""},{"name":"Andres Lopez","id":"23566703-f1b4-4cdc-91be-dacb3ef3b421","department":"Developers","jobTitle":"Tech Lead","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":30,"tier":"steady","attentionReason":""},{"name":"Sarah Harris","id":"d2839cff-df66-444d-b121-ae9158e77670","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":31,"tier":"steady","attentionReason":""},{"name":"Nathan Martin","id":"e016e280-13f7-4997-be16-357e99d1d3bc","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":32,"tier":"steady","attentionReason":""},{"name":"Christopher Martinez","id":"b09dbe25-a978-4adb-a465-9b5ff46cf86c","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":33,"tier":"steady","attentionReason":""},{"name":"Nachiketh Reddy","id":"ca7bc413-763b-462c-b228-303800cf67b9","department":"HR","jobTitle":"HR","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-5,"rank":34,"tier":"needs_attention","attentionReason":"Below team performance baseline"},{"name":"Patricia Rivera","id":"7d2a3740-69dc-4ae5-acd4-4fdffebacc08","department":"HR","jobTitle":"HR Director","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-5,"rank":35,"tier":"needs_attention","attentionReason":"Below team performance baseline"},{"name":"Nicole Allen","id":"6f2df554-713b-4c73-a76d-120451de1898","department":"Managers","jobTitle":"Program Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":36,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Tyler Brooks","id":"6261d215-f400-45ef-be65-acdf620e84b8","department":"Managers","jobTitle":"Project Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":37,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Alexandra Cole","id":"dd761e0e-0dd3-449f-8d97-458075c0a906","department":"Managers","jobTitle":"Product Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":38,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Michelle Davis","id":"e67f67ce-6edd-465d-a5fe-b27dd92bb020","department":"Managers","jobTitle":"Product Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":39,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Xavier Fernandez","id":"f1fa1f79-b15d-4df4-b639-9a2e85a03773","department":"Managers","jobTitle":"Product Owner","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":40,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Steven Hall","id":"96fcaa21-98dc-4606-8e1d-c6b2b413591a","department":"Managers","jobTitle":"Program Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":41,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Marcus Hayes","id":"273fa353-85d4-466d-bb88-7c26dd8bb9bc","department":"Managers","jobTitle":"Product Owner","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":42,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Laura Hernandez","id":"7a5c2df5-1b16-4219-8e03-d5f072f250cd","department":"Managers","jobTitle":"Project Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":43,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Richard Lee","id":"7db0c5a0-7aa6-4fbb-acfd-983c28cdcebd","department":"Managers","jobTitle":"Product Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":44,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Victoria Lewis","id":"252be682-a959-4ecb-adec-2ed26bf4593c","department":"Managers","jobTitle":"Product Owner","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":45,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Elena Morris","id":"464fd3ba-7303-4571-a71c-9902cc44f859","department":"Managers","jobTitle":"Program Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":46,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Stephanie Nelson","id":"ffffd11d-8ae5-42e2-b268-ef45fc6da51e","department":"Managers","jobTitle":"Product Owner","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":47,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Christopher Peterson","id":"868c2a69-3c17-496e-ad6e-252635ab79a2","department":"Managers","jobTitle":"Project Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":48,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Benjamin Schwartz","id":"30b3fa2c-9740-4aa3-a61c-f6f96ad656ac","department":"Managers","jobTitle":"Product Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":49,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Timothy Scott","id":"3c29daf9-4c4c-4820-97de-14ceadc78964","department":"Managers","jobTitle":"Program Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":50,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Carolina Silva","id":"f9314025-51b3-4af5-ae16-1d1f9fad01a8","department":"Managers","jobTitle":"Product Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":51,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Amanda Thompson","id":"b1600883-ac91-41ae-94f9-9678f808d60d","department":"Managers","jobTitle":"Project Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":52,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Ashley Walker","id":"dcef60ff-f6ce-471c-96b4-83eea8ca424d","department":"Managers","jobTitle":"Program Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":53,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"Jonathan Wright","id":"77713392-3b7a-47a6-8071-5f0a33d28c78","department":"Managers","jobTitle":"Product Owner","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":54,"tier":"needs_attention","attentionReason":"No ticket activity this period"},{"name":"William Young","id":"35c8f257-0030-41a4-8d61-daa228ef7616","department":"Managers","jobTitle":"Project Manager","systemRole":"Admin","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":55,"tier":"needs_attention","attentionReason":"No ticket activity this period"}];
+    const workforceData = [{"name":"Alex Chen","id":"76f40f72-133f-487b-8994-c75dc17f7e4a","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":4,"active":2,"avgResolutionHours":29,"reroutes":0,"performanceScore":56,"rank":1,"tier":"exceptional","attentionReason":""},{"name":"Priya Gupta","id":"88d40d20-7d72-461a-b290-5c908eacfa69","department":"Developers","jobTitle":"Tech Lead","systemRole":"User","resolved":4,"active":3,"avgResolutionHours":43,"reroutes":1,"performanceScore":54,"rank":2,"tier":"exceptional","attentionReason":""},{"name":"Michael Thompson","id":"96eb2e0f-3d09-46a0-bb9d-34207f46b713","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":4,"active":2,"avgResolutionHours":51,"reroutes":0,"performanceScore":52,"rank":3,"tier":"exceptional","attentionReason":""},{"name":"Victor Huang","id":"09a4c6e8-9be2-4547-b3be-01e09d34fb98","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":3,"active":0,"avgResolutionHours":42,"reroutes":0,"performanceScore":40,"rank":4,"tier":"exceptional","attentionReason":""},{"name":"Rachel Green","id":"4b5799e0-7fbc-43ae-8184-3c12256e12bb","department":"Developers","jobTitle":"Architect","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":2,"reroutes":0,"performanceScore":24,"rank":5,"tier":"steady","attentionReason":""},{"name":"Daniel Garcia","id":"c8afbe32-e498-4aab-94f5-90361d672e94","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":1,"reroutes":0,"performanceScore":24,"rank":6,"tier":"steady","attentionReason":""},{"name":"Andres Lopez","id":"e46b86bb-4167-4fd5-94a3-64f9882c5bf5","department":"Developers","jobTitle":"Tech Lead","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":47,"reroutes":0,"performanceScore":20,"rank":7,"tier":"steady","attentionReason":""},{"name":"Nathan Martin","id":"5ab224d0-936f-4459-ba3d-ec2133c4cee3","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":48,"reroutes":0,"performanceScore":20,"rank":8,"tier":"steady","attentionReason":""},{"name":"James O'Connor","id":"1d8026b3-9db9-4365-b2c0-dbccc9130b91","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":3,"avgResolutionHours":52,"reroutes":0,"performanceScore":18,"rank":9,"tier":"steady","attentionReason":""},{"name":"Sophia Rodriguez","id":"1f0229d7-3958-4fa8-9869-556071d22262","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":3,"avgResolutionHours":56,"reroutes":0,"performanceScore":18,"rank":10,"tier":"steady","attentionReason":""},{"name":"Hannah Reed","id":"dc3cac1c-76d8-429f-8fbf-1dea4676f2c9","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":1,"active":3,"avgResolutionHours":55,"reroutes":0,"performanceScore":18,"rank":11,"tier":"steady","attentionReason":""},{"name":"Kevin Murphy","id":"42c5087d-9a53-4678-9308-3f42b385a197","department":"Developers","jobTitle":"DevOps Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":51,"reroutes":0,"performanceScore":16,"rank":12,"tier":"steady","attentionReason":""},{"name":"Maya Patel","id":"8dc5abec-907a-4cd1-a527-5e687f879eb0","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":53,"reroutes":0,"performanceScore":16,"rank":13,"tier":"steady","attentionReason":""},{"name":"Robert Sterling","id":"26e8c403-ad4e-43af-bb13-03634f142f03","department":"Developers","jobTitle":"Architect","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":58,"reroutes":0,"performanceScore":16,"rank":14,"tier":"steady","attentionReason":""},{"name":"Christopher Martinez","id":"9fe9e538-5e6b-48d9-a98b-69e03df73120","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":49,"reroutes":0,"performanceScore":16,"rank":15,"tier":"steady","attentionReason":""},{"name":"Olivia Miller","id":"8b3ca698-b1b7-4a15-bf8a-231c617d0402","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":50,"reroutes":0,"performanceScore":16,"rank":16,"tier":"steady","attentionReason":""},{"name":"Derek Powell","id":"ed141d27-4129-4ca0-b5c7-2711d59995bd","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":54,"reroutes":0,"performanceScore":16,"rank":17,"tier":"steady","attentionReason":""},{"name":"Emma Taylor","id":"642dfdfd-4c2b-4c1d-8236-e741ee50298d","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":59,"reroutes":0,"performanceScore":16,"rank":18,"tier":"steady","attentionReason":""},{"name":"Natalie Blake","id":"ec766ee1-e053-4105-8ccb-884b82212e0c","department":"Developers","jobTitle":"Site Reliability Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":67,"reroutes":0,"performanceScore":15,"rank":19,"tier":"steady","attentionReason":""},{"name":"Nina Brooks","id":"4e719c76-74d1-48d3-8e3c-6ba1a9cd3bab","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":68,"reroutes":0,"performanceScore":15,"rank":20,"tier":"steady","attentionReason":""},{"name":"Lisa Anderson","id":"dfa6eef0-6f84-4cd9-baaa-f1199ef5c410","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":66,"reroutes":0,"performanceScore":15,"rank":21,"tier":"steady","attentionReason":""},{"name":"Samantha Brown","id":"cd52f42f-12de-421a-97c6-dc437926f09b","department":"QA","jobTitle":"Automation Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":69,"reroutes":0,"performanceScore":15,"rank":22,"tier":"steady","attentionReason":""},{"name":"Megan Clark","id":"712c44b6-a088-4f42-b135-a76e2a79ff40","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":71,"reroutes":0,"performanceScore":15,"rank":23,"tier":"steady","attentionReason":""},{"name":"Ryan Foster","id":"fcd24de8-aea0-4b13-98d7-dc6ade1c131c","department":"Developers","jobTitle":"Software Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":72,"reroutes":0,"performanceScore":14,"rank":24,"tier":"steady","attentionReason":""},{"name":"Isabella Santos","id":"9e48a24a-a40d-41b5-8e79-b2ff884c120d","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":57,"reroutes":1,"performanceScore":12,"rank":25,"tier":"steady","attentionReason":""},{"name":"Arjun Verma","id":"f99db790-6634-4eea-93aa-dc5e29e831f1","department":"Developers","jobTitle":"Site Reliability Engineer","systemRole":"User","resolved":1,"active":0,"avgResolutionHours":62,"reroutes":0,"performanceScore":11,"rank":26,"tier":"steady","attentionReason":""},{"name":"Marcus Johnson","id":"3d600094-8056-4f67-b8be-7bac1545b809","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":0,"active":3,"avgResolutionHours":0,"reroutes":0,"performanceScore":6,"rank":27,"tier":"steady","attentionReason":""},{"name":"Bro Doe","id":"08244b9c-2e71-48e3-9cc0-e77d938f37ee","department":"Developers","jobTitle":"Software Engineer / Developer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":28,"tier":"steady","attentionReason":""},{"name":"Elena Kowalski","id":"f39bba50-7e8e-4b7b-afeb-6d6e1c09a8eb","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":29,"tier":"steady","attentionReason":""},{"name":"Sarah Harris","id":"1821713b-6d2b-4b42-a77b-53ee1881eb4e","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":0,"performanceScore":4,"rank":30,"tier":"steady","attentionReason":""},{"name":"Jessica Wang","id":"918236de-d794-4bee-8c3b-ba54140d8046","department":"Developers","jobTitle":"DevOps Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":63,"reroutes":3,"performanceScore":3,"rank":31,"tier":"steady","attentionReason":""},{"name":"Brandon White","id":"3b1740a3-c7b1-4596-b6f7-41acd2769fba","department":"QA","jobTitle":"Test Engineer","systemRole":"User","resolved":1,"active":2,"avgResolutionHours":64,"reroutes":3,"performanceScore":3,"rank":32,"tier":"needs_attention","attentionReason":"Low closure volume for support role"},{"name":"Jordan Reed","id":"c6296d8b-c49b-40ce-9675-9aa9f549bb9f","department":"QA","jobTitle":"QA Manager","systemRole":"Admin","resolved":0,"active":1,"avgResolutionHours":0,"reroutes":0,"performanceScore":2,"rank":33,"tier":"needs_attention","attentionReason":"Low closure volume for support role"},{"name":"David Kim","id":"0f3f2a64-1317-471b-8a32-ef7a33eff904","department":"Developers","jobTitle":"Platform Engineer","systemRole":"User","resolved":0,"active":2,"avgResolutionHours":0,"reroutes":1,"performanceScore":0,"rank":34,"tier":"needs_attention","attentionReason":"Low closure volume for support role"},{"name":"Delete Probe","id":"f6aac626-db05-4f47-9b57-e24a8cf5afad","department":"Developers","jobTitle":"Temporary Test User","systemRole":"User","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":35,"tier":"needs_attention","attentionReason":"Low closure volume for support role"},{"name":"Bob Martinez","id":"80bdaa31-5f33-4594-8342-3d63d580e86f","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":36,"tier":"needs_attention","attentionReason":"Low closure volume for support role"},{"name":"Lasya Reddy","id":"0bb6e6e8-db19-4b88-b4f7-98d7a4cccbd3","department":"QA","jobTitle":"QA Engineer","systemRole":"User","resolved":0,"active":0,"avgResolutionHours":0,"reroutes":0,"performanceScore":-35,"rank":37,"tier":"needs_attention","attentionReason":"Low closure volume for support role"}];
 
     const chartDefaults = { responsive: true, maintainAspectRatio: false };
     const chartFont = { family: 'ui-sans-serif, system-ui, sans-serif', size: 11 };
@@ -671,7 +694,8 @@ To boost performance, pair top performers as mentors for those needing attention
     const tierBadge = { exceptional: 'badge--exceptional', steady: 'badge--steady', needs_attention: 'badge--attention' };
 
     const deptFilter = document.getElementById('deptFilter');
-    [...new Set(workforceData.map(e => e.department))].sort().forEach(d => {
+    const departments = [...new Set(workforceData.map(e => e.department))].sort();
+    departments.forEach(d => {
       const opt = document.createElement('option');
       opt.value = d;
       opt.textContent = d;

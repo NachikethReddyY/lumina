@@ -336,7 +336,7 @@ function buildRoutingSystemPrompt() {
     '- Document in the rationale why no specialist match was available.',
     '',
     'MANAGER ROUTING RULES — avoid unless truly warranted:',
-    '- Do not route routine software, bug, infrastructure, or QA tickets to a Product Manager, Program Manager, Project Manager, or Product Owner.',
+    '- Do not route routine software, bug, infrastructure, or QA tickets to a Product Manager, Project Manager, or Product Owner.',
     '- Route to managers only for: escalations, cross-team coordination, prioritization disputes, policy decisions, no specialist match available, or when no specialty-matched assignee exists in any department.',
     '- Never route technical tickets to HR.',
     '',

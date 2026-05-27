@@ -2,7 +2,6 @@ const db = require('../db');
 const { getLuminaApiKey, getLuminaProvider, getLuminaModel, requestLuminaPlainText } = require('./ticketRouting');
 
 const DEPT_COLORS = {
-  Managers: '#d97706',
   Developers: '#2563eb',
   QA: '#8b5cf6',
   HR: '#1f8a65',
@@ -21,9 +20,9 @@ const LUMINA_LOGO_SVG = `<svg class="brand-logo" viewBox="0 0 128 128" fill="non
   <path d="M64 0Q64 64 128 64Q64 64 64 128Q64 64 0 64Q64 64 64 0Z" fill="url(#hr-lumina-grad)"/>
 </svg>`;
 
-const DEPT_ORDER = ['Managers', 'HR', 'Developers', 'QA', 'Unknown'];
-const CHART_DEPTS = ['Managers', 'HR', 'Developers', 'QA'];
-const SUPPORT_DEPTS = new Set(['Developers', 'QA', 'Managers']);
+const DEPT_ORDER = ['Developers', 'QA', 'HR', 'Unknown'];
+const CHART_DEPTS = ['Developers', 'QA'];
+const SUPPORT_DEPTS = new Set(['Developers', 'QA']);
 
 function isSystemAccount(name) {
   const nameLower = name.toLowerCase();
@@ -1114,6 +1113,7 @@ async function generateHrReport(period = '30d') {
       `SELECT id, first_name, last_name, department, job_title, role, status, created_at
        FROM users
        WHERE status = 'active'
+         AND (department IS NULL OR (department <> 'Managers' AND department <> 'HR'))
        ORDER BY department NULLS LAST, last_name, first_name`
     ),
     db.query(

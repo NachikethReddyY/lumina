@@ -163,11 +163,11 @@ function ticketStatusChangedEmailHtml({ recipientName, ticketTitle, ticketId, ol
   });
 }
 
-function userSuspendedEmailHtml({ firstName, adminEmail }) {
+function userRejectedEmailHtml({ firstName, adminEmail }) {
   return card({
-    title: 'Your account has been suspended',
-    preview: 'Your Lumina account has been suspended',
-    intro: `Hi ${escapeHtml(firstName)},\n\nYour account has been suspended. Please contact your administrator for more information.`,
+    title: 'Your account has been rejected',
+    preview: 'Your Lumina account has been rejected',
+    intro: `Hi ${escapeHtml(firstName)},\n\nYour account request has been rejected. Please contact your administrator for more information.`,
     footer: `Contact ${escapeHtml(adminEmail)} if you have questions.`,
   });
 }
@@ -235,7 +235,7 @@ module.exports = {
   passwordResetOtpEmailHtml,
   ticketAssignedEmailHtml,
   ticketStatusChangedEmailHtml,
-  userSuspendedEmailHtml,
+  userRejectedEmailHtml,
   userApprovedEmailHtml,
   userDeletedEmailHtml,
   newSignupNotificationEmailHtml,

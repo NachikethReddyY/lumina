@@ -5,13 +5,17 @@ function isTeamManager(user = {}) {
   return user.role === 'admin' && String(user.department || '').trim() === 'Managers';
 }
 
+function isQaManager(user = {}) {
+  return user.role === 'admin' && String(user.department || '').trim() === 'QA';
+}
+
 /** HR admins see organization-wide tickets, people analytics, routing logs, and user directory. */
 function isHrAdmin(user = {}) {
   return user.role === 'admin' && String(user.department || '').trim() === 'HR';
 }
 
 function isOrgViewer(user = {}) {
-  return isHrAdmin(user) || isTeamManager(user);
+  return isHrAdmin(user) || isTeamManager(user) || isQaManager(user);
 }
 
 function isDeveloper(user = {}) {
@@ -28,5 +32,6 @@ module.exports = {
   isDeveloper,
   isHrAdmin,
   isOrgViewer,
+  isQaManager,
   isTeamManager,
 };

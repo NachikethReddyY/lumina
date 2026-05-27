@@ -16,7 +16,7 @@ import {
 } from '../../utils/userDisplay';
 import { useToast } from '../../context/useToast';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { canAccessApprovalQueue } from '../../utils/orgRoles';
+import { canAccessApprovalQueue, canDeleteAccounts, canSuspendAccounts } from '../../utils/orgRoles';
 import { useUsersList } from '../../hooks/useUsersList';
 import { AdminPageHeader, AdminPageShell } from './dashboardShared';
 import '../Dashboard.css';
@@ -27,6 +27,8 @@ type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 export function AdminUsersPage() {
   const { user } = useCurrentUser();
   const showApprovals = canAccessApprovalQueue(user);
+  const showSuspend = canSuspendAccounts(user);
+  const showDelete = canDeleteAccounts(user);
   const { users, setUsers, loading } = useUsersList();
   const { showToast } = useToast();
 
@@ -202,7 +204,7 @@ export function AdminUsersPage() {
                               {approvingUserId === u.id ? <Loader size={12} className="spin-icon" /> : 'Approve'}
                             </button>
                           )}
-                          {showApprovals && u.status === 'active' && (
+                          {showSuspend && u.status !== 'suspended' && u.id !== user?.id && (
                             <button type="button" className="sa-btn suspend" onClick={() => handleApproval(u.id, 'suspended')} disabled={approvingUserId === u.id}>
                               {approvingUserId === u.id ? <Loader size={12} className="spin-icon" /> : 'Suspend'}
                             </button>
@@ -215,9 +217,11 @@ export function AdminUsersPage() {
                           {showApprovals && (
                             <button type="button" className="sa-btn" style={{ background: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db' }} onClick={() => startEditUser(u)}>Edit</button>
                           )}
-                          <button type="button" className="sa-btn delete" onClick={() => setDeleteTarget({ id: u.id, email: u.email })} title="Delete user">
-                            <Trash2 size={12} />
-                          </button>
+                          {showDelete && u.id !== user?.id && (
+                            <button type="button" className="sa-btn delete" onClick={() => setDeleteTarget({ id: u.id, email: u.email })} title="Delete user">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

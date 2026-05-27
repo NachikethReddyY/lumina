@@ -10,7 +10,7 @@ router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req
       `SELECT a.id, a.action, a.metadata, a.created_at,
               u.id AS actor_id, u.email AS actor_email, u.first_name, u.last_name
        FROM audit_logs a
-       JOIN users u ON u.id = a.actor_id
+       LEFT JOIN users u ON u.id = a.actor_id
        ORDER BY a.created_at DESC
        LIMIT 100`
     );
@@ -21,4 +21,3 @@ router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req
 });
 
 module.exports = router;
-

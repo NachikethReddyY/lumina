@@ -3,7 +3,6 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth, requireOnboarding, requireRole } = require('../middleware/auth');
 const {
-  validateRatingBody,
   validateTicketAssignmentBody,
   validateTicketCreateBody,
   validateTicketPriorityBody,
@@ -16,12 +15,16 @@ const {
   getLuminaAiUserId,
   isLuminaAIUser,
 } = require('../lib/ticketRouting');
-const { isTeamManager, isHrAdmin, isOrgViewer, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
+const { isTeamManager, isQaManager, isHrAdmin, isOrgViewer, isDeveloper, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
 const { canMutateTicket, canViewTicket, canRerouteTicket, canEditTicketDetails, canSendToQa, isAssignedToQa } = require('../lib/ticketPermissions');
 
 const router = express.Router();
 
 router.use(requireAuth, requireOnboarding);
+
+function cleanPersonNameSql(expr) {
+  return `NULLIF(TRIM(${expr}), '')`;
+}
 
 function assignedToUserSql(paramIndex) {
   return `EXISTS (
@@ -33,6 +36,13 @@ function assignedToUserSql(paramIndex) {
 
 function userDisplayName(user) {
   return `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || null;
+}
+
+function isDeveloperRoutingCandidate(admin = {}) {
+  const department = String(admin.department || '').trim();
+  if (department === 'Developers') return true;
+  if (['QA', 'HR', 'Managers'].includes(department)) return false;
+  return isDeveloper(admin);
 }
 
 function buildRoutingMetadata(routing) {
@@ -148,16 +158,19 @@ router.get('/', async (req, res, next) => {
               submitter.avatar_url AS submitted_by_avatar_url,
               qa_assignee.id AS qa_assignee_id,
               qa_assignee.avatar_url AS qa_assignee_avatar_url,
-              CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name) AS qa_assignee_name,
-              qa_assignee.job_title AS qa_assignee_job_title,
+              ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")} AS qa_assignee_name,
+              NULLIF(TRIM(qa_assignee.job_title), '') AS qa_assignee_job_title,
               dev_assignee.id AS dev_assignee_id,
               dev_assignee.avatar_url AS dev_assignee_avatar_url,
-              CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name) AS dev_assignee_name,
-              dev_assignee.job_title AS dev_assignee_job_title,
-              COALESCE(qa_assignee.id, dev_assignee.id) AS assigned_to_id,
-              COALESCE(qa_assignee.avatar_url, dev_assignee.avatar_url) AS assigned_to_avatar_url,
-              COALESCE(CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name), CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)) AS assigned_to_name,
-              COALESCE(qa_assignee.job_title, dev_assignee.job_title) AS assigned_to_job_title
+              ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")} AS dev_assignee_name,
+              NULLIF(TRIM(dev_assignee.job_title), '') AS dev_assignee_job_title,
+              COALESCE(dev_assignee.id, qa_assignee.id) AS assigned_to_id,
+              COALESCE(dev_assignee.avatar_url, qa_assignee.avatar_url) AS assigned_to_avatar_url,
+              COALESCE(
+                ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")},
+                ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")}
+              ) AS assigned_to_name,
+              COALESCE(NULLIF(TRIM(dev_assignee.job_title), ''), NULLIF(TRIM(qa_assignee.job_title), '')) AS assigned_to_job_title
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
@@ -251,6 +264,52 @@ router.get('/stats/solved-by-assignee', async (req, res, next) => {
   }
 });
 
+router.get('/stats/throughput', requireRole('admin'), async (_req, res, next) => {
+  try {
+    const result = await db.query(
+      `WITH days AS (
+         SELECT (CURRENT_DATE - offset_days)::date AS day_date
+         FROM generate_series(6, 0, -1) AS offset_days
+       ),
+       created AS (
+         SELECT created_at::date AS day_date, COUNT(*)::int AS count
+         FROM tickets
+         WHERE created_at >= CURRENT_DATE - INTERVAL '6 days'
+         GROUP BY created_at::date
+       ),
+       resolved AS (
+         SELECT closed_at::date AS day_date, COUNT(*)::int AS count
+         FROM tickets
+         WHERE status IN ('resolved', 'closed')
+           AND closed_at IS NOT NULL
+           AND closed_at >= CURRENT_DATE - INTERVAL '6 days'
+         GROUP BY closed_at::date
+       ),
+       rerouted AS (
+         SELECT created_at::date AS day_date, COUNT(*)::int AS count
+         FROM audit_logs
+         WHERE action IN ('ticket_rerouted', 'ticket_rerouted_qa')
+           AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+         GROUP BY created_at::date
+       )
+       SELECT
+         to_char(days.day_date, 'Dy') AS day,
+         COALESCE(created.count, 0)::int AS created,
+         COALESCE(resolved.count, 0)::int AS resolved,
+         COALESCE(rerouted.count, 0)::int AS rerouted
+       FROM days
+       LEFT JOIN created ON created.day_date = days.day_date
+       LEFT JOIN resolved ON resolved.day_date = days.day_date
+       LEFT JOIN rerouted ON rerouted.day_date = days.day_date
+       ORDER BY days.day_date ASC`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id/activity', async (req, res, next) => {
   try {
     const ticketRow = await db.query(
@@ -273,25 +332,14 @@ router.get('/:id/activity', async (req, res, next) => {
       `SELECT a.id, a.action, a.metadata, a.created_at,
               u.id AS actor_id, u.first_name, u.last_name, u.email AS actor_email, u.role AS actor_role, u.avatar_url
        FROM audit_logs a
-       JOIN users u ON u.id = a.actor_id
+       LEFT JOIN users u ON u.id = a.actor_id
        WHERE a.metadata->>'ticket_id' = $1
        ORDER BY a.created_at DESC`,
       [req.params.id]
     );
 
-    // Satisfaction rating if exists
-    const ratingResult = await db.query(
-      `SELECT sr.rating, sr.comment, sr.ticket_id,
-              u.first_name, u.last_name, u.email, u.avatar_url
-       FROM satisfaction_ratings sr
-       JOIN users u ON u.id = sr.rated_by
-       WHERE sr.ticket_id = $1`,
-      [req.params.id]
-    );
-
     res.json({
       events: auditResult.rows,
-      rating: ratingResult.rows[0] || null,
     });
   } catch (error) {
     next(error);
@@ -307,16 +355,19 @@ router.get('/:id', async (req, res, next) => {
               submitter.avatar_url AS submitted_by_avatar_url,
               qa_assignee.id AS qa_assignee_id,
               qa_assignee.avatar_url AS qa_assignee_avatar_url,
-              CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name) AS qa_assignee_name,
-              qa_assignee.job_title AS qa_assignee_job_title,
+              ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")} AS qa_assignee_name,
+              NULLIF(TRIM(qa_assignee.job_title), '') AS qa_assignee_job_title,
               dev_assignee.id AS dev_assignee_id,
               dev_assignee.avatar_url AS dev_assignee_avatar_url,
-              CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name) AS dev_assignee_name,
-              dev_assignee.job_title AS dev_assignee_job_title,
-              qa_assignee.id AS assigned_to_id,
-              qa_assignee.avatar_url AS assigned_to_avatar_url,
-              CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name) AS assigned_to_name,
-              qa_assignee.job_title AS assigned_to_job_title
+              ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")} AS dev_assignee_name,
+              NULLIF(TRIM(dev_assignee.job_title), '') AS dev_assignee_job_title,
+              COALESCE(dev_assignee.id, qa_assignee.id) AS assigned_to_id,
+              COALESCE(dev_assignee.avatar_url, qa_assignee.avatar_url) AS assigned_to_avatar_url,
+              COALESCE(
+                ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")},
+                ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")}
+              ) AS assigned_to_name,
+              COALESCE(NULLIF(TRIM(dev_assignee.job_title), ''), NULLIF(TRIM(qa_assignee.job_title), '')) AS assigned_to_job_title
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
@@ -670,9 +721,13 @@ router.patch('/:id/status', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT t.id, t.submitted_by, t.status, ta.assigned_to
+      `SELECT t.id, t.submitted_by, t.status,
+              COALESCE(ta_dev.assigned_to, ta_qa.assigned_to) AS assigned_to,
+              ta_qa.assigned_to AS qa_assignee_id,
+              ta_dev.assigned_to AS dev_assignee_id
        FROM tickets t
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -725,9 +780,13 @@ router.patch('/:id/priority', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT t.id, t.priority, ta.assigned_to
+      `SELECT t.id, t.priority,
+              COALESCE(ta_dev.assigned_to, ta_qa.assigned_to) AS assigned_to,
+              ta_qa.assigned_to AS qa_assignee_id,
+              ta_dev.assigned_to AS dev_assignee_id
        FROM tickets t
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -767,50 +826,6 @@ router.patch('/:id/priority', async (req, res, next) => {
   }
 });
 
-router.post('/:id/rating', async (req, res, next) => {
-  const parsed = validateRatingBody(req.body);
-  if (!parsed.ok) {
-    return res.status(400).json(validationError(parsed.details));
-  }
-
-  try {
-    const ticket = await db.query(`SELECT id, submitted_by, status FROM tickets WHERE id = $1`, [req.params.id]);
-    const row = ticket.rows[0];
-    if (!row) {
-      return res.status(404).json({ error: 'Ticket not found' });
-    }
-    if (row.submitted_by !== req.user.id) {
-      return res.status(403).json({ error: 'Only the ticket owner can leave a rating' });
-    }
-    if (!['resolved', 'closed'].includes(row.status)) {
-      return res.status(400).json({ error: 'You can rate only resolved or closed tickets' });
-    }
-
-    const result = await db.query(
-      `INSERT INTO satisfaction_ratings (ticket_id, rated_by, rating, comment)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (ticket_id)
-       DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, rated_by = EXCLUDED.rated_by
-       RETURNING id, ticket_id, rated_by, rating, comment`,
-      [req.params.id, req.user.id, parsed.value.rating, parsed.value.comment]
-    );
-    await db.query(
-      `INSERT INTO audit_logs (actor_id, action, metadata)
-       VALUES ($1, 'ticket_rated', $2::jsonb)`,
-      [
-        req.user.id,
-        JSON.stringify({
-          ticket_id: req.params.id,
-          rating: parsed.value.rating,
-        }),
-      ]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    next(error);
-  }
-});
-
 router.patch('/:id/details', async (req, res, next) => {
   const { title, description, replicationSteps } = req.body || {};
   if (!title && !description && replicationSteps === undefined) {
@@ -819,9 +834,13 @@ router.patch('/:id/details', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT t.id, t.submitted_by, ta.assigned_to
+      `SELECT t.id, t.submitted_by,
+              COALESCE(ta_dev.assigned_to, ta_qa.assigned_to) AS assigned_to,
+              ta_qa.assigned_to AS qa_assignee_id,
+              ta_dev.assigned_to AS dev_assignee_id
        FROM tickets t
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -874,14 +893,17 @@ router.post('/:id/route-to-developer', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (req.user.department !== 'QA') {
+    if (req.user.department !== 'QA' && !isTeamManager(req.user) && !isQaManager(req.user)) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Only QA users can route to developer' });
+      return res.status(403).json({ error: 'Only QA users or QA managers can route to developer' });
     }
 
     const admins = await getAdminWorkloads(client);
-    const devAdmins = admins.filter((admin) => admin.department && admin.department !== 'QA' && admin.department !== 'HR');
-    const pool = devAdmins.length ? devAdmins : admins;
+    const pool = admins.filter(isDeveloperRoutingCandidate);
+    if (!pool.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'No active developer is available for routing' });
+    }
 
     const routing = await chooseAssignee(ticket, pool);
     const applied = await applyRoutingAssignment(client, {
@@ -923,9 +945,9 @@ router.post('/:id/reroute-to-another-qa', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (req.user.department !== 'QA') {
+    if (req.user.department !== 'QA' && !isTeamManager(req.user) && !isQaManager(req.user)) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Only QA users can reroute to another QA' });
+      return res.status(403).json({ error: 'Only QA users or QA managers can reroute to another QA' });
     }
 
     const admins = await getAdminWorkloads(client);
@@ -972,7 +994,7 @@ router.post('/:id/route-to-qa', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (req.user.department === 'QA') {
+    if (req.user.department === 'QA' && !isTeamManager(req.user) && !isQaManager(req.user)) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'QA users cannot route to QA' });
     }
@@ -1008,10 +1030,11 @@ router.post('/:id/qa-verify', async (req, res, next) => {
   try {
     const result = await db.query(
       `SELECT t.id, t.submitted_by, t.status, ta.assigned_to,
+              ta.assigned_to AS qa_assignee_id,
               CONCAT(assignee.first_name, ' ', assignee.last_name) AS assigned_to_name,
               assignee.department AS assigned_to_department
        FROM tickets t
-       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE AND ta.assignment_role = 'qa'
        LEFT JOIN users assignee ON assignee.id = ta.assigned_to
        WHERE t.id = $1`,
       [req.params.id]

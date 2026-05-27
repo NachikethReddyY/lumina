@@ -3,6 +3,7 @@ import { BrainCircuit } from 'lucide-react';
 import type { ApiTicket } from '../../utils/apiClient';
 import { AssigneeCell } from './TicketListItem';
 import { TicketTimelinePanel, type TimelineEvent } from './TicketTimelinePanel';
+import { formatTicketStatusLabel } from '../../utils/ticketStatusLabel';
 
 type RoutingMetadata = {
   source?: string;
@@ -23,22 +24,17 @@ type RoutingMetadata = {
 };
 
 const STATUS_OPTIONS: Array<{ value: ApiTicket['status']; label: string }> = [
-  { value: 'open', label: 'Open' },
+  { value: 'open', label: 'To Do' },
   { value: 'assigned', label: 'Assigned' },
   { value: 'in_progress', label: 'In progress' },
   { value: 'on_hold', label: 'On hold' },
   { value: 'pending_routing', label: 'Pending routing' },
-  { value: 'resolved', label: 'Resolved' },
-  { value: 'closed', label: 'Closed' },
+  { value: 'resolved', label: formatTicketStatusLabel('resolved') },
+  { value: 'closed', label: formatTicketStatusLabel('closed') },
 ];
 
 function getRouting(ticket?: ApiTicket | null): RoutingMetadata | null {
   return (ticket?.metadata?.routing as RoutingMetadata | undefined) || null;
-}
-
-function humanize(value?: string | null): string {
-  if (!value) return '';
-  return value.replace(/_/g, ' ');
 }
 
 function formatDate(timestamp: string): string {
@@ -50,19 +46,30 @@ function formatDate(timestamp: string): string {
   });
 }
 
+function humanize(value?: string | null): string {
+  if (!value) return '';
+  return value.replace(/_/g, ' ');
+}
+
+function cleanLabel(value?: string | null): string {
+  return value?.trim() || '';
+}
+
 function assigneeLabel(ticket: ApiTicket) {
-  if (ticket.assigned_to_name) return ticket.assigned_to_name;
+  const assignedName = cleanLabel(ticket.assigned_to_name);
+  if (assignedName) return assignedName;
   const routing = getRouting(ticket);
-  if (routing?.decision?.assignee_name) return routing.decision.assignee_name;
+  const decisionName = cleanLabel(routing?.decision?.assignee_name);
+  if (decisionName) return decisionName;
   if (ticket.status === 'pending_routing') return 'Pending routing';
   if (routing?.assigned_admin_id) return 'Assignment missing';
   return 'Unassigned';
 }
 
 function assigneeRoleLabel(ticket: ApiTicket): string {
-  const fromAssignee = ticket.assigned_to_job_title?.trim();
+  const fromAssignee = cleanLabel(ticket.assigned_to_job_title);
   if (fromAssignee) return fromAssignee;
-  const fromDecision = getRouting(ticket)?.decision?.assignee_job_title?.trim();
+  const fromDecision = cleanLabel(getRouting(ticket)?.decision?.assignee_job_title);
   return fromDecision || '';
 }
 
@@ -188,10 +195,6 @@ export function TicketSideRail({
                 </>
               )}
               <div>
-                <dt>Lane</dt>
-                <dd>{ticket ? teamFor(ticket) : 'Awaiting selection'}</dd>
-              </div>
-              <div>
                 <dt>Priority</dt>
                 <dd className="th-queue-property-control">
                   {ticket ? (
@@ -231,7 +234,7 @@ export function TicketSideRail({
                         ))}
                       </select>
                     ) : (
-                      humanize(ticket.status)
+                      formatTicketStatusLabel(ticket.status)
                     )
                   ) : '—'}
                 </dd>

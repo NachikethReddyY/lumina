@@ -1,4 +1,4 @@
-const { isOrgViewer, isTeamManager, isHrAdmin, isDeveloper } = require('./teamScope');
+const { isOrgViewer, isTeamManager, isHrAdmin, isDeveloper, isQaManager } = require('./teamScope');
 
 function ticketAssigneeId(ticket = {}) {
   return ticket.assigned_to ?? ticket.assigned_to_id ?? ticket.qa_assignee_id ?? null;
@@ -53,35 +53,35 @@ function canDeleteComment(user = {}, comment = {}) {
 function canEditTicketDetails(user = {}, ticket = {}) {
   if (!user?.id || !ticket) return false;
   if (isAssignee(user, ticket)) return true;
-  if (user.role === 'admin' && (isTeamManager(user) || isHrAdmin(user))) return true;
+  if (user.role === 'admin' && (isTeamManager(user) || isHrAdmin(user) || isQaManager(user))) return true;
   return false;
 }
 
 function canRerouteTicket(user = {}, ticket = {}) {
   if (!user?.id || !ticket) return false;
   if (isAssignee(user, ticket)) return true;
-  if (isTeamManager(user)) return true;
+  if (isTeamManager(user) || isQaManager(user)) return true;
   return false;
 }
 
 function canRouteToDeveloper(user = {}, ticket = {}) {
   if (!user?.id || !ticket) return false;
+  if (isTeamManager(user) || isQaManager(user)) return true;
   if (isQaAssignee(user, ticket)) return true;
-  if (isTeamManager(user)) return true;
   return false;
 }
 
 function canRerouteQa(user = {}, ticket = {}) {
   if (!user?.id || !ticket) return false;
+  if (isTeamManager(user) || isQaManager(user)) return true;
   if (isQaAssignee(user, ticket)) return true;
-  if (isTeamManager(user)) return true;
   return false;
 }
 
 function canRouteToQa(user = {}, ticket = {}) {
   if (!user?.id || !ticket) return false;
+  if (isTeamManager(user) || isQaManager(user)) return true;
   if (isDevAssignee(user, ticket)) return true;
-  if (isTeamManager(user)) return true;
   return false;
 }
 

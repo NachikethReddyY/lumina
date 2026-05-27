@@ -1,260 +1,532 @@
--- Lumina database seed - run: pnpm db:seed
--- Requires pnpm db:init first (schema + users). Idempotent: skips rows that already exist.
--- For a full wipe + reseed use: pnpm db:refresh
-\set ON_ERROR_STOP on
+-- =============================================================================
+-- Lumina seed data (development only)
+-- =============================================================================
+-- Load AFTER backend/db/DDL.sql:
+--   psql "$DATABASE_URL" -f backend/db/DDL.sql -f backend/db/seed.sql
+--
+-- All passwords are set to: Password1!
+-- =============================================================================
 
-\echo '==> Seeding demo tickets (Jan–May 2026)...'
+-- =============================================================================
+-- USERS
+-- =============================================================================
+-- System / special accounts
+INSERT INTO users (id, email, password_hash, first_name, last_name, role, status, email_is_verified, name_set, job_title, department, avatar_url, onboarding_completed, approved_by, approved_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'lumina.ai@lumina.test', NULL,
+   'Lumina', 'AI', 'user', 'suspended', TRUE, FALSE, NULL, NULL, NULL, FALSE, NULL, NULL),
 
--- -----------------------------------------------------------------------------
--- Section 1: Jan–May 2026 closed tickets, assignments, satisfaction ratings
--- -----------------------------------------------------------------------------
+  ('00000000-0000-0000-0000-000000000002', 'pending.user@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Pending', 'User', 'user', 'pending', FALSE, FALSE, NULL, NULL, NULL, FALSE, NULL, NULL);
 
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;
+-- HR & Management
+INSERT INTO users (id, email, password_hash, first_name, last_name, role, status, email_is_verified, name_set, job_title, department, avatar_url, onboarding_completed, approved_by, approved_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000010', 'sarah.chen@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Sarah', 'Chen', 'admin', 'active', TRUE, TRUE, 'HR Director', 'HR', NULL, TRUE, NULL, NULL),
 
-INSERT INTO tickets (
-  title,
-  description,
-  category_id,
-  type,
-  priority,
-  status,
-  submitted_by,
-  replication_steps,
-  metadata,
-  created_at,
-  closed_at
-)
-SELECT
-  seed.title,
-  seed.description,
-  c.id,
-  seed.type::ticket_type,
-  seed.priority::ticket_priority,
-  seed.status::ticket_status,
-  u.id,
-  seed.replication_steps,
-  seed.metadata::jsonb,
-  seed.created_at,
-  seed.closed_at
-FROM (
-  VALUES
-    ('Database connection pool exhaustion', 'Production API exhausts DB pool under peak traffic.', 'Platform & Infrastructure', 'incident', 'P1', 'closed', 'engineer.alex@lumina.test', 'Reproduce: Database connection pool exhaustion — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-02 01:00:00', TIMESTAMP '2026-01-02 19:00:00'),
-    ('Cache invalidation bug', 'Stale permissions after role change until hard refresh.', 'Bug Reports', 'bug', 'P2', 'resolved', 'engineer.james@lumina.test', 'Reproduce: Cache invalidation bug — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-04 02:00:00', TIMESTAMP '2026-01-05 14:00:00'),
-    ('API rate limiting misconfiguration', 'Partner integrations hit 429 after gateway change.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'engineer.sophia@lumina.test', 'Reproduce: API rate limiting misconfiguration — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-06 03:00:00', TIMESTAMP '2026-01-07 03:00:00'),
-    ('Memory leak in background worker', 'Worker RSS grows unbounded during nightly batch jobs.', 'Bug Reports', 'bug', 'P1', 'resolved', 'platform.marcus@lumina.test', 'Reproduce: Memory leak in background worker — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-08 04:00:00', TIMESTAMP '2026-01-10 04:00:00'),
-    ('OAuth token refresh failure', 'Mobile clients cannot refresh tokens after session expiry.', 'Software Support', 'software', 'P2', 'closed', 'platform.elena@lumina.test', 'Reproduce: OAuth token refresh failure — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-10 05:00:00', TIMESTAMP '2026-01-10 17:00:00'),
-    ('SSL certificate expiry alert', 'Staging load balancer served expired cert for 2 hours.', 'Platform & Infrastructure', 'incident', 'P1', 'closed', 'platform.david@lumina.test', 'Reproduce: SSL certificate expiry alert — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-12 06:00:00', TIMESTAMP '2026-01-12 12:00:00'),
-    ('Login MFA loop on mobile', 'Users stuck in MFA verification loop on iOS app.', 'Software Support', 'software', 'P1', 'resolved', 'platform.isabella@lumina.test', 'Reproduce: Login MFA loop on mobile — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-14 07:00:00', TIMESTAMP '2026-01-15 03:00:00'),
-    ('Search index lag after bulk import', 'New records missing from search for up to 4 hours.', 'Bug Reports', 'bug', 'P3', 'closed', 'sre.arjun@lumina.test', 'Reproduce: Search index lag after bulk import — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-16 00:00:00', TIMESTAMP '2026-01-19 00:00:00'),
-    ('Webhook signature validation errors', 'Inbound webhooks rejected after secret rotation.', 'Software Support', 'software', 'P2', 'resolved', 'sre.natalie@lumina.test', 'Reproduce: Webhook signature validation errors — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-18 01:00:00', TIMESTAMP '2026-01-18 17:00:00'),
-    ('Kubernetes HPA not scaling', 'Checkout pods did not scale during flash sale test.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'sre.kevin@lumina.test', 'Reproduce: Kubernetes HPA not scaling — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-20 02:00:00', TIMESTAMP '2026-01-21 08:00:00'),
-    ('CSV export column mismatch', 'Finance export missing tax column since release.', 'Bug Reports', 'bug', 'P3', 'closed', 'sre.jessica@lumina.test', 'Reproduce: CSV export column mismatch — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-22 03:00:00', TIMESTAMP '2026-01-23 19:00:00'),
-    ('Session timeout too aggressive', 'Users logged out every 10 minutes during long forms.', 'Software Support', 'software', 'P3', 'resolved', 'architect.robert@lumina.test', 'Reproduce: Session timeout too aggressive — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-24 04:00:00', TIMESTAMP '2026-01-25 08:00:00'),
-    ('GraphQL N+1 query regression', 'Dashboard load time regressed after schema change.', 'Bug Reports', 'bug', 'P2', 'closed', 'architect.priya@lumina.test', 'Reproduce: GraphQL N+1 query regression — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-26 05:00:00', TIMESTAMP '2026-01-28 13:00:00'),
-    ('S3 presigned URL expiry', 'Attachment downloads fail with AccessDenied intermittently.', 'Platform & Infrastructure', 'software', 'P3', 'resolved', 'architect.andres@lumina.test', 'Reproduce: S3 presigned URL expiry — follow standard runbook.', '{"source": "seed", "month": "january"}', TIMESTAMP '2026-01-28 06:00:00', TIMESTAMP '2026-01-29 04:00:00'),
-    ('Feature flag stuck enabled', 'Beta checkout flag enabled for all tenants by mistake.', 'Software Support', 'software', 'P2', 'closed', 'architect.rachel@lumina.test', 'Reproduce: Feature flag stuck enabled — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-03 07:00:00', TIMESTAMP '2026-02-03 15:00:00'),
-    ('Database migration lock timeout', 'Deploy blocked by long-running migration lock.', 'Platform & Infrastructure', 'incident', 'P1', 'resolved', 'qa.michael@lumina.test', 'Reproduce: Database migration lock timeout — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-05 00:00:00', TIMESTAMP '2026-02-05 14:00:00'),
-    ('API pagination returns duplicates', 'Page 2 of tickets API returns overlapping IDs.', 'Bug Reports', 'bug', 'P2', 'closed', 'qa.lisa@lumina.test', 'Reproduce: API pagination returns duplicates — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-07 01:00:00', TIMESTAMP '2026-02-08 09:00:00'),
-    ('Email template rendering broken', 'Notification emails show raw mustache tags.', 'Software Support', 'software', 'P3', 'closed', 'qa.christopher@lumina.test', 'Reproduce: Email template rendering broken — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-09 02:00:00', TIMESTAMP '2026-02-09 20:00:00'),
-    ('Redis pub/sub message loss', 'Realtime updates drop under reconnect storms.', 'Platform & Infrastructure', 'incident', 'P2', 'resolved', 'qa.emma@lumina.test', 'Reproduce: Redis pub/sub message loss — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-11 03:00:00', TIMESTAMP '2026-02-12 23:00:00'),
-    ('Accessibility contrast audit findings', 'WCAG AA failures on primary buttons.', 'Bug Reports', 'bug', 'P4', 'closed', 'automation.victor@lumina.test', 'Reproduce: Accessibility contrast audit findings — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-13 04:00:00', TIMESTAMP '2026-02-17 04:00:00'),
-    ('Load test spike on auth service', 'Auth latency P99 exceeded SLO during load test.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'automation.samantha@lumina.test', 'Reproduce: Load test spike on auth service — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-15 05:00:00', TIMESTAMP '2026-02-16 07:00:00'),
-    ('Pen test medium finding on exports', 'Export endpoint allowed unscoped ID enumeration.', 'Software Support', 'software', 'P2', 'resolved', 'automation.daniel@lumina.test', 'Reproduce: Pen test medium finding on exports — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-17 06:00:00', TIMESTAMP '2026-02-19 18:00:00'),
-    ('CI pipeline flaky on lint step', 'Main branch builds fail intermittently on eslint.', 'Platform & Infrastructure', 'software', 'P4', 'closed', 'automation.olivia@lumina.test', 'Reproduce: CI pipeline flaky on lint step — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-19 07:00:00', TIMESTAMP '2026-02-22 15:00:00'),
-    ('Design tokens out of sync', 'UI components use outdated spacing tokens.', 'Bug Reports', 'bug', 'P4', 'resolved', 'test.brandon@lumina.test', 'Reproduce: Design tokens out of sync — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-21 00:00:00', TIMESTAMP '2026-02-26 00:00:00'),
-    ('Regression suite fails on checkout', 'E2E checkout test fails on staging nightly.', 'Bug Reports', 'bug', 'P2', 'closed', 'test.sarah@lumina.test', 'Reproduce: Regression suite fails on checkout — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-23 01:00:00', TIMESTAMP '2026-02-24 15:00:00'),
-    ('DNS failover drill gap', 'Failover runbook missing secondary region steps.', 'Platform & Infrastructure', 'incident', 'P3', 'closed', 'test.nathan@lumina.test', 'Reproduce: DNS failover drill gap — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-25 02:00:00', TIMESTAMP '2026-02-27 06:00:00'),
-    ('Blob storage quota exceeded', 'Attachment uploads fail when tenant quota hit.', 'Software Support', 'software', 'P3', 'resolved', 'test.megan@lumina.test', 'Reproduce: Blob storage quota exceeded — follow standard runbook.', '{"source": "seed", "month": "february"}', TIMESTAMP '2026-02-27 03:00:00', TIMESTAMP '2026-02-28 03:00:00'),
-    ('Audit log ingestion delay', 'Security audit events lag by 30+ minutes.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'engineer.maya@lumina.test', 'Reproduce: Audit log ingestion delay — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-02 04:00:00', TIMESTAMP '2026-03-03 14:00:00'),
-    ('Timezone bug in scheduled reports', 'Reports shift dates for APAC users.', 'Bug Reports', 'bug', 'P3', 'closed', 'engineer.alex@lumina.test', 'Reproduce: Timezone bug in scheduled reports — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-04 05:00:00', TIMESTAMP '2026-03-06 05:00:00'),
-    ('IdP metadata sync failure', 'SSO metadata refresh fails silently weekly.', 'Software Support', 'software', 'P2', 'resolved', 'engineer.james@lumina.test', 'Reproduce: IdP metadata sync failure — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-06 06:00:00', TIMESTAMP '2026-03-07 10:00:00'),
-    ('Container image pull rate limit', 'Deploys fail pulling base images from registry.', 'Platform & Infrastructure', 'incident', 'P3', 'closed', 'engineer.sophia@lumina.test', 'Reproduce: Container image pull rate limit — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-08 07:00:00', TIMESTAMP '2026-03-08 23:00:00'),
-    ('Duplicate invoice generation', 'Billing job created duplicate invoices for 3 accounts.', 'Bug Reports', 'bug', 'P1', 'resolved', 'platform.marcus@lumina.test', 'Reproduce: Duplicate invoice generation — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-10 00:00:00', TIMESTAMP '2026-03-10 20:00:00'),
-    ('CORS preflight blocked on admin', 'Admin UI API calls blocked after domain change.', 'Software Support', 'software', 'P2', 'closed', 'platform.elena@lumina.test', 'Reproduce: CORS preflight blocked on admin — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-12 01:00:00', TIMESTAMP '2026-03-12 11:00:00'),
-    ('Log aggregation gap in EU region', 'EU tenant logs missing from central index.', 'Platform & Infrastructure', 'incident', 'P2', 'resolved', 'platform.david@lumina.test', 'Reproduce: Log aggregation gap in EU region — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-14 02:00:00', TIMESTAMP '2026-03-15 20:00:00'),
-    ('Mobile push notification delay', 'Push notifications arrive 10+ minutes late.', 'Software Support', 'software', 'P3', 'closed', 'platform.isabella@lumina.test', 'Reproduce: Mobile push notification delay — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-16 03:00:00', TIMESTAMP '2026-03-17 15:00:00'),
-    ('SQL slow query on ticket list', 'Ticket list endpoint exceeds 3s for large orgs.', 'Bug Reports', 'bug', 'P2', 'resolved', 'sre.arjun@lumina.test', 'Reproduce: SQL slow query on ticket list — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-18 04:00:00', TIMESTAMP '2026-03-20 20:00:00'),
-    ('Secrets manager rotation drift', 'App still using old DB password after rotation.', 'Platform & Infrastructure', 'incident', 'P1', 'closed', 'sre.natalie@lumina.test', 'Reproduce: Secrets manager rotation drift — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-20 05:00:00', TIMESTAMP '2026-03-20 17:00:00'),
-    ('Kanban board filter reset', 'Saved filters clear on browser refresh.', 'Bug Reports', 'bug', 'P4', 'closed', 'sre.kevin@lumina.test', 'Reproduce: Kanban board filter reset — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-22 06:00:00', TIMESTAMP '2026-03-25 22:00:00'),
-    ('Partner API schema mismatch', 'v2 schema missing required field for partners.', 'Software Support', 'software', 'P2', 'resolved', 'sre.jessica@lumina.test', 'Reproduce: Partner API schema mismatch — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-24 07:00:00', TIMESTAMP '2026-03-25 13:00:00'),
-    ('WAF false positive on uploads', 'Legitimate PDF uploads blocked by WAF rule.', 'Platform & Infrastructure', 'incident', 'P3', 'closed', 'architect.robert@lumina.test', 'Reproduce: WAF false positive on uploads — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-26 00:00:00', TIMESTAMP '2026-03-26 22:00:00'),
-    ('On-call paging storm', 'Alert rules fired duplicate pages for same incident.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'architect.priya@lumina.test', 'Reproduce: On-call paging storm — follow standard runbook.', '{"source": "seed", "month": "march"}', TIMESTAMP '2026-03-28 01:00:00', TIMESTAMP '2026-03-28 15:00:00'),
-    ('User avatar upload 413 error', 'Profile photo upload fails for images over 1MB.', 'Bug Reports', 'bug', 'P4', 'resolved', 'architect.andres@lumina.test', 'Reproduce: User avatar upload 413 error — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-02 02:00:00', TIMESTAMP '2026-04-05 02:00:00'),
-    ('Stale CDN cache on static assets', 'Users see old JS bundle after deploy.', 'Platform & Infrastructure', 'software', 'P3', 'closed', 'architect.rachel@lumina.test', 'Reproduce: Stale CDN cache on static assets — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-04 03:00:00', TIMESTAMP '2026-04-04 11:00:00'),
-    ('Role permission cache poisoned', 'Admin sees wrong menu items until re-login.', 'Software Support', 'software', 'P2', 'resolved', 'qa.michael@lumina.test', 'Reproduce: Role permission cache poisoned — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-06 04:00:00', TIMESTAMP '2026-04-06 22:00:00'),
-    ('Backup restore validation failed', 'Monthly restore test could not mount snapshot.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'qa.lisa@lumina.test', 'Reproduce: Backup restore validation failed — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-08 05:00:00', TIMESTAMP '2026-04-10 07:00:00'),
-    ('Ticket merge duplicates assignees', 'Merging tickets leaves duplicate active assignments.', 'Bug Reports', 'bug', 'P3', 'closed', 'qa.christopher@lumina.test', 'Reproduce: Ticket merge duplicates assignees — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-10 06:00:00', TIMESTAMP '2026-04-12 02:00:00'),
-    ('Invoice PDF font rendering', 'PDF exports show missing glyphs for accented names.', 'Software Support', 'software', 'P4', 'resolved', 'qa.emma@lumina.test', 'Reproduce: Invoice PDF font rendering — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-12 07:00:00', TIMESTAMP '2026-04-16 07:00:00'),
-    ('Queue consumer lag alert', 'Background queue depth exceeded threshold for 2h.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'automation.victor@lumina.test', 'Reproduce: Queue consumer lag alert — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-14 00:00:00', TIMESTAMP '2026-04-15 02:00:00'),
-    ('Safari date picker off by one', 'Due dates save as previous day in Safari.', 'Bug Reports', 'bug', 'P3', 'closed', 'automation.samantha@lumina.test', 'Reproduce: Safari date picker off by one — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-16 01:00:00', TIMESTAMP '2026-04-17 17:00:00'),
-    ('Terraform state lock stuck', 'Infra pipeline blocked on stale state lock.', 'Platform & Infrastructure', 'incident', 'P2', 'resolved', 'automation.daniel@lumina.test', 'Reproduce: Terraform state lock stuck — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-18 02:00:00', TIMESTAMP '2026-04-18 18:00:00'),
-    ('HR export missing department', 'HR CSV export omits department column.', 'Software Support', 'software', 'P3', 'closed', 'automation.olivia@lumina.test', 'Reproduce: HR export missing department — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-20 03:00:00', TIMESTAMP '2026-04-21 11:00:00'),
-    ('Grafana dashboard panel empty', 'SLO dashboard shows no data after migration.', 'Platform & Infrastructure', 'software', 'P4', 'resolved', 'test.brandon@lumina.test', 'Reproduce: Grafana dashboard panel empty — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-22 04:00:00', TIMESTAMP '2026-04-25 00:00:00'),
-    ('Chat widget z-index overlap', 'Support chat hides primary action buttons.', 'Bug Reports', 'bug', 'P4', 'closed', 'test.sarah@lumina.test', 'Reproduce: Chat widget z-index overlap — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-24 05:00:00', TIMESTAMP '2026-04-26 13:00:00'),
-    ('LDAP group sync partial failure', 'Half of AD groups not synced overnight.', 'Software Support', 'software', 'P2', 'resolved', 'test.nathan@lumina.test', 'Reproduce: LDAP group sync partial failure — follow standard runbook.', '{"source": "seed", "month": "april"}', TIMESTAMP '2026-04-26 06:00:00', TIMESTAMP '2026-04-27 06:00:00'),
-    ('TLS cipher mismatch on legacy client', 'Old integration clients cannot handshake.', 'Platform & Infrastructure', 'incident', 'P3', 'closed', 'test.megan@lumina.test', 'Reproduce: TLS cipher mismatch on legacy client — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-02 07:00:00', TIMESTAMP '2026-05-03 19:00:00'),
-    ('Satisfaction survey not sent', 'Closed tickets never trigger survey email.', 'Bug Reports', 'bug', 'P3', 'closed', 'engineer.maya@lumina.test', 'Reproduce: Satisfaction survey not sent — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-04 00:00:00', TIMESTAMP '2026-05-06 00:00:00'),
-    ('Rate limit bypass in internal API', 'Internal routes missing auth middleware.', 'Software Support', 'software', 'P1', 'resolved', 'engineer.alex@lumina.test', 'Reproduce: Rate limit bypass in internal API — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-06 01:00:00', TIMESTAMP '2026-05-06 11:00:00'),
-    ('Pod OOM during PDF generation', 'Report worker killed generating large PDFs.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'engineer.james@lumina.test', 'Reproduce: Pod OOM during PDF generation — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-08 02:00:00', TIMESTAMP '2026-05-09 06:00:00'),
-    ('Dark mode flash on navigation', 'Brief dark flash when navigating between pages.', 'Bug Reports', 'bug', 'P4', 'resolved', 'engineer.sophia@lumina.test', 'Reproduce: Dark mode flash on navigation — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-10 03:00:00', TIMESTAMP '2026-05-14 11:00:00'),
-    ('Snowflake connector timeout', 'Analytics sync jobs timeout after 15 minutes.', 'Software Support', 'software', 'P3', 'closed', 'platform.marcus@lumina.test', 'Reproduce: Snowflake connector timeout — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-12 04:00:00', TIMESTAMP '2026-05-14 08:00:00'),
-    ('IP allowlist blocks VPN users', 'Remote staff cannot reach admin after IP change.', 'Platform & Infrastructure', 'incident', 'P2', 'resolved', 'platform.elena@lumina.test', 'Reproduce: IP allowlist blocks VPN users — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-14 05:00:00', TIMESTAMP '2026-05-14 19:00:00'),
-    ('Bulk user import validation', 'CSV import rejects valid rows with unicode names.', 'Software Support', 'software', 'P3', 'closed', 'platform.david@lumina.test', 'Reproduce: Bulk user import validation — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-16 06:00:00', TIMESTAMP '2026-05-17 20:00:00'),
-    ('Metrics cardinality explosion', 'Prometheus scrape fails from label explosion.', 'Platform & Infrastructure', 'incident', 'P2', 'closed', 'platform.isabella@lumina.test', 'Reproduce: Metrics cardinality explosion — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-18 07:00:00', TIMESTAMP '2026-05-19 13:00:00'),
-    ('Comment mention notifications broken', '@mentions do not notify assignees.', 'Bug Reports', 'bug', 'P3', 'resolved', 'sre.arjun@lumina.test', 'Reproduce: Comment mention notifications broken — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-20 00:00:00', TIMESTAMP '2026-05-21 18:00:00'),
-    ('Release notes link 404', 'In-app release notes point to removed page.', 'Software Support', 'software', 'P4', 'closed', 'sre.natalie@lumina.test', 'Reproduce: Release notes link 404 — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-22 01:00:00', TIMESTAMP '2026-05-22 21:00:00'),
-    ('Staging data refresh incomplete', 'Staging missing last week of ticket samples.', 'Platform & Infrastructure', 'software', 'P3', 'resolved', 'sre.kevin@lumina.test', 'Reproduce: Staging data refresh incomplete — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-24 02:00:00', TIMESTAMP '2026-05-26 14:00:00'),
-    ('Incident postmortem template missing', 'Postmortem doc not linked from closed incidents.', 'Manager', 'software', 'P4', 'closed', 'sre.jessica@lumina.test', 'Reproduce: Incident postmortem template missing — follow standard runbook.', '{"source": "seed", "month": "may"}', TIMESTAMP '2026-05-26 03:00:00', TIMESTAMP '2026-05-29 03:00:00')
-) AS seed(
-  title,
-  description,
-  category_name,
-  type,
-  priority,
-  status,
-  submitter_email,
-  replication_steps,
-  metadata,
-  created_at,
-  closed_at
-)
-JOIN categories c ON lower(c.name) = lower(seed.category_name)
-JOIN users u ON u.email = lower(seed.submitter_email)
-WHERE u.department IN ('Developers', 'QA')
-  AND NOT EXISTS (
-    SELECT 1 FROM tickets t WHERE lower(t.title) = lower(seed.title)
-  );
+  ('00000000-0000-0000-0000-000000000011', 'david.kim@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'David', 'Kim', 'admin', 'active', TRUE, TRUE, 'IT Service Delivery Manager', 'Managers', NULL, TRUE, NULL, NULL);
 
-\echo '==> Assigning tickets to Developers / QA...'
+-- Developers
+INSERT INTO users (id, email, password_hash, first_name, last_name, role, status, email_is_verified, name_set, job_title, department, avatar_url, onboarding_completed, approved_by, approved_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000012', 'alex.johnson@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Alex', 'Johnson', 'admin', 'active', TRUE, TRUE, 'Senior Software Engineer', 'Developers', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '60 days'),
 
--- Assign each seeded ticket to Developers or QA (roughly 50/50) for org visibility demos.
-WITH seeded AS (
-  SELECT
-    t.id,
-    t.created_at,
-    ROW_NUMBER() OVER (ORDER BY t.created_at) AS rn
-  FROM tickets t
-  WHERE t.metadata->>'source' = 'seed'
-    AND t.metadata->>'month' IN ('january', 'february', 'march', 'april', 'may')
-    AND t.status IN ('closed', 'resolved')
-),
-assignee_pool AS (
-  SELECT
-    s.id AS ticket_id,
-    s.created_at,
-    CASE WHEN s.rn % 2 = 0 THEN 'qa'::assignment_role ELSE 'developer'::assignment_role END AS assignment_role,
-    CASE
-      WHEN s.rn % 2 = 0 THEN (
-        ARRAY[
-          lower('qa.michael@lumina.test'),
-          lower('qa.lisa@lumina.test'),
-          lower('automation.victor@lumina.test'),
-          lower('test.brandon@lumina.test')
-        ]
-      )[1 + (s.rn % 4)]
-      ELSE (
-        ARRAY[
-          lower('engineer.maya@lumina.test'),
-          lower('engineer.alex@lumina.test'),
-          lower('platform.marcus@lumina.test'),
-          lower('architect.priya@lumina.test')
-        ]
-      )[1 + (s.rn % 4)]
-    END AS assignee_email
-  FROM seeded s
-)
-INSERT INTO ticket_assignment (
-  ticket_id,
-  assigned_to,
-  assigned_by,
-  is_active,
-  assignment_role,
-  assigned_at
-)
-SELECT
-  pool.ticket_id,
-  assignee.id,
-  approver.id,
-  TRUE,
-  pool.assignment_role,
-  pool.created_at + interval '30 minutes'
-FROM assignee_pool pool
-JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
-JOIN users assignee ON assignee.email = pool.assignee_email
-WHERE NOT EXISTS (
-  SELECT 1 FROM ticket_assignment ta
-  WHERE ta.ticket_id = pool.ticket_id AND ta.is_active = TRUE
-);
+  ('00000000-0000-0000-0000-000000000013', 'maria.garcia@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Maria', 'Garcia', 'admin', 'active', TRUE, TRUE, 'Software Engineer', 'Developers', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '45 days'),
 
-\echo '==> Adding satisfaction ratings...'
+  ('00000000-0000-0000-0000-000000000014', 'james.wilson@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'James', 'Wilson', 'admin', 'active', TRUE, TRUE, 'Full Stack Developer', 'Developers', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '30 days');
 
--- One satisfaction rating per seeded ticket (unique on ticket_id).
-INSERT INTO satisfaction_ratings (ticket_id, rated_by, rating, comment)
-SELECT
-  t.id,
-  u.id,
-  (ARRAY[5, 4, 5, 3, 5, 4, 5, 4])[1 + (abs(hashtext(t.id::text)) % 8)],
-  (ARRAY[
-    'Issue resolved quickly and professionally.',
-    'Good resolution but took longer than expected.',
-    'Excellent support and communication.',
-    'Adequate resolution but could have been faster.',
-    'Outstanding work on this ticket.',
-    'Good fix, clear explanation provided.',
-    'Resolved within SLA, very satisfied.',
-    'Acceptable solution though some concerns remain.'
-  ])[1 + (abs(hashtext(t.id::text)) % 8)]
-FROM tickets t
-JOIN users u ON u.id = t.submitted_by
-WHERE t.metadata->>'source' = 'seed'
-  AND t.metadata->>'month' IN ('january', 'february', 'march', 'april', 'may')
-  AND t.status IN ('closed', 'resolved')
-  AND NOT EXISTS (
-    SELECT 1 FROM satisfaction_ratings sr WHERE sr.ticket_id = t.id
-  );
+-- QA
+INSERT INTO users (id, email, password_hash, first_name, last_name, role, status, email_is_verified, name_set, job_title, department, avatar_url, onboarding_completed, approved_by, approved_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000015', 'priya.sharma@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Priya', 'Sharma', 'admin', 'active', TRUE, TRUE, 'QA Lead', 'QA', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '50 days'),
 
-\echo '==> Seeding sample comments...'
+  ('00000000-0000-0000-0000-000000000016', 'tom.brown@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Tom', 'Brown', 'admin', 'active', TRUE, TRUE, 'QA Engineer', 'QA', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '20 days');
 
--- -----------------------------------------------------------------------------
--- Section 2: Sample ticket comments (idempotent)
--- -----------------------------------------------------------------------------
+-- Regular users
+INSERT INTO users (id, email, password_hash, first_name, last_name, role, status, email_is_verified, name_set, job_title, department, avatar_url, onboarding_completed, approved_by, approved_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000020', 'emily.davis@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Emily', 'Davis', 'user', 'active', TRUE, TRUE, 'Product Designer', NULL, NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '40 days'),
 
-INSERT INTO ticket_comments (ticket_id, author_id, body)
-SELECT
-  t.id,
-  author.id,
-  seed.body
-FROM tickets t
-JOIN (
-  VALUES
-    ('Database connection pool exhaustion', 'engineer.maya@lumina.test', 'Reproduced under load test — pooling config looks too small.'),
-    ('Database connection pool exhaustion', 'qa.michael@lumina.test', 'Verified fix in staging. Recommend monitoring connection count.'),
-    ('Cache invalidation bug', 'qa.lisa@lumina.test', 'Permissions still stale after cache clear on first attempt.'),
-    ('API rate limiting misconfiguration', 'engineer.alex@lumina.test', 'Headers now match OpenAPI spec after deploy.'),
-    ('Memory leak in background worker', 'platform.marcus@lumina.test', 'Worker restart scheduled; heap stable after patch.')
-) AS seed(title, author_email, body)
-  ON lower(t.title) = lower(seed.title)
-JOIN users author ON author.email = lower(seed.author_email)
-WHERE t.metadata->>'source' = 'seed'
-  AND NOT EXISTS (
-    SELECT 1 FROM ticket_comments c
-    WHERE c.ticket_id = t.id AND c.author_id = author.id AND c.body = seed.body
-  );
+  ('00000000-0000-0000-0000-000000000021', 'michael.lee@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Michael', 'Lee', 'user', 'active', TRUE, TRUE, 'Marketing Coordinator', NULL, NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '35 days'),
 
-\echo ''
-\echo '==> Seed summary (current database):'
-SELECT 'seed tickets' AS item, COUNT(*)::text AS count
-FROM tickets WHERE metadata->>'source' = 'seed'
-UNION ALL
-SELECT 'active assignments on seed tickets', COUNT(DISTINCT ta.ticket_id)::text
-FROM ticket_assignment ta
-JOIN tickets t ON t.id = ta.ticket_id AND t.metadata->>'source' = 'seed' AND ta.is_active
-UNION ALL
-SELECT 'seed comments', COUNT(*)::text
-FROM ticket_comments c
-JOIN tickets t ON t.id = c.ticket_id AND t.metadata->>'source' = 'seed';
+  ('00000000-0000-0000-0000-000000000022', 'jane.doe@lumina.test',
+   crypt('Password1!', gen_salt('bf')),
+   'Jane', 'Doe', 'user', 'suspended', TRUE, TRUE, 'former employee', NULL, NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '90 days');
 
-\echo ''
-\echo 'Note: INSERT 0 0 means that step had nothing new to add (already seeded).'
-\echo 'To wipe and reload everything, run: pnpm db:refresh'
-\echo ''
+-- =============================================================================
+-- CATEGORIES
+-- =============================================================================
+INSERT INTO categories (id, name, description, created_by, is_active)
+VALUES
+  ('10000000-0000-0000-0000-000000000001', 'Desktop & Hardware',
+   'Desktops, laptops, monitors, docks, and peripheral hardware issues',
+   '00000000-0000-0000-0000-000000000011', TRUE),
+
+  ('10000000-0000-0000-0000-000000000002', 'Software & Applications',
+   'Operating system, productivity tools, IDE, and business application support',
+   '00000000-0000-0000-0000-000000000011', TRUE),
+
+  ('10000000-0000-0000-0000-000000000003', 'Network & Connectivity',
+   'Wi-Fi, VPN, wired networking, firewall, and remote access issues',
+   '00000000-0000-0000-0000-000000000011', TRUE),
+
+  ('10000000-0000-0000-0000-000000000004', 'Security & Access',
+   'Authentication, authorization, certificate, and security incident reports',
+   '00000000-0000-0000-0000-000000000011', TRUE),
+
+  ('10000000-0000-0000-0000-000000000005', 'Email & Collaboration',
+   'Email delivery, calendar, Slack, Teams, Zoom, and document sharing',
+   '00000000-0000-0000-0000-000000000011', TRUE),
+
+  ('10000000-0000-0000-0000-000000000006', 'Account & Identity',
+   'Account provisioning, password reset, MFA, role changes, and onboarding',
+   '00000000-0000-0000-0000-000000000011', TRUE),
+
+  ('10000000-0000-0000-0000-000000000007', 'Mobile Device',
+   'Company phone, tablet, MDM, and mobile application support',
+   '00000000-0000-0000-0000-000000000011', TRUE),
+
+  ('10000000-0000-0000-0000-000000000008', 'Printer & Scanner',
+   'Network printers, local printers, multi-function devices, and scan-to-email',
+   '00000000-0000-0000-0000-000000000011', TRUE);
+
+-- =============================================================================
+-- TICKETS
+-- =============================================================================
+INSERT INTO tickets (id, title, description, category_id, type, priority, status, submitted_by, replication_steps, created_at, closed_at, metadata)
+VALUES
+-- Ticket 1: P1 production incident — resolved
+('20000000-0000-0000-0000-000000000001',
+ 'Production payment gateway returning 503 errors',
+ 'The payment gateway endpoint /api/v2/charges is returning HTTP 503 for approximately 30% of requests since 09:15 UTC. Customer transactions are failing with "service unavailable". Need immediate investigation.',
+ '10000000-0000-0000-0000-000000000003', 'incident', 'P1', 'resolved',
+ '00000000-0000-0000-0000-000000000020',
+ '1. Attempt to checkout with any product\n2. Observe intermittent 503 on payment submit\n3. Check gateway logs for upstream timeout',
+ NOW() - INTERVAL '14 days', NOW() - INTERVAL '12 days',
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000012", "reasoning": "Production incident matched to Senior Software Engineer Alex Johnson — best fit for payment gateway expertise.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000012", "source": "lumina_ai", "confidence": 0.92}}}'),
+
+-- Ticket 2: P2 bug — in progress
+('20000000-0000-0000-0000-000000000002',
+ 'User profile image upload fails for images > 2MB',
+ 'Uploading a profile avatar through /users/me/avatar consistently fails when the image exceeds 2MB. The UI shows a generic "upload failed" toast with no detail. Works fine under 2MB.',
+ '10000000-0000-0000-0000-000000000002', 'bug', 'P2', 'in_progress',
+ '00000000-0000-0000-0000-000000000021',
+ '1. Go to Settings → Profile\n2. Select an image file larger than 2MB (e.g. a 4MB JPEG)\n3. Click Upload\n4. Observe "Upload failed" toast after ~3 seconds',
+ NOW() - INTERVAL '5 days', NULL,
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000013", "reasoning": "Bug ticket matched to Software Engineer Maria Garcia based on recent UI upload work.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000013", "source": "lumina_ai", "confidence": 0.85}}}'),
+
+-- Ticket 3: P3 software request — assigned
+('20000000-0000-0000-0000-000000000003',
+ 'Request: Install Figma on marketing team machines',
+ 'The marketing team needs Figma installed on 5 machines (Michael Lee, Jessica Park, Ryan O Brien, Lisa Chen, Derek Wu). All machines are MacBook Pro M3 running macOS Sequoia. Admin rights are not available to users.',
+ '10000000-0000-0000-0000-000000000002', 'software', 'P3', 'assigned',
+ '00000000-0000-0000-0000-000000000021', NULL,
+ NOW() - INTERVAL '3 days', NULL,
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000014", "reasoning": "Software installation request matched to Full Stack Developer James Wilson who handles end-user software provisioning.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "confidence": 0.78}}}'),
+
+-- Ticket 4: P2 bug — open (unassigned)
+('20000000-0000-0000-0000-000000000004',
+ 'Dark mode toggle does not persist across page navigation',
+ 'When a user toggles dark mode in Settings → Appearance, the theme switches correctly. However, navigating to any other page (or doing a full page reload) reverts to light mode. The preference is not being persisted to localStorage or the backend.',
+ '10000000-0000-0000-0000-000000000002', 'bug', 'P2', 'open',
+ '00000000-0000-0000-0000-000000000020',
+ '1. Go to Settings → Appearance\n2. Toggle dark mode ON → theme switches correctly\n3. Click any nav link (Dashboard, Tickets, etc.)\n4. Observe: theme reverts to light mode',
+ NOW() - INTERVAL '1 day', NULL,
+ '{}'),
+
+-- Ticket 5: P3 software — pending routing (fresh)
+('20000000-0000-0000-0000-000000000005',
+ 'Jira integration: automatic ticket creation from support emails',
+ 'We would like to set up an automated workflow where support emails sent to helpdesk@lumina.com automatically create a Jira issue in the ITSM project. This is a request to evaluate and implement the integration.',
+ '10000000-0000-0000-0000-000000000002', 'software', 'P3', 'pending_routing',
+ '00000000-0000-0000-0000-000000000021',
+ '1. Configure inbound email handler\n2. Map email fields to Jira fields\n3. Set up bi-directional status sync\n4. Test with sample tickets',
+ NOW() - INTERVAL '2 hours', NULL,
+ '{}'),
+
+-- Ticket 6: P4 hardware — closed
+('20000000-0000-0000-0000-000000000006',
+ 'Keyboard replacement request — Dell KB216 (Emily Davis)',
+ 'My Dell KB216 keyboard has a stuck "E" key that registers double presses intermittently. Requesting a replacement under the hardware warranty. Asset tag: LUM-DESK-0421.',
+ '10000000-0000-0000-0000-000000000001', 'software', 'P4', 'closed',
+ '00000000-0000-0000-0000-000000000020', NULL,
+ NOW() - INTERVAL '20 days', NOW() - INTERVAL '18 days',
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000014", "reasoning": "Hardware replacement routed to James Wilson who handles desktop hardware provisioning.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "confidence": 0.72}}}'),
+
+-- Ticket 7: P1 security incident — on hold
+('20000000-0000-0000-0000-000000000007',
+ 'Suspicious login attempts detected — user jane.doe',
+ 'Jane Doe reported receiving multiple "new device login" email notifications over the past 48 hours originating from IPs in Russia and Brazil. Account has been temporarily suspended pending investigation.',
+ '10000000-0000-0000-0000-000000000004', 'incident', 'P1', 'on_hold',
+ '00000000-0000-0000-0000-000000000022',
+ '1. Check auth audit logs for IP origins\n2. Verify no unauthorized data access\n3. Force password reset\n4. Enable MFA\n5. Monitor for 72 hours',
+ NOW() - INTERVAL '7 days', NULL,
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000011", "reasoning": "Security incident routed to IT Service Delivery Manager David Kim for cross-team escalation and coordination.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000011", "source": "lumina_ai", "confidence": 0.88}}}'),
+
+-- Ticket 8: P3 network — assigned (QA)
+('20000000-0000-0000-0000-000000000008',
+ 'VPN drops connection every ~15 minutes on macOS Sequoia',
+ 'Since upgrading to macOS Sequoia 15.1, the corporate WireGuard VPN drops the connection approximately every 15 minutes. Reconnecting works immediately but the drop interrupts ongoing work. Happens on both office and home networks.',
+ '10000000-0000-0000-0000-000000000003', 'bug', 'P3', 'assigned',
+ '00000000-0000-0000-0000-000000000020',
+ '1. Connect to corporate VPN via WireGuard\n2. Work normally for ~15 minutes\n3. Observe: tunnel drops silently\n4. Manual reconnect works\n5. Cycle repeats',
+ NOW() - INTERVAL '4 days', NULL,
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000015", "reasoning": "VPN connectivity issue matched to QA Lead Priya Sharma as the ticket originator requested QA validation of the VPN client update.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000015", "source": "lumina_ai", "confidence": 0.81}}}'),
+
+-- Ticket 9: P2 email — in progress (developer)
+('20000000-0000-0000-0000-000000000009',
+ 'Outbound email to external domains delayed by 30+ minutes',
+ 'Emails sent from @lumina.test to external domains (gmail.com, outlook.com) are experiencing 30-60 minute delivery delays. Internal @lumina.test to @lumina.test delivery is instantaneous. Suspect SPF/DKIM configuration issue or upstream relay throttling.',
+ '10000000-0000-0000-0000-000000000005', 'incident', 'P2', 'in_progress',
+ '00000000-0000-0000-0000-000000000021',
+ '1. Send test email from Outlook to personal Gmail\n2. Check message trace in admin console\n3. Observe "queued" status for 30+ min\n4. Check SPF, DKIM, DMARC DNS records',
+ NOW() - INTERVAL '2 days', NULL,
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000013", "reasoning": "Email infrastructure issue matched to Maria Garcia who manages the email relay service.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000013", "source": "lumina_ai", "confidence": 0.84}}}'),
+
+-- Ticket 10: P4 account — resolved
+('20000000-0000-0000-0000-000000000010',
+ 'New hire onboarding: account provisioning for John Smith',
+ 'John Smith starts on Monday as a Junior Data Analyst in the Analytics team. He needs: AD account, email, Slack, Jira access (Analytics project), GitHub read-only, and a company laptop (MacBook Pro). Onboarding ticket to track provisioning progress.',
+ '10000000-0000-0000-0000-000000000006', 'software', 'P4', 'resolved',
+ '00000000-0000-0000-0000-000000000021', NULL,
+ NOW() - INTERVAL '10 days', NOW() - INTERVAL '8 days',
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000014", "reasoning": "New hire provisioning routed to James Wilson who manages the account provisioning workflow.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "confidence": 0.76}}}'),
+
+-- Ticket 11: P3 mobile — assigned (QA)
+('20000000-0000-0000-0000-000000000011',
+ 'Company iPhone 15 Pro not receiving push notifications from Outlook',
+ 'After the iOS 18.2 update, push notifications from the company Outlook app stopped working. Background App Refresh is enabled, notifications are allowed, and the app is up to date. Battery optimization is off. Notifications work for other apps (Slack, Teams).',
+ '10000000-0000-0000-0000-000000000007', 'bug', 'P3', 'assigned',
+ '00000000-0000-0000-0000-000000000020',
+ '1. iPhone 15 Pro, iOS 18.2, Outlook v4.2503\n2. Settings → Notifications → Outlook: All enabled\n3. Settings → General → Background App Refresh: ON\n4. Send test email from another account\n5. No notification appears on lock screen',
+ NOW() - INTERVAL '2 days', NULL,
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000016", "reasoning": "Mobile device issue matched to QA Engineer Tom Brown who is testing iOS 18.2 compatibility.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000016", "source": "lumina_ai", "confidence": 0.79}}}'),
+
+-- Ticket 12: P2 printer — assigned
+('20000000-0000-0000-0000-000000000012',
+ 'Network printer LUM-PR-003 (floor 3) showing "toner low" but cartridge is new',
+ 'The HP LaserJet Pro on floor 3 (LUM-PR-003) displays "Toner Low — Order Supplies" on the control panel. The toner cartridge was replaced yesterday with a genuine HP 58A cartridge. The printer has been power-cycled twice but the warning persists.',
+ '10000000-0000-0000-0000-000000000008', 'software', 'P2', 'assigned',
+ '00000000-0000-0000-0000-000000000021',
+ '1. Check toner sensor status from printer web UI\n2. Confirm cartridge is genuine HP 58A (not third-party)\n3. Try reseating the cartridge\n4. Check firmware version — update if available\n5. Consider sensor calibration',
+ NOW() - INTERVAL '1 day', NULL,
+ '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000012", "reasoning": "Printer hardware issue matched to Alex Johnson who previously resolved a similar sensor calibration ticket.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000012", "source": "lumina_ai", "confidence": 0.71}}}');
+
+-- =============================================================================
+-- TICKET ASSIGNMENTS
+-- =============================================================================
+INSERT INTO ticket_assignment (id, ticket_id, assigned_to, assigned_by, is_active, assignment_role, assigned_at)
+VALUES
+  -- Ticket 1: resolved — Alex Johnson (dev)
+  ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000011', FALSE, 'developer', NOW() - INTERVAL '14 days'),
+
+  -- Ticket 2: in_progress — Maria Garcia (dev)
+  ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002',
+   '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000011', TRUE, 'developer', NOW() - INTERVAL '5 days'),
+
+  -- Ticket 3: assigned — James Wilson (dev)
+  ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003',
+   '00000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000011', TRUE, 'developer', NOW() - INTERVAL '3 days'),
+
+  -- Ticket 6: closed — James Wilson (dev, historical)
+  ('30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000006',
+   '00000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000011', FALSE, 'developer', NOW() - INTERVAL '20 days'),
+
+  -- Ticket 7: on_hold — David Kim (manager)
+  ('30000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000007',
+   '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000010', TRUE, 'developer', NOW() - INTERVAL '7 days'),
+
+  -- Ticket 8: assigned — Priya Sharma (QA)
+  ('30000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000008',
+   '00000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000011', TRUE, 'qa', NOW() - INTERVAL '4 days'),
+
+  -- Also a dev assignment on ticket 8 (previous)
+  ('30000000-0000-0000-0000-000000000007', '20000000-0000-0000-0000-000000000008',
+   '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000011', FALSE, 'developer', NOW() - INTERVAL '6 days'),
+
+  -- Ticket 9: in_progress — Maria Garcia (dev)
+  ('30000000-0000-0000-0000-000000000008', '20000000-0000-0000-0000-000000000009',
+   '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000011', TRUE, 'developer', NOW() - INTERVAL '2 days'),
+
+  -- Ticket 10: resolved — James Wilson (dev)
+  ('30000000-0000-0000-0000-000000000009', '20000000-0000-0000-0000-000000000010',
+   '00000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000011', FALSE, 'developer', NOW() - INTERVAL '10 days'),
+
+  -- Ticket 11: assigned — Tom Brown (QA)
+  ('30000000-0000-0000-0000-000000000010', '20000000-0000-0000-0000-000000000011',
+   '00000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000011', TRUE, 'qa', NOW() - INTERVAL '2 days'),
+
+  -- Ticket 11: previous dev assignment
+  ('30000000-0000-0000-0000-000000000011', '20000000-0000-0000-0000-000000000011',
+   '00000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000011', FALSE, 'developer', NOW() - INTERVAL '3 days'),
+
+  -- Ticket 12: assigned — Alex Johnson (dev)
+  ('30000000-0000-0000-0000-000000000012', '20000000-0000-0000-0000-000000000012',
+   '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000011', TRUE, 'developer', NOW() - INTERVAL '1 day');
+
+-- =============================================================================
+-- TICKET COMMENTS
+-- =============================================================================
+INSERT INTO ticket_comments (id, ticket_id, author_id, body, created_at)
+VALUES
+  -- Ticket 1: Alex Johnson investigating payment incident
+  ('40000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000012',
+   'Investigated the payment gateway. The upstream Stripe API returned 503 during a regional outage (us-east-1). Automatic retry logic was not handling the backoff correctly. Fixed by implementing exponential backoff with jitter. Gateway healthy since 14:30 UTC.',
+   NOW() - INTERVAL '13 days'),
+
+  ('40000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000012',
+   'Added monitoring alerts for payment gateway error rate > 1%. PagerDuty integration configured. Postmortem to follow.',
+   NOW() - INTERVAL '12 days'),
+
+  -- Ticket 2: Maria Garcia investigating upload bug
+  ('40000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002',
+   '00000000-0000-0000-0000-000000000013',
+   'Reproduced the issue. The file upload middleware (multer) has a 2MB limit that returns a non-descript error. The frontend toast handler doesn''t distinguish LIMIT_FILE_SIZE from other errors. Working on a fix.',
+   NOW() - INTERVAL '4 days'),
+
+  ('40000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000002',
+   '00000000-0000-0000-0000-000000000013',
+   'PR submitted: increased limit to 10MB, added proper error messages per file size and file type, and improved the frontend error toast to show the specific reason.',
+   NOW() - INTERVAL '3 days'),
+
+  ('40000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000002',
+   '00000000-0000-0000-0000-000000000015',
+   'Reviewed the PR. Looks good overall. Requesting one change: the error message for LIMIT_FILE_SIZE should include the actual limit in human-readable format (e.g. "Max file size is 10MB").',
+   NOW() - INTERVAL '2 days'),
+
+  -- Ticket 6: James Wilson closing hardware ticket
+  ('40000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000006',
+   '00000000-0000-0000-0000-000000000014',
+   'Replaced keyboard with new Dell KB216. Old unit returned to IT inventory for inspection.',
+   NOW() - INTERVAL '18 days'),
+
+  -- Ticket 7: David Kim on security incident
+  ('40000000-0000-0000-0000-000000000007', '20000000-0000-0000-0000-000000000007',
+   '00000000-0000-0000-0000-000000000011',
+   'Reviewed auth logs. The login attempts were blocked by MFA challenge. No successful unauthorized access detected. Waiting for Jane to complete the account recovery process before closing.',
+   NOW() - INTERVAL '6 days'),
+
+  ('40000000-0000-0000-0000-000000000008', '20000000-0000-0000-0000-000000000007',
+   '00000000-0000-0000-0000-000000000011',
+   'Account recovery completed. New MFA enrolled. geoblocking enabled for countries outside our operating regions. Monitoring for another 48 hours before closing.',
+   NOW() - INTERVAL '5 days'),
+
+  -- Ticket 8: Priya Sharma on VPN issue
+  ('40000000-0000-0000-0000-000000000009', '20000000-0000-0000-0000-000000000008',
+   '00000000-0000-0000-0000-000000000015',
+   'Testing the WireGuard macOS Sequoia compatibility. Confirmed the 15-minute drop cycle. This appears to be a known macOS Sequoia issue with kernel extensions. Recommending upgrade to WireGuard 1.2.x which uses the new Network Extension framework instead of the kext.',
+   NOW() - INTERVAL '3 days'),
+
+  -- Ticket 9: Maria Garcia on email delay
+  ('40000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-000000000009',
+   '00000000-0000-0000-0000-000000000013',
+   'Confirmed SPF and DKIM are correctly configured. The issue is with our outgoing relay — the SMTP relay (sendgrid) has a free tier rate limit that was hit. Need to upgrade to paid plan or verify the domain for higher limits.',
+   NOW() - INTERVAL '1 day'),
+
+  -- Ticket 12: Alex Johnson on printer issue
+  ('40000000-0000-0000-0000-00000000000b', '20000000-0000-0000-0000-000000000012',
+   '00000000-0000-0000-0000-000000000012',
+   'The toner level sensor is reporting a false positive. This is a known firmware bug in the HP LaserJet Pro series (firmware v2024.09). HP released a fix in firmware v2025.01. Will schedule the firmware update for tonight.',
+   NOW() - INTERVAL '12 hours');
+
+-- =============================================================================
+-- AUDIT LOGS
+-- =============================================================================
+INSERT INTO audit_logs (id, actor_id, action, metadata, created_at)
+VALUES
+  -- Ticket 1 lifecycle
+  ('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000020', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000001", "title": "Production payment gateway returning 503 errors", "type": "incident", "priority": "P1", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000020"}',
+   NOW() - INTERVAL '14 days'),
+
+  ('50000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000001", "assigned_to": "00000000-0000-0000-0000-000000000012", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '14 days'),
+
+  ('50000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000012', 'ticket_status_changed',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000001", "old_status": "assigned", "new_status": "in_progress"}',
+   NOW() - INTERVAL '13 days'),
+
+  ('50000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000012', 'ticket_status_changed',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000001", "old_status": "in_progress", "new_status": "resolved"}',
+   NOW() - INTERVAL '12 days'),
+
+  -- Ticket 2 lifecycle
+  ('50000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000021', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000002", "title": "User profile image upload fails for images > 2MB", "type": "bug", "priority": "P2", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000021"}',
+   NOW() - INTERVAL '5 days'),
+
+  ('50000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000002", "assigned_to": "00000000-0000-0000-0000-000000000013", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '5 days'),
+
+  ('50000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000013', 'ticket_status_changed',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000002", "old_status": "assigned", "new_status": "in_progress"}',
+   NOW() - INTERVAL '4 days'),
+
+  -- Ticket 3 lifecycle
+  ('50000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000021', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000003", "title": "Request: Install Figma on marketing team machines", "type": "software", "priority": "P3", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000021"}',
+   NOW() - INTERVAL '3 days'),
+
+  ('50000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000003", "assigned_to": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '3 days'),
+
+  -- Ticket 4 (open, no assignments)
+  ('50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000020', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000004", "title": "Dark mode toggle does not persist across page navigation", "type": "bug", "priority": "P2", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000020"}',
+   NOW() - INTERVAL '1 day'),
+
+  -- Ticket 5 (pending routing, no assignments)
+  ('50000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-000000000021', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000005", "title": "Jira integration: automatic ticket creation from support emails", "type": "software", "priority": "P3", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000021"}',
+   NOW() - INTERVAL '2 hours'),
+
+  -- Ticket 6 lifecycle
+  ('50000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-000000000020', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000006", "title": "Keyboard replacement request", "type": "software", "priority": "P4", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000020"}',
+   NOW() - INTERVAL '20 days'),
+
+  ('50000000-0000-0000-0000-00000000000d', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000006", "assigned_to": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '20 days'),
+
+  ('50000000-0000-0000-0000-00000000000e', '00000000-0000-0000-0000-000000000014', 'ticket_status_changed',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000006", "old_status": "assigned", "new_status": "resolved"}',
+   NOW() - INTERVAL '18 days'),
+
+  -- Ticket 7 lifecycle
+  ('50000000-0000-0000-0000-00000000000f', '00000000-0000-0000-0000-000000000022', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000007", "title": "Suspicious login attempts detected", "type": "incident", "priority": "P1", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000022"}',
+   NOW() - INTERVAL '7 days'),
+
+  ('50000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000007", "assigned_to": "00000000-0000-0000-0000-000000000011", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '7 days'),
+
+  ('50000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000011', 'ticket_status_changed',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000007", "old_status": "assigned", "new_status": "on_hold"}',
+   NOW() - INTERVAL '6 days'),
+
+  -- Ticket 8 lifecycle (routed from dev to QA)
+  ('50000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000020', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000008", "title": "VPN drops connection every ~15 minutes on macOS Sequoia", "type": "bug", "priority": "P3", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000020"}',
+   NOW() - INTERVAL '6 days'),
+
+  ('50000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000008", "assigned_to": "00000000-0000-0000-0000-000000000012", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '6 days'),
+
+  ('50000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000012', 'ticket_routed_to_qa',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000008", "assigned_to": "00000000-0000-0000-0000-000000000015", "assignment_mode": "qa_routing", "routing_source": "rules_fallback"}',
+   NOW() - INTERVAL '4 days'),
+
+  -- Ticket 9 lifecycle
+  ('50000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000021', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000009", "title": "Outbound email to external domains delayed by 30+ minutes", "type": "incident", "priority": "P2", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000021"}',
+   NOW() - INTERVAL '2 days'),
+
+  ('50000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000009", "assigned_to": "00000000-0000-0000-0000-000000000013", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '2 days'),
+
+  ('50000000-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000013', 'ticket_status_changed',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000009", "old_status": "assigned", "new_status": "in_progress"}',
+   NOW() - INTERVAL '1 day'),
+
+  -- Ticket 10 lifecycle
+  ('50000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000021', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000010", "title": "New hire onboarding: account provisioning for John Smith", "type": "software", "priority": "P4", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000021"}',
+   NOW() - INTERVAL '10 days'),
+
+  ('50000000-0000-0000-0000-000000000019', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000010", "assigned_to": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '10 days'),
+
+  ('50000000-0000-0000-0000-00000000001a', '00000000-0000-0000-0000-000000000014', 'ticket_status_changed',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000010", "old_status": "assigned", "new_status": "resolved"}',
+   NOW() - INTERVAL '8 days'),
+
+  -- Ticket 11 lifecycle
+  ('50000000-0000-0000-0000-00000000001b', '00000000-0000-0000-0000-000000000020', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000011", "title": "Company iPhone 15 Pro not receiving push notifications from Outlook", "type": "bug", "priority": "P3", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000020"}',
+   NOW() - INTERVAL '3 days'),
+
+  ('50000000-0000-0000-0000-00000000001c', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000011", "assigned_to": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '3 days'),
+
+  ('50000000-0000-0000-0000-00000000001d', '00000000-0000-0000-0000-000000000014', 'ticket_routed_to_qa',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000011", "assigned_to": "00000000-0000-0000-0000-000000000016", "assignment_mode": "dev_routing", "routing_source": "lumina_ai"}',
+   NOW() - INTERVAL '2 days'),
+
+  -- Ticket 12 lifecycle
+  ('50000000-0000-0000-0000-00000000001e', '00000000-0000-0000-0000-000000000021', 'ticket_created',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000012", "title": "Network printer LUM-PR-003 showing toner low but cartridge is new", "type": "software", "priority": "P2", "initial_status": "pending_routing", "submitted_by": "00000000-0000-0000-0000-000000000021"}',
+   NOW() - INTERVAL '1 day'),
+
+  ('50000000-0000-0000-0000-00000000001f', '00000000-0000-0000-0000-000000000011', 'ticket_assigned',
+   '{"ticket_id": "20000000-0000-0000-0000-000000000012", "assigned_to": "00000000-0000-0000-0000-000000000012", "source": "lumina_ai", "assignment_mode": "lumina_ai_pipeline"}',
+   NOW() - INTERVAL '1 day');
+
+-- =============================================================================
+-- CHAT CONVERSATIONS & MESSAGES
+-- =============================================================================
+INSERT INTO chat_conversations (id, user_id, status, created_at, last_message_at)
+VALUES
+  ('60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000020', 'open',
+   NOW() - INTERVAL '2 days', NOW() - INTERVAL '1 day');
+
+INSERT INTO chat_messages (id, conversation_id, sender_id, body, is_read, created_at)
+VALUES
+  ('70000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000020',
+   'Hi there! I''m having trouble with my laptop docking station. The USB ports stop working after about an hour.', TRUE,
+   NOW() - INTERVAL '2 days'),
+
+  ('70000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000014',
+   'Hi Emily, sorry to hear that. Which dock model are you using? Is it the Dell WD22TB4?', TRUE,
+   NOW() - INTERVAL '2 days' + INTERVAL '5 minutes'),
+
+  ('70000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000020',
+   'Yes, the WD22TB4. It started after the last firmware update IT pushed last week.', TRUE,
+   NOW() - INTERVAL '2 days' + INTERVAL '8 minutes'),
+
+  ('70000000-0000-0000-0000-000000000004', '60000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000014',
+   'Got it. There''s a known issue with that firmware version. I''ll create a ticket and we can get you a replacement dock in the meantime. Let me check inventory.', FALSE,
+   NOW() - INTERVAL '1 day');
+
+-- =============================================================================
+-- OAUTH ACCOUNTS
+-- =============================================================================
+INSERT INTO oauth_accounts (id, user_id, provider, provider_user_id, created_at)
+VALUES
+  ('80000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000020',
+   'google', 'google-oauth2|117894567890123456789',
+   NOW() - INTERVAL '40 days');

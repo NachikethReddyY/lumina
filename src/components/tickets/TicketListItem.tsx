@@ -1,5 +1,6 @@
 import type { ApiTicket } from '../../utils/apiClient';
 import { apiAssetUrl } from '../../utils/apiBase';
+import { formatTicketStatusLabel } from '../../utils/ticketStatusLabel';
 
 const PRIORITY_COLOR: Record<string, string> = {
   P1: '#cf2d56',
@@ -40,11 +41,6 @@ function getRouting(ticket?: ApiTicket | null): RoutingMetadata | null {
   return (ticket?.metadata?.routing as RoutingMetadata | undefined) || null;
 }
 
-function humanize(value?: string | null): string {
-  if (!value) return '';
-  return value.replace(/_/g, ' ');
-}
-
 function timeAgo(timestamp: string): string {
   const diff = Date.now() - new Date(timestamp).getTime();
   const mins = Math.max(0, Math.floor(diff / 60000));
@@ -53,6 +49,10 @@ function timeAgo(timestamp: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+function cleanLabel(value?: string | null): string {
+  return value?.trim() || '';
 }
 
 function ticketCode(ticket: ApiTicket): string {
@@ -64,18 +64,20 @@ function initials(name: string) {
 }
 
 function assigneeLabel(ticket: ApiTicket) {
-  if (ticket.assigned_to_name) return ticket.assigned_to_name;
+  const assignedName = cleanLabel(ticket.assigned_to_name);
+  if (assignedName) return assignedName;
   const routing = getRouting(ticket);
-  if (routing?.decision?.assignee_name) return routing.decision.assignee_name;
+  const decisionName = cleanLabel(routing?.decision?.assignee_name);
+  if (decisionName) return decisionName;
   if (ticket.status === 'pending_routing') return 'Pending routing';
   if (routing?.assigned_admin_id) return 'Assignment missing';
   return 'Unassigned';
 }
 
 function assigneeRoleLabel(ticket: ApiTicket): string {
-  const fromAssignee = ticket.assigned_to_job_title?.trim();
+  const fromAssignee = cleanLabel(ticket.assigned_to_job_title);
   if (fromAssignee) return fromAssignee;
-  const fromDecision = getRouting(ticket)?.decision?.assignee_job_title?.trim();
+  const fromDecision = cleanLabel(getRouting(ticket)?.decision?.assignee_job_title);
   return fromDecision || '';
 }
 
@@ -118,7 +120,7 @@ export function TicketListItem({ ticket, selected, onSelect }: TicketListItemPro
       <span className="th-list-title">{ticket.title}</span>
       <span className="th-list-meta-row">
         <span className="th-list-status" style={{ background: `${STATUS_COLOR[ticket.status]}18`, color: STATUS_COLOR[ticket.status] }}>
-          {humanize(ticket.status)}
+          {formatTicketStatusLabel(ticket.status)}
         </span>
         <span className="th-list-assignee">{assigneeLabel(ticket)}</span>
       </span>

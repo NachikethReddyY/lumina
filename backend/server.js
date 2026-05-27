@@ -56,6 +56,23 @@ const initializeDatabase = async () => {
   _agentDbg('H1', 'server.js:initializeDatabase', 'start', {});
   // #endregion
   try {
+    await db.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = 'audit_logs'
+        ) THEN
+          ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_actor_id_fkey;
+          ALTER TABLE audit_logs ALTER COLUMN actor_id DROP NOT NULL;
+          ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_actor_id_fkey
+            FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     const result = await db.query('SELECT COUNT(*)::int AS n FROM users');
     if (result.rows[0].n === 0) {
       console.warn(

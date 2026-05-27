@@ -495,6 +495,29 @@ For ongoing work after Phase B:
 
 ---
 
+## Utility functions
+
+### `isWithinRange` (`backend/lib/hrReport.js:243`)
+
+Checks if an ISO date string falls between two `Date` objects (inclusive).
+
+### `computePerformanceScore` (`backend/lib/hrReport.js:249`)
+
+Calculates a performance score for an employee based on ticket metrics:
+
+| Factor | Rule |
+|---|---|
+| **Resolved tickets** | `+12` each |
+| **Active tickets** | `+2` each (up to 6), then `-6` per ticket over 8 |
+| **Reroutes** | `-4` each |
+| **Avg resolution time** | `≤24h: +8`, `≤48h: +4`, otherwise `-1` per 12h over 48 (max -20) |
+| **Inactivity penalty** | Support with 0 resolved & 0 active: `-35`. Others: `-5` |
+| **High performer bonus** | Resolved ≥8 AND avg time ≤36h: `+10` |
+
+Final score is rounded to the nearest integer. Support departments are defined by `SUPPORT_DEPTS`.
+
+---
+
 ## Reference docs
 
 | File | What's in it |

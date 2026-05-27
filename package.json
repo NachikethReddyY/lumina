@@ -19,9 +19,9 @@
     "build:frontend": "tsc -b && vite build --mode hosting",
     "lint": "eslint .",
     "lint:frontend": "eslint .",
-    "db:init": "bash -c 'set -o allexport; source .env; set +o allexport; psql \"$DATABASE_URL\" -f backend/db/DDL.sql'",
-    "db:seed": "bash -c 'set -o allexport; source .env; set +o allexport; psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f backend/db/seed.sql -f backend/db/seed_bulk_tickets.sql'",
-    "db:refresh": "bash -c 'set -o allexport; source .env; set +o allexport; psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f backend/db/refresh.sql -f backend/db/DDL.sql -f backend/db/seed.sql -f backend/db/seed_bulk_tickets.sql'",
+    "db:init": "bash -c 'set -o allexport; source .env; set +o allexport; psql \"$DATABASE_URL\" -f backend/db/DDL.sql -f backend/db/seed.sql'",
+    "db:seed": "bash -c 'set -o allexport; source .env; set +o allexport; psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f backend/db/seed.sql'",
+    "db:refresh": "bash -c 'set -o allexport; source .env; set +o allexport; psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f backend/db/refresh.sql -f backend/db/DDL.sql -f backend/db/seed.sql'",
     "install:all": "pnpm install",
     "install:backend": "pnpm --dir backend install",
     "kill-ports": "bash ./kill-ports.sh"

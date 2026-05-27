@@ -18,7 +18,14 @@ export const STATUS_COLOR_MAP: Record<string, string> = {
   closed: '#16a34a',
 };
 
-export const STATUS_PIE_ORDER = ['closed', 'resolved', 'in progress', 'assigned', 'open', 'on hold', 'pending routing'];
+export const STATUS_PIE_ORDER = ['abandoned', 'resolved', 'in progress', 'assigned', 'to do', 'on hold', 'pending routing'];
+
+export function formatStatusLabel(status: string) {
+  const normalized = status.replace(/_/g, ' ');
+  if (normalized === 'open') return 'To Do';
+  if (normalized === 'closed') return 'Abandoned';
+  return normalized;
+}
 
 export const USER_STATUS_COLORS: Record<ApiUser['status'], string> = {
   active: '#2563eb',
@@ -38,13 +45,13 @@ export function buildStatusPie(tickets: ApiTicket[]) {
   const map: Record<string, number> = {};
   tickets.forEach((t) => { map[t.status] = (map[t.status] || 0) + 1; });
   const entries = Object.entries(map).map(([status, value]) => ({
-    name: status.replace(/_/g, ' '),
+    name: formatStatusLabel(status),
     value,
     fill: STATUS_COLOR_MAP[status.replace(/_/g, ' ')] || '#6b7280',
   }));
   return entries.sort((a, b) => {
-    const ai = STATUS_PIE_ORDER.indexOf(a.name);
-    const bi = STATUS_PIE_ORDER.indexOf(b.name);
+    const ai = STATUS_PIE_ORDER.indexOf(a.name.toLowerCase());
+    const bi = STATUS_PIE_ORDER.indexOf(b.name.toLowerCase());
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 }
@@ -64,7 +71,7 @@ export function buildMonthlyLine(tickets: ApiTicket[]) {
 }
 
 export function buildPeopleByDepartmentGroup(users: ApiUser[]) {
-  const groups = ['manager', 'developer', 'user'] as const;
+  const groups = ['manager', 'developer', 'qa'] as const;
   return groups.map((group) => {
     const scoped = users.filter((user) => getUserDepartmentGroup(user) === group);
     return {
@@ -116,7 +123,8 @@ export function buildTicketProgressSummary(tickets: ApiTicket[]) {
 
 export function buildAdminPriorityLoad(workload: AdminWorkload[]) {
   return workload.map((admin) => ({
-    name: admin.first_name,
+    name: `${admin.first_name} ${admin.last_name}`.trim() || admin.email,
+    detail: [admin.job_title?.trim(), admin.department?.trim()].filter(Boolean).join(' · ') || admin.email,
     P1: admin.p1_count,
     P2: admin.p2_count,
     P3: admin.p3_count,
@@ -137,13 +145,15 @@ export function luminaVoice(text?: string | null): string {
 
 export function ChartTooltip({ active, payload, label }: {
   active?: boolean;
-  payload?: { name: string; value: number; color?: string }[];
+  payload?: { name: string; value: number; color?: string; payload?: { detail?: string } }[];
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
+  const detail = payload[0]?.payload?.detail;
   return (
     <div className="chart-tooltip">
       <p>{label}</p>
+      {detail ? <p style={{ marginTop: '-2px', opacity: 0.8 }}>{detail}</p> : null}
       {payload.map((p) => (
         <strong key={p.name} style={{ color: p.color || undefined }}>{p.name}: {p.value}</strong>
       ))}

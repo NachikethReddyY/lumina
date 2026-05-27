@@ -5,10 +5,10 @@ const db = require('../db');
 const { requireAuth, requireAuthAny, requireOnboarding, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
 const { isPlaceholderName, serializeUser } = require('../lib/userProfile');
-const { isHrAdmin } = require('../lib/teamScope');
+const { isHrAdmin, isTeamManager } = require('../lib/teamScope');
 const { sendMail } = require('../lib/mailer');
 const { getFrontendBaseUrl } = require('../lib/frontendUrl');
-const { userDeletedEmailHtml, userApprovedEmailHtml, userSuspendedEmailHtml, onboardingSubmittedNotificationEmailHtml } = require('../lib/emailTemplates');
+const { userDeletedEmailHtml, userApprovedEmailHtml, userRejectedEmailHtml, onboardingSubmittedNotificationEmailHtml } = require('../lib/emailTemplates');
 
 const router = express.Router();
 
@@ -294,18 +294,26 @@ router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req
   }
 });
 
-router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin'), (req, res, next) => {
-  if (!isHrAdmin(req.user)) {
-    return res.status(403).json({ error: 'Only HR can approve or suspend accounts.' });
-  }
-  next();
-}, async (req, res, next) => {
+router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   const status = String(req.body?.status ?? '').trim();
   if (!['active', 'pending', 'suspended'].includes(status)) {
     return res.status(400).json(validationError({ status: 'Status must be active, pending, or suspended' }));
   }
 
+  const canManageAnyStatus = isHrAdmin(req.user);
+  const canSuspendOnly = req.user.role === 'admin' && status === 'suspended';
+  if (!canManageAnyStatus && !canSuspendOnly) {
+    return res.status(403).json({ error: 'Only HR can approve accounts. Managers can suspend active accounts.' });
+  }
+  if (status === 'suspended' && req.params.id === req.user.id) {
+    return res.status(400).json({ error: 'You cannot suspend your own account' });
+  }
+
   try {
+    const target = await db.query(`SELECT id, role, status FROM users WHERE id = $1`, [req.params.id]);
+    if (!target.rows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     const result = await db.query(
       `UPDATE users
        SET status = $2::user_status,
@@ -331,12 +339,12 @@ router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin
       }).catch((err) => console.error('Failed to send approval email:', err));
     } else if (status === 'suspended' && user.email) {
       const adminEmail = req.user.email || 'admin@company.com';
-      const emailHtml = userSuspendedEmailHtml({ firstName: user.first_name, adminEmail });
+      const emailHtml = userRejectedEmailHtml({ firstName: user.first_name, adminEmail });
       await sendMail({
         to: user.email,
-        subject: 'Your account has been suspended',
+        subject: 'Your account has been rejected',
         html: emailHtml,
-      }).catch((err) => console.error('Failed to send suspension email:', err));
+      }).catch((err) => console.error('Failed to send rejection email:', err));
     }
 
     res.json(user);
@@ -377,12 +385,12 @@ router.patch('/:id/role', requireAuth, requireOnboarding, requireRole('admin'), 
 router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => {
   const targetId = req.params.id;
   const isOwnAccount = targetId === req.user.id;
-  const isAdmin = req.user.role === 'admin';
+  const canDeleteOtherUsers = isHrAdmin(req.user);
 
   // Allow self-deletion for any authenticated user
-  // OR allow admin to delete other users
-  if (!isOwnAccount && !isAdmin) {
-    return res.status(403).json({ error: 'You can only delete your own account' });
+  // OR allow HR admins to delete other users. Managers can suspend instead.
+  if (!isOwnAccount && !canDeleteOtherUsers) {
+    return res.status(403).json({ error: 'Managers cannot delete users. Suspend the account instead.' });
   }
 
   try {

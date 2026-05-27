@@ -57,7 +57,7 @@ export function SuperAdminDashboard() {
           ticketsApi.list(getTicketListScope(user)),
           usersApi.list(),
           ticketsApi.workload(),
-          ticketsApi.list({}),
+          ticketsApi.list({ scope: 'assigned' }),
         ]);
         const [ticketsBody, usersBody, workloadBody, personalBody] = await Promise.all([
           ticketsRes.json(),
@@ -102,6 +102,12 @@ export function SuperAdminDashboard() {
   const ticketsByDept = useMemo(() => buildTicketsByDepartment(tickets, users), [tickets, users]);
   const ticketProgress = useMemo(() => buildTicketProgressSummary(tickets), [tickets]);
   const personalProgress = useMemo(() => buildTicketProgressSummary(personalTickets), [personalTickets]);
+  const priorityCounts = useMemo(() => ({
+    p1: tickets.filter((t) => t.priority === 'P1').length,
+    p2: tickets.filter((t) => t.priority === 'P2').length,
+    p3: tickets.filter((t) => t.priority === 'P3').length,
+    p4: tickets.filter((t) => t.priority === 'P4').length,
+  }), [tickets]);
   const dataSnapshotLabel = useMemo(
     () => new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
     []
@@ -164,7 +170,7 @@ export function SuperAdminDashboard() {
                 <span>Data as of <strong>{dataSnapshotLabel}</strong></span>
                 <span><strong>{ticketProgress.active}</strong> active tickets</span>
                 <span><strong>{ticketProgress.inProgress}</strong> in progress</span>
-                <span><strong>{ticketProgress.resolved}</strong> closed / resolved</span>
+                <span><strong>{ticketProgress.resolved}</strong> abandoned / resolved</span>
                 <span><strong>{users.length}</strong> people</span>
               </p>
             )}
@@ -183,9 +189,14 @@ export function SuperAdminDashboard() {
                     <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Your In Progress: {personalProgress.inProgress}</p>
                   </div>
                   <div className="stat-card">
-                    <h3>Closed</h3>
+                    <h3>P3 Tickets</h3>
+                    <div className="stat-value" style={{ color: '#34c759' }}>{priorityCounts.p3}</div>
+                    <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>P3s in the organization</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Abandoned</h3>
                     <div className="stat-value" style={{ color: '#16a34a' }}>{ticketProgress.resolved}</div>
-                    <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Your Closed: {personalProgress.resolved}</p>
+                    <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Your Abandoned: {personalProgress.resolved}</p>
                   </div>
                   <div className="stat-card"><h3>Pending Approval</h3><div className="stat-value" style={{ color: '#d97706' }}>{pendingUsers.length}</div></div>
                   <div className="stat-card"><h3>AI Routing Queue</h3><div className="stat-value">{ticketProgress.pendingRouting}</div></div>
@@ -231,7 +242,7 @@ export function SuperAdminDashboard() {
               <div className="chart-card">
                 <h4 className="chart-card-title">Status Distribution</h4>
                 <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#6b7280' }}>
-                  Closed and resolved tickets highlighted in green
+                  Abandoned and resolved tickets highlighted in green
                 </p>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
@@ -255,16 +266,16 @@ export function SuperAdminDashboard() {
 
               <div className="chart-card">
                 <h4 className="chart-card-title">Priority Load by Admin</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={adminPriorityLoad} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <ResponsiveContainer width="100%" height={Math.max(240, adminPriorityLoad.length * 28 + 40)}>
+                  <BarChart layout="vertical" data={adminPriorityLoad} margin={{ top: 4, right: 24, bottom: 0, left: 12 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />
-                    <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" width={168} tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="P1" stackId="priority" name="P1" fill="#ff3b30" />
                     <Bar dataKey="P2" stackId="priority" name="P2" fill="#ff9500" />
                     <Bar dataKey="P3" stackId="priority" name="P3" fill="#34c759" />
-                    <Bar dataKey="P4" stackId="priority" name="P4" fill="#6b7280" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="P4" stackId="priority" name="P4" fill="#6b7280" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="dashboard-chart-legend">

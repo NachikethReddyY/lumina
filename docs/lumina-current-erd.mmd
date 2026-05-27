@@ -1,0 +1,168 @@
+erDiagram
+    USERS {
+        UUID id PK
+        VARCHAR email UK
+        VARCHAR password_hash
+        VARCHAR first_name
+        VARCHAR last_name
+        ENUM role
+        ENUM status
+        BOOLEAN email_is_verified
+        VARCHAR avatar_url
+        UUID approved_by FK
+        TIMESTAMP approved_at
+        UUID job_title_id FK
+        BOOLEAN onboarding_completed
+        BOOLEAN name_set
+        BOOLEAN email_notifications
+        TIMESTAMP created_at
+        TIMESTAMP last_login_at
+    }
+
+    TICKETS {
+        UUID id PK
+        VARCHAR title
+        TEXT description
+        UUID category_id FK
+        ENUM type
+        ENUM priority
+        ENUM status
+        UUID submitted_by FK
+        TEXT replication_steps
+        TIMESTAMP created_at
+        TIMESTAMP closed_at
+        JSONB metadata
+    }
+
+    DEPARTMENTS {
+        UUID id PK
+        VARCHAR name UK
+        TEXT description
+        BOOLEAN is_active
+        TIMESTAMP created_at
+    }
+
+    JOB_TITLES {
+        UUID id PK
+        UUID department_id FK
+        VARCHAR title
+        BOOLEAN is_active
+        TIMESTAMP created_at
+    }
+
+    CATEGORIES {
+        UUID id PK
+        VARCHAR name
+        TEXT description
+        UUID created_by FK
+        BOOLEAN is_active
+    }
+
+    TICKET_ASSIGNMENT {
+        UUID id PK
+        UUID ticket_id FK
+        UUID assigned_to FK
+        UUID assigned_by FK
+        BOOLEAN is_active
+        ENUM assignment_role
+        TIMESTAMP assigned_at
+    }
+
+    SATISFACTION_RATINGS {
+        UUID id PK
+        UUID ticket_id FK
+        UUID rated_by FK
+        INT rating
+        TEXT comment
+    }
+
+    AUDIT_LOGS {
+        UUID id PK
+        UUID ticket_id FK
+        UUID actor_id FK
+        VARCHAR action
+        JSONB metadata
+        TIMESTAMP created_at
+    }
+
+    TICKET_COMMENTS {
+        UUID id PK
+        UUID ticket_id FK
+        UUID author_id FK
+        TEXT body
+        TIMESTAMP created_at
+        TIMESTAMP deleted_at
+        UUID deleted_by FK
+        ENUM deletion_type
+    }
+
+    OAUTH_ACCOUNTS {
+        UUID id PK
+        UUID user_id FK
+        ENUM provider
+        VARCHAR provider_user_id UK
+        TEXT access_token
+        TEXT refresh_token
+        TIMESTAMP created_at
+    }
+
+    ROUTING_DECISIONS {
+        UUID id PK
+        UUID ticket_id FK
+        UUID assigned_admin_id FK
+        VARCHAR source
+        NUMERIC confidence
+        TEXT reasoning
+        TIMESTAMP created_at
+    }
+
+    EMAIL_VERIFICATIONS {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR token UK
+        TEXT otp_hash
+        TIMESTAMP otp_expires_at
+        TIMESTAMP expires_at
+        TIMESTAMP used_at
+    }
+
+    PASSWORD_RESET {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR token UK
+        TEXT otp_hash
+        TIMESTAMP otp_expires_at
+        TIMESTAMP expires_at
+        TIMESTAMP used_at
+    }
+
+    SESSIONS {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR session_token UK
+        TIMESTAMP expires_at
+        TIMESTAMP created_at
+        TEXT user_agent
+        TEXT ipaddress
+    }
+
+    CATEGORIES ||--o{ TICKETS : classifies
+    USERS ||--o{ CATEGORIES : creates
+    DEPARTMENTS ||--o{ JOB_TITLES : contains
+    JOB_TITLES ||--o{ USERS : classifies
+    USERS ||--o{ TICKETS : submits
+    TICKETS ||--o{ TICKET_ASSIGNMENT : has
+    USERS ||--o{ TICKET_ASSIGNMENT : assigned_to_by
+    TICKETS ||--o{ ROUTING_DECISIONS : routes_through
+    USERS ||--o{ ROUTING_DECISIONS : selected_by
+    TICKETS ||--o| SATISFACTION_RATINGS : rated
+    USERS ||--o{ SATISFACTION_RATINGS : provides
+    USERS o|--o{ AUDIT_LOGS : performs
+    TICKETS ||--o{ AUDIT_LOGS : has_audit
+    TICKETS ||--o{ TICKET_COMMENTS : has
+    USERS ||--o{ TICKET_COMMENTS : writes_deletes
+    USERS ||--o{ OAUTH_ACCOUNTS : authenticates
+    USERS ||--o{ EMAIL_VERIFICATIONS : verifies
+    USERS ||--o{ PASSWORD_RESET : requests
+    USERS ||--o{ SESSIONS : manages
+    USERS o|--o{ USERS : approves

@@ -16,15 +16,15 @@ export function AdminApprovalsPage() {
   const { users, setUsers, loading, reload } = useUsersList();
   const { showToast } = useToast();
   const pendingUsers = users.filter((u) => u.status === 'pending');
-  const [approvingId, setApprovingId] = useState<{ id: string; action: 'active' | 'suspended' } | null>(null);
+  const [approvingId, setApprovingId] = useState<{ id: string; action: 'active' | 'rejected' } | null>(null);
 
   const handleApproval = async (id: string, status: 'active' | 'suspended') => {
-    setApprovingId({ id, action: status });
+    setApprovingId({ id, action: status === 'active' ? 'active' : 'rejected' });
     const res = await usersApi.updateApproval(id, status);
     setApprovingId(null);
     if (res.ok) {
       setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, status } : u)));
-      showToast(status === 'active' ? 'User approved.' : 'User suspended.', 'success');
+      showToast(status === 'active' ? 'User approved.' : 'User rejected.', 'success');
     }
   };
 
@@ -39,7 +39,7 @@ export function AdminApprovalsPage() {
           {approvingId && (
             <div className="approval-loading-toast">
               <span className="approval-loading-spinner" />
-              {approvingId.action === 'active' ? 'Approving account…' : 'Suspending account…'}
+              {approvingId.action === 'active' ? 'Approving account…' : 'Rejecting account…'}
             </div>
           )}
           <AdminPageHeader
@@ -65,7 +65,7 @@ export function AdminApprovalsPage() {
                       </div>
                       <div className="queue-item-actions">
                         <Button variant="primary" loading={approvingId?.id === account.id && approvingId.action === 'active'} onClick={() => handleApproval(account.id, 'active')}>Approve</Button>
-                        <Button variant="secondary" loading={approvingId?.id === account.id && approvingId.action === 'suspended'} onClick={() => handleApproval(account.id, 'suspended')}>Suspend</Button>
+                        <Button variant="secondary" loading={approvingId?.id === account.id && approvingId.action === 'rejected'} onClick={() => handleApproval(account.id, 'suspended')}>Reject</Button>
                       </div>
                     </div>
                   ))}

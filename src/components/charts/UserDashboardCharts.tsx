@@ -40,12 +40,19 @@ export function UserDashboardCharts({ dailyLine, statusBar, priorityBar }: UserD
       <motion.div className="chart-card">
         <h4 className="chart-card-title">Tickets by Status</h4>
         <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={statusBar} margin={CHART_MARGIN}>
+          <BarChart data={statusBar} margin={{ ...CHART_MARGIN, left: 18, right: 12, bottom: 8 }}>
             <CartesianGrid {...CHART_GRID} />
             <XAxis dataKey="status" tick={CHART_TICK} tickLine={false} axisLine={false} />
-            <YAxis tick={CHART_TICK} tickLine={false} axisLine={false} allowDecimals={false} />
+            <YAxis
+              width={58}
+              tick={CHART_TICK}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+              label={{ value: 'Tickets', angle: -90, position: 'insideLeft', offset: 2, fill: '#374151', fontSize: 11 }}
+            />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="count" radius={[4, 4, 0, 0]} minPointSize={4}>
               {statusBar.map((entry, i) => (
                 <Cell key={i} fill={entry.fill} />
               ))}

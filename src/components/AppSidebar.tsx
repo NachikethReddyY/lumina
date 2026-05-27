@@ -248,7 +248,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
                             {ACTION_LABELS[n.action] || n.action.replace(/_/g, " ")}
                           </div>
                           <div className="notification-message">
-                            {n.first_name} {n.last_name}
+                            {`${n.first_name || ''} ${n.last_name || ''}`.trim() || n.actor_email || 'Deleted user'}
                             {(n.metadata as Record<string, string>)?.ticket_id
                               ? ` · #${String((n.metadata as Record<string, string>).ticket_id).slice(0, 8)}`
                               : ""}

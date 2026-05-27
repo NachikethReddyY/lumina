@@ -62,7 +62,7 @@
 |------|----------------|-------------------|
 | Developer IC | 4 | Software Engineer, Platform, DevOps, Architect |
 | QA IC | 4 | QA Engineer, Automation, (keep design/security if needed) |
-| Manager admin | 4 | PO, PM, Program Manager (+1) |
+| Manager admin | 4 | PO, PM (+1) |
 | HR admin | 1–2 | HR |
 
 Update `docs/test-users.md`.

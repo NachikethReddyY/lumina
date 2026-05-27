@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { type KeyboardEvent, useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
 import type { SolvedByAssignee } from '../../utils/apiClient';
 
-const SOLVED_COLORS = ['#2563eb', '#8b5cf6', '#d97706', '#1f8a65', '#dc2626', '#0891b2', '#ca8a04'];
+const SOLVED_COLOR = '#2563eb';
+const TAKEOVER_COLOR = '#8b5cf6';
 
 const PERIOD_LABELS: Record<string, string> = {
   '7d': 'This week',
@@ -39,6 +40,13 @@ function CustomTooltip({ active, payload, label }: {
 export function SolvedByAssigneeChart({ data, period, loading, onPeriodChange, chipClassName = 'sa-filter-chip' }: Props) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const chartRows = data.slice(0, 12);
+  const openLeaderboard = () => setShowLeaderboard(true);
+  const handleChartKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openLeaderboard();
+    }
+  };
 
   return (
     <>
@@ -70,10 +78,12 @@ export function SolvedByAssigneeChart({ data, period, loading, onPeriodChange, c
         ) : data.length === 0 ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>No data for this period</div>
         ) : (
-          <button
-            type="button"
+          <div
             className="sa-chart-clickable"
-            onClick={() => setShowLeaderboard(true)}
+            role="button"
+            tabIndex={0}
+            onClick={openLeaderboard}
+            onKeyDown={handleChartKeyDown}
             aria-label="Open full leaderboard"
           >
             <ResponsiveContainer width="100%" height={Math.max(280, chartRows.length * 36)}>
@@ -83,15 +93,11 @@ export function SolvedByAssigneeChart({ data, period, loading, onPeriodChange, c
                 <YAxis type="category" dataKey="name" width={120} tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
-                <Bar dataKey="count" name="Solved" stackId="work" fill="#2563eb" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="takeovers" name="Takeovers" stackId="work" fill="#8b5cf6" radius={[0, 4, 4, 0]}>
-                  {chartRows.map((_, i) => (
-                    <Cell key={`takeover-${i}`} fill={SOLVED_COLORS[(i + 2) % SOLVED_COLORS.length]} />
-                  ))}
-                </Bar>
+                <Bar dataKey="count" name="Solved" stackId="work" fill={SOLVED_COLOR} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="takeovers" name="Takeovers" stackId="work" fill={TAKEOVER_COLOR} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </button>
+          </div>
         )}
       </div>
 

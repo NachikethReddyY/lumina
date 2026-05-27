@@ -8,8 +8,12 @@ export function isTeamManager(user: ApiUser | null | undefined): boolean {
   return user?.role === 'admin' && user?.department === 'Managers';
 }
 
+export function isQaManager(user: ApiUser | null | undefined): boolean {
+  return user?.role === 'admin' && user?.department === 'QA';
+}
+
 export function isOrgViewer(user: ApiUser | null | undefined): boolean {
-  return isHrAdmin(user) || isTeamManager(user);
+  return isHrAdmin(user) || isTeamManager(user) || isQaManager(user);
 }
 
 export function isDeveloper(user: ApiUser | null | undefined): boolean {
@@ -68,7 +72,7 @@ export function canEditTicketDetails(
 ): boolean {
   if (!user?.id || !ticket) return false;
   if (canMutateTicket(user, ticket)) return true;
-  if (user.role === 'admin' && (isTeamManager(user) || isHrAdmin(user))) return true;
+  if (user.role === 'admin' && (isTeamManager(user) || isHrAdmin(user) || isQaManager(user))) return true;
   return false;
 }
 
@@ -78,8 +82,35 @@ export function canRerouteTicket(
 ): boolean {
   if (!user?.id || !ticket) return false;
   if (canMutateTicket(user, ticket)) return true;
-  if (isTeamManager(user)) return true;
+  if (isTeamManager(user) || isQaManager(user)) return true;
   return false;
+}
+
+export function canRouteToDeveloper(
+  user: ApiUser | null | undefined,
+  ticket: { qa_assignee_id?: string | null } | null | undefined
+): boolean {
+  if (!user?.id || !ticket) return false;
+  if (isTeamManager(user) || isQaManager(user)) return true;
+  return ticket.qa_assignee_id === user.id;
+}
+
+export function canRerouteQa(
+  user: ApiUser | null | undefined,
+  ticket: { qa_assignee_id?: string | null } | null | undefined
+): boolean {
+  if (!user?.id || !ticket) return false;
+  if (isTeamManager(user) || isQaManager(user)) return true;
+  return ticket.qa_assignee_id === user.id;
+}
+
+export function canRouteToQa(
+  user: ApiUser | null | undefined,
+  ticket: { dev_assignee_id?: string | null } | null | undefined
+): boolean {
+  if (!user?.id || !ticket) return false;
+  if (isTeamManager(user) || isQaManager(user)) return true;
+  return ticket.dev_assignee_id === user.id;
 }
 
 export function canSendToQa(
@@ -104,6 +135,14 @@ export function getTicketListScope(
 }
 
 export function canAccessApprovalQueue(user: ApiUser | null | undefined): boolean {
+  return isHrAdmin(user);
+}
+
+export function canSuspendAccounts(user: ApiUser | null | undefined): boolean {
+  return user?.role === 'admin';
+}
+
+export function canDeleteAccounts(user: ApiUser | null | undefined): boolean {
   return isHrAdmin(user);
 }
 

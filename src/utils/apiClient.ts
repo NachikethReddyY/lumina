@@ -75,6 +75,8 @@ export type AdminWorkload = {
   email: string;
   first_name: string;
   last_name: string;
+  job_title?: string | null;
+  department?: string | null;
   p1_count: number;
   p2_count: number;
   p3_count: number;
@@ -107,9 +109,9 @@ export type ApiNotification = {
   action: string;
   metadata: Record<string, unknown>;
   created_at: string;
-  first_name: string;
-  last_name: string;
-  actor_email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  actor_email?: string | null;
 };
 
 export type ApiActivityEvent = {
@@ -117,11 +119,11 @@ export type ApiActivityEvent = {
   action: string;
   metadata: Record<string, unknown>;
   created_at: string;
-  actor_id: string;
-  first_name: string;
-  last_name: string;
-  actor_email: string;
-  actor_role: string;
+  actor_id?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  actor_email?: string | null;
+  actor_role?: string | null;
   avatar_url?: string | null;
 };
 
@@ -148,6 +150,13 @@ export type SolvedByAssignee = {
   count: number;
   department: string;
   takeovers: number;
+};
+
+export type TicketThroughput = {
+  day: string;
+  created: number;
+  resolved: number;
+  rerouted: number;
 };
 
 export type ApiAiDecision = {
@@ -370,6 +379,7 @@ export const ticketsApi = {
 
   stats: {
     solvedByAssignee: (period?: string) => apiRequest(`/tickets/stats/solved-by-assignee${period ? `?period=${period}` : ''}`),
+    throughput: () => apiRequest('/tickets/stats/throughput'),
   },
 };
 

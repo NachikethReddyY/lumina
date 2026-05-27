@@ -6,9 +6,9 @@ import CreateTicketModal from '../components/CreateTicketModal';
 import DashboardLayout from '../components/DashboardLayout';
 import { ChartSkeleton } from '../components/charts/chartConstants';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { useTicketList } from '../hooks/useTicketData';
-import { getUserRoleLabel } from '../utils/userDisplay';
+import { invalidateTicketListCache, useTicketList } from '../hooks/useTicketData';
 import { type ApiTicket } from '../utils/apiClient';
+import { formatStatusLabel } from './admin/dashboardShared';
 import './Dashboard.css';
 
 const LazyUserDashboardCharts = lazy(() => import('../components/charts/UserDashboardCharts'));
@@ -36,13 +36,19 @@ function buildDailyLine(tickets: ApiTicket[]) {
 }
 
 function buildStatusBar(tickets: ApiTicket[]) {
-  const map: Record<string, number> = {};
-  tickets.forEach((t) => { map[t.status] = (map[t.status] || 0) + 1; });
-  return Object.entries(map).map(([status, count]) => ({
-    status: status.replace(/_/g, ' '),
-    count,
-    fill: STATUS_COLOR[status] || '#6b7280',
-  }));
+  const labels: ApiTicket['status'][] = ['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing', 'resolved', 'closed'];
+  const counts = tickets.reduce<Record<string, number>>((acc, ticket) => {
+    acc[ticket.status] = (acc[ticket.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  return labels
+    .map((status) => ({
+      status: formatStatusLabel(status),
+      count: counts[status] || 0,
+      fill: STATUS_COLOR[status] || '#6b7280',
+    }))
+    .filter((entry) => entry.count > 0 || entry.status === 'on hold');
 }
 
 function buildPriorityBar(tickets: ApiTicket[]) {
@@ -57,7 +63,7 @@ function buildPriorityBar(tickets: ApiTicket[]) {
 
 export function UserDashboard() {
   const { user } = useCurrentUser();
-  const { tickets, mutate } = useTicketList(user ? { scope: 'assigned' } : undefined);
+  const { tickets, mutate } = useTicketList(user ? { scope: 'submitted' } : undefined);
   const { tickets: orgTickets } = useTicketList(user ? { scope: 'org' } : undefined);
   const [showNewTicket, setShowNewTicket] = useState(false);
 
@@ -90,15 +96,6 @@ export function UserDashboard() {
             <div className="header-content">
               <div>
                 <h1 className="dashboard-title">Welcome, {user?.first_name || 'there'}</h1>
-                <p className="dashboard-subtitle">
-                  {getUserRoleLabel(user) ? (
-                    <>
-                      <span className="dashboard-role-label">{getUserRoleLabel(user)}</span>
-                      {' · '}
-                    </>
-                  ) : null}
-                  Report software issues, bugs, and production incidents — track resolution.
-                </p>
               </div>
               <Button variant="primary" size="lg" onClick={() => setShowNewTicket(true)}>
                 New Ticket
@@ -113,12 +110,12 @@ export function UserDashboard() {
               <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgTickets.length}</p>
             </div>
             <div className="stat-card">
-              <h3>Open Queue</h3>
+              <h3>To Do Queue</h3>
               <div className="stat-value" style={{ color: '#fbbf24' }}>{openCount}</div>
               <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgOpenCount}</p>
             </div>
             <div className="stat-card">
-              <h3>Resolved</h3>
+              <h3>Finished</h3>
               <div className="stat-value" style={{ color: '#34c759' }}>{resolvedCount}</div>
               <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgResolvedCount}</p>
             </div>
@@ -133,7 +130,10 @@ export function UserDashboard() {
           <CreateTicketModal
             open={showNewTicket}
             onClose={() => setShowNewTicket(false)}
-            onCreated={(ticket) => { void mutate((prev) => [ticket, ...(prev ?? [])]); }}
+            onCreated={(ticket) => {
+              invalidateTicketListCache();
+              void mutate((prev) => [ticket, ...(prev ?? [])]);
+            }}
           />
         </Container>
       </div>

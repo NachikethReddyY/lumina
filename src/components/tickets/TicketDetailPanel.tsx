@@ -1,6 +1,7 @@
-import { Circle, RotateCcw } from 'lucide-react';
+import { Circle, Loader2, RotateCcw } from 'lucide-react';
 import type { ApiTicket, ApiComment, ApiUser } from '../../utils/apiClient';
 import { TicketCommentsPanel } from './TicketCommentsPanel';
+import { formatTicketStatusLabel } from '../../utils/ticketStatusLabel';
 
 const PRIORITY_COLOR: Record<string, string> = {
   P1: '#cf2d56',
@@ -18,11 +19,6 @@ const STATUS_COLOR: Record<string, string> = {
   on_hold: '#c08532',
   pending_routing: '#dfa88f',
 };
-
-function humanize(value?: string | null): string {
-  if (!value) return '';
-  return value.replace(/_/g, ' ');
-}
 
 function ticketCode(ticket: ApiTicket): string {
   return `LM-${ticket.id.slice(0, 3).toUpperCase()}`;
@@ -127,7 +123,7 @@ export function TicketDetailPanel({
         </span>
         <span className="th-ticket-id">{ticketCode(ticket)}</span>
         <span className="th-detail-status" style={{ background: `${STATUS_COLOR[ticket.status]}22`, color: STATUS_COLOR[ticket.status] }}>
-          {humanize(ticket.status)}
+          {formatTicketStatusLabel(ticket.status)}
         </span>
       </div>
 
@@ -147,40 +143,62 @@ export function TicketDetailPanel({
             {ticket.title}
           </h2>
         )}
-        <div className="th-detail-actions">
-          {isQaUser && canRouteToDeveloper && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-            <button type="button" className="th-ticket-qa-btn" onClick={onRouteToDeveloper}>
-              Route to Developer
+        <div className="th-detail-actions" role="group" aria-label="Ticket actions">
+          {canRouteToDeveloper && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+            <button
+              type="button"
+              className="th-ticket-action-btn th-ticket-action-btn--route"
+              onClick={onRouteToDeveloper}
+              disabled={reroutingTicket}
+              aria-busy={reroutingTicket}
+            >
+              {reroutingTicket ? <Loader2 size={15} className="th-ticket-action-btn__spinner" aria-hidden="true" /> : null}
+              {reroutingTicket ? 'Routing…' : 'Route to Developer'}
             </button>
           )}
-          {isQaUser && canRerouteQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-            <button type="button" className="th-ticket-qa-btn" onClick={onRerouteToAnotherQa}>
-              Reroute to Another QA
+          {canRerouteQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+            <button
+              type="button"
+              className="th-ticket-action-btn th-ticket-action-btn--reroute"
+              onClick={onRerouteToAnotherQa}
+              disabled={reroutingTicket}
+              aria-busy={reroutingTicket}
+            >
+              {reroutingTicket ? <Loader2 size={15} className="th-ticket-action-btn__spinner" aria-hidden="true" /> : null}
+              {reroutingTicket ? 'Routing…' : 'Reroute to Another QA'}
             </button>
           )}
-          {isDevUser && canRouteToQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-            <button type="button" className="th-ticket-qa-btn" onClick={onRouteToQa}>
-              Route to QA
+          {canRouteToQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+            <button
+              type="button"
+              className="th-ticket-action-btn th-ticket-action-btn--route"
+              onClick={onRouteToQa}
+              disabled={reroutingTicket}
+              aria-busy={reroutingTicket}
+            >
+              {reroutingTicket ? <Loader2 size={15} className="th-ticket-action-btn__spinner" aria-hidden="true" /> : null}
+              {reroutingTicket ? 'Routing…' : 'Route to QA'}
             </button>
           )}
           {isDevUser && !isQaUser && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
             <button
               type="button"
-              className="th-ticket-reroute"
+              className="th-ticket-action-btn th-ticket-action-btn--reroute th-ticket-action-btn--icon"
               onClick={onReroute}
               disabled={!canReroute || reroutingTicket}
+              aria-busy={reroutingTicket}
             >
-              <RotateCcw size={15} />
-              {reroutingTicket ? 'Rerouting' : 'Reroute'}
+              {reroutingTicket ? <Loader2 size={15} className="th-ticket-action-btn__spinner" aria-hidden="true" /> : <RotateCcw size={15} />}
+              {reroutingTicket ? 'Rerouting…' : 'Reroute'}
             </button>
           )}
           {isQaUser && canMutate && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-            <button type="button" className="th-ticket-verify-btn" onClick={onQaVerify}>
+            <button type="button" className="th-ticket-action-btn th-ticket-action-btn--verify" onClick={onQaVerify}>
               Mark verified
             </button>
           )}
           {ticket.status === 'resolved' && canMutate && (
-            <button type="button" className="th-ticket-close-btn" onClick={onCloseTicket}>
+            <button type="button" className="th-ticket-action-btn th-ticket-action-btn--close" onClick={onCloseTicket}>
               Close ticket
             </button>
           )}
