@@ -89,7 +89,7 @@ router.post('/hr-generate', requireAuth, requireOnboarding, requireRole('admin')
   try {
     const { period = '30d' } = req.body;
     if (!['7d', '30d'].includes(period)) {
-      return res.status(400).json({ error: 'Period must be 7d or 30d' });
+      return res.status(400).json({ error: 'Period must be 7d (this week) or 30d (this month)' });
     }
 
     const report = await generateHrReport(period);

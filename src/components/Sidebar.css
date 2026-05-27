@@ -130,6 +130,24 @@
   border: 2px solid var(--color-surface-card);
 }
 
+.notification-badge--loading {
+  background: transparent;
+  border-color: transparent;
+  min-width: 14px;
+  width: 14px;
+  height: 14px;
+  top: -4px;
+  right: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--color-semantic-error);
+  animation: notif-badge-spin 0.65s linear infinite;
+}
+
+@keyframes notif-badge-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Notifications Dropdown */
 .notifications-dropdown {
   position: absolute;

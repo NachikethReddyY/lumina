@@ -110,7 +110,7 @@ export function canAccessApprovalQueue(user: ApiUser | null | undefined): boolea
 export type QueueOwnershipFilter = 'team' | 'assigned';
 
 export function showQueueOwnershipFilter(user: ApiUser | null | undefined): boolean {
-  return user?.role === 'admin';
+  return Boolean(user);
 }
 
 export function getTicketQueueListScope(

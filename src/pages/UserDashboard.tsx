@@ -57,7 +57,8 @@ function buildPriorityBar(tickets: ApiTicket[]) {
 
 export function UserDashboard() {
   const { user } = useCurrentUser();
-  const { tickets, mutate } = useTicketList(user ? {} : undefined);
+  const { tickets, mutate } = useTicketList(user ? { scope: 'assigned' } : undefined);
+  const { tickets: orgTickets } = useTicketList(user ? { scope: 'org' } : undefined);
   const [showNewTicket, setShowNewTicket] = useState(false);
 
   const openNewTicket = useCallback(() => setShowNewTicket(true), []);
@@ -74,6 +75,8 @@ export function UserDashboard() {
 
   const openCount = tickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
   const resolvedCount = tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
+  const orgOpenCount = orgTickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
+  const orgResolvedCount = orgTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
 
   const dailyLine = useMemo(() => buildDailyLine(tickets), [tickets]);
   const statusBar = useMemo(() => buildStatusBar(tickets), [tickets]);
@@ -104,9 +107,21 @@ export function UserDashboard() {
           </motion.div>
 
           <div className="stats-grid">
-            <div className="stat-card"><h3>Total Tickets</h3><div className="stat-value">{tickets.length}</div></div>
-            <div className="stat-card"><h3>Open Queue</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{openCount}</div></div>
-            <div className="stat-card"><h3>Resolved</h3><div className="stat-value" style={{ color: '#34c759' }}>{resolvedCount}</div></div>
+            <div className="stat-card">
+              <h3>Your Tickets</h3>
+              <div className="stat-value">{tickets.length}</div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgTickets.length}</p>
+            </div>
+            <div className="stat-card">
+              <h3>Open Queue</h3>
+              <div className="stat-value" style={{ color: '#fbbf24' }}>{openCount}</div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgOpenCount}</p>
+            </div>
+            <div className="stat-card">
+              <h3>Resolved</h3>
+              <div className="stat-value" style={{ color: '#34c759' }}>{resolvedCount}</div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgResolvedCount}</p>
+            </div>
           </div>
 
           {tickets.length > 0 && (

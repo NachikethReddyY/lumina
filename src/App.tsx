@@ -21,7 +21,9 @@ import { UserProvider } from './context/UserContext';
 import {
   LazyUserDashboard,
   LazyAdminDashboard,
-  LazySuperAdminDashboard,
+  LazyAdminApprovalsPage,
+  LazyAdminUsersPage,
+  LazyAdminAiRoutingPage,
   LazyRoleDashboardPage,
   LazyProfilePage,
   LazyAccountSettingsPage,
@@ -71,9 +73,9 @@ function App() {
 
         <Route path="/user/dashboard" element={<ProtectedRoute roles={['user']}><LazySuspense><LazyUserDashboard /></LazySuspense></ProtectedRoute>} />
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazyAdminDashboard /></LazySuspense></ProtectedRoute>} />
-        <Route path="/admin/approvals" element={<ProtectedRoute roles={['admin']} hrAdminOnly><LazySuspense><LazySuperAdminDashboard /></LazySuspense></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazySuperAdminDashboard /></LazySuspense></ProtectedRoute>} />
-        <Route path="/admin/routing-logs" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazySuperAdminDashboard /></LazySuspense></ProtectedRoute>} />
+        <Route path="/admin/approvals" element={<ProtectedRoute roles={['admin']} hrAdminOnly><LazySuspense><LazyAdminApprovalsPage /></LazySuspense></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazyAdminUsersPage /></LazySuspense></ProtectedRoute>} />
+        <Route path="/admin/routing-logs" element={<ProtectedRoute roles={['admin']}><LazySuspense><LazyAdminAiRoutingPage /></LazySuspense></ProtectedRoute>} />
 
         <Route path="/500" element={<ServerErrorPage />} />
         <Route path="*" element={<NotFoundPage />} />

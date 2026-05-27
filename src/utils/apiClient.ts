@@ -147,6 +147,7 @@ export type SolvedByAssignee = {
   name: string;
   count: number;
   department: string;
+  takeovers: number;
 };
 
 export type ApiAiDecision = {

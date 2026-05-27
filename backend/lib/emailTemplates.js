@@ -35,8 +35,7 @@ function card({ title, preview, intro, buttonText, url, footer, extraHtml }) {
     </div>
     <div style="padding:20px 0;">
       <div style="max-width:560px;margin:0 auto;padding:0 20px;">
-        <img src="${LUMINA_LOGO_DATA_URI}" width="42" height="42" alt="Lumina" style="display:block;border-radius:16px;width:42px;height:42px;" />
-        <h2 style="margin:18px 0 0 0;font-size:24px;line-height:1.3;font-weight:600;color:#111827;">
+        <h2 style="margin:0 0 0 0;font-size:24px;line-height:1.3;font-weight:600;color:#111827;">
           ${escapeHtml(title)}
         </h2>
         <p style="margin:16px 0 0 0;font-size:15px;line-height:1.4;color:#374151;">
@@ -185,6 +184,51 @@ function userApprovedEmailHtml({ firstName, appUrl }) {
   });
 }
 
+function userDeletedEmailHtml({ firstName, adminEmail }) {
+  return card({
+    title: 'Your Lumina account has been terminated',
+    preview: 'Your Lumina account has been terminated',
+    intro: `Hi ${escapeHtml(firstName)},\n\nYour Lumina account has been deleted and is no longer active. All associated data has been removed from the system.`,
+    footer: `If you have questions, please contact your administrator at ${escapeHtml(adminEmail)}.`,
+  });
+}
+
+function newSignupNotificationEmailHtml({ userEmail, appUrl }) {
+  const approvalUrl = appUrl ? `${appUrl}/admin/users` : '';
+  return card({
+    title: 'New user awaiting approval',
+    preview: 'A new user has signed up and is awaiting approval',
+    intro: `A new user has signed up for Lumina and is awaiting HR approval.`,
+    buttonText: 'Review & Approve',
+    url: approvalUrl,
+    extraHtml: `<div style="margin:16px 0 0 0;background:#f9fafb;border-radius:6px;padding:12px;border-left:4px solid #111827;">
+      <p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">
+        <strong>Email:</strong> ${escapeHtml(userEmail)}
+      </p>
+    </div>`,
+    footer: 'Log in to Lumina to review and approve the account.',
+  });
+}
+
+function onboardingSubmittedNotificationEmailHtml({ userName, userEmail, jobTitle, department, appUrl }) {
+  const approvalUrl = appUrl ? `${appUrl}/admin/users` : '';
+  return card({
+    title: 'User has completed onboarding',
+    preview: `${userName} has completed their onboarding and is ready for approval`,
+    intro: `${escapeHtml(userName)} has completed their onboarding and submitted their application for HR approval.`,
+    buttonText: 'Review Application',
+    url: approvalUrl,
+    extraHtml: `<div style="margin:16px 0 0 0;background:#f9fafb;border-radius:6px;padding:12px;border-left:4px solid #111827;">
+      <p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">
+        <strong>Email:</strong> ${escapeHtml(userEmail)}<br/>
+        <strong>Job Title:</strong> ${escapeHtml(jobTitle)}<br/>
+        <strong>Department:</strong> ${escapeHtml(department)}
+      </p>
+    </div>`,
+    footer: 'Review and approve the user account in the admin panel.',
+  });
+}
+
 module.exports = {
   verificationEmailHtml,
   passwordResetEmailHtml,
@@ -193,4 +237,7 @@ module.exports = {
   ticketStatusChangedEmailHtml,
   userSuspendedEmailHtml,
   userApprovedEmailHtml,
+  userDeletedEmailHtml,
+  newSignupNotificationEmailHtml,
+  onboardingSubmittedNotificationEmailHtml,
 };

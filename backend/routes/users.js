@@ -6,6 +6,9 @@ const { requireAuth, requireAuthAny, requireOnboarding, requireRole } = require(
 const { validationError } = require('../lib/authValidation');
 const { isPlaceholderName, serializeUser } = require('../lib/userProfile');
 const { isHrAdmin } = require('../lib/teamScope');
+const { sendMail } = require('../lib/mailer');
+const { getFrontendBaseUrl } = require('../lib/frontendUrl');
+const { userDeletedEmailHtml, userApprovedEmailHtml, userSuspendedEmailHtml, onboardingSubmittedNotificationEmailHtml } = require('../lib/emailTemplates');
 
 const router = express.Router();
 
@@ -26,6 +29,41 @@ const avatarUpload = multer({
     cb(null, true);
   },
 });
+
+async function notifyHrAdminsOfOnboardingSubmission(userName, userEmail, jobTitle, department) {
+  console.log(`[ONBOARDING] notifyHrAdminsOfOnboardingSubmission called for: ${userEmail}`);
+  try {
+    console.log(`[ONBOARDING] Querying for active HR admins...`);
+    const result = await db.query(
+      `SELECT id, email, department FROM users WHERE role = 'admin' AND status = 'active' AND department IN ('HR', 'hr')`
+    );
+    const hrAdmins = result.rows;
+    console.log(`[ONBOARDING] Found ${hrAdmins.length} active HR admins to notify about onboarding submission: ${userEmail}`);
+
+    if (!hrAdmins.length) {
+      console.log(`[ONBOARDING] No active HR admins found. Onboarding notification skipped.`);
+      return;
+    }
+
+    const base = getFrontendBaseUrl();
+    const html = onboardingSubmittedNotificationEmailHtml({ userName, userEmail, jobTitle, department, appUrl: base });
+
+    for (const hr of hrAdmins) {
+      console.log(`[ONBOARDING] Sending notification to: ${hr.email}`);
+      await sendMail({
+        to: hr.email,
+        subject: `User onboarding submitted: ${userName} (${userEmail})`,
+        html,
+      }).then(() => {
+        console.log(`[ONBOARDING] Notification sent successfully to: ${hr.email}`);
+      }).catch((err) => {
+        console.error(`[ONBOARDING] Failed to send notification to ${hr.email}:`, err.message);
+      });
+    }
+  } catch (err) {
+    console.error('[ONBOARDING] Failed to notify HR admins of onboarding submission:', err.message);
+  }
+}
 
 router.get('/me', requireAuthAny, async (req, res, next) => {
   try {
@@ -89,6 +127,11 @@ router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    console.log(`[ONBOARDING] User ${user.email} completed onboarding. Notifying HR admins...`);
+    const userName = `${user.first_name} ${user.last_name}`;
+    await notifyHrAdminsOfOnboardingSubmission(userName, user.email, jobTitle, department);
+
     res.json({ user: serializeUser(user), message: 'Profile updated successfully' });
   } catch (err) {
     next(err);
@@ -275,7 +318,28 @@ router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin
     if (!result.rows[0]) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json(result.rows[0]);
+
+    const user = result.rows[0];
+    const appUrl = getFrontendBaseUrl();
+
+    if (status === 'active' && user.email) {
+      const emailHtml = userApprovedEmailHtml({ firstName: user.first_name, appUrl });
+      await sendMail({
+        to: user.email,
+        subject: 'Your account has been approved',
+        html: emailHtml,
+      }).catch((err) => console.error('Failed to send approval email:', err));
+    } else if (status === 'suspended' && user.email) {
+      const adminEmail = req.user.email || 'admin@company.com';
+      const emailHtml = userSuspendedEmailHtml({ firstName: user.first_name, adminEmail });
+      await sendMail({
+        to: user.email,
+        subject: 'Your account has been suspended',
+        html: emailHtml,
+      }).catch((err) => console.error('Failed to send suspension email:', err));
+    }
+
+    res.json(user);
   } catch (error) {
     next(error);
   }
@@ -322,7 +386,7 @@ router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => 
   }
 
   try {
-    const check = await db.query(`SELECT id, email, role FROM users WHERE id = $1`, [targetId]);
+    const check = await db.query(`SELECT id, email, role, first_name FROM users WHERE id = $1`, [targetId]);
     if (!check.rows[0]) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -332,11 +396,28 @@ router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => 
       return res.status(400).json({ error: 'Cannot delete another admin account' });
     }
 
+    const { email, first_name } = check.rows[0];
+
     await db.query(
       `INSERT INTO audit_logs (actor_id, action, metadata)
        VALUES ($1, 'user_deleted', $2::jsonb)`,
-      [req.user.id, JSON.stringify({ deleted_email: check.rows[0].email, target_id: targetId })]
+      [req.user.id, JSON.stringify({ deleted_email: email, target_id: targetId })]
     );
+
+    try {
+      const adminEmail = req.user.email;
+      const html = userDeletedEmailHtml({ firstName: first_name, adminEmail });
+      await sendMail({
+        to: email,
+        subject: 'Your Lumina account has been terminated',
+        text: `Your account has been deleted and is no longer active.`,
+        html,
+      });
+    } catch (emailErr) {
+      console.error('[DELETE USER] Email send failed:', emailErr.message);
+      // Continue with deletion even if email fails
+    }
+
     await db.query(`DELETE FROM users WHERE id = $1`, [targetId]);
     res.json({ success: true });
   } catch (error) {

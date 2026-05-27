@@ -186,23 +186,62 @@ router.get('/admin/workload', requireRole('admin'), async (_req, res, next) => {
 
 router.get('/stats/solved-by-assignee', async (req, res, next) => {
   try {
-    const period = String(req.query.period || '30d').trim();
-    let intervalDays = 30;
-    if (period === '7d') intervalDays = 7;
+    const period = String(req.query.period || '7d').trim();
+    let intervalDays = 7;
+    if (period === '30d') intervalDays = 30;
     else if (period === '90d') intervalDays = 90;
 
     const result = await db.query(
-      `SELECT
-        CONCAT(u.first_name, ' ', u.last_name) AS name,
-        u.department,
-        COUNT(DISTINCT t.id) AS count
-      FROM tickets t
-      JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
-      JOIN users u ON u.id = ta.assigned_to
-      WHERE t.status IN ('resolved', 'closed')
-        AND t.created_at >= NOW() - INTERVAL '1 day' * $1
-      GROUP BY u.id, u.first_name, u.last_name, u.department
-      ORDER BY count DESC`,
+      `WITH cutoff AS (
+         SELECT NOW() - INTERVAL '1 day' * $1 AS at
+       ),
+       solved AS (
+         SELECT
+           u.id,
+           CONCAT(u.first_name, ' ', u.last_name) AS name,
+           u.department,
+           COUNT(DISTINCT t.id)::int AS count
+         FROM tickets t
+         JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
+         JOIN users u ON u.id = ta.assigned_to
+         CROSS JOIN cutoff c
+         WHERE t.status IN ('resolved', 'closed')
+           AND COALESCE(t.closed_at, t.created_at) >= c.at
+         GROUP BY u.id, u.first_name, u.last_name, u.department
+       ),
+       takeovers AS (
+         SELECT
+           ta.assigned_to AS user_id,
+           COUNT(*)::int AS takeovers
+         FROM ticket_assignment ta
+         CROSS JOIN cutoff c
+         WHERE ta.assigned_at >= c.at
+           AND EXISTS (
+             SELECT 1
+             FROM ticket_assignment prev
+             WHERE prev.ticket_id = ta.ticket_id
+               AND prev.assigned_at < ta.assigned_at
+               AND prev.assigned_to <> ta.assigned_to
+           )
+         GROUP BY ta.assigned_to
+       )
+       SELECT
+         s.name,
+         s.department,
+         s.count,
+         COALESCE(tk.takeovers, 0)::int AS takeovers
+       FROM solved s
+       LEFT JOIN takeovers tk ON tk.user_id = s.id
+       UNION ALL
+       SELECT
+         CONCAT(u.first_name, ' ', u.last_name) AS name,
+         u.department,
+         0 AS count,
+         tk.takeovers
+       FROM takeovers tk
+       JOIN users u ON u.id = tk.user_id
+       WHERE NOT EXISTS (SELECT 1 FROM solved s WHERE s.id = tk.user_id)
+       ORDER BY count DESC, takeovers DESC, name ASC`,
       [intervalDays]
     );
 

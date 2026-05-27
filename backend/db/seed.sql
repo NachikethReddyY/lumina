@@ -1,6 +1,9 @@
 -- Lumina database seed - run: pnpm db:seed
--- Requires pnpm db:init first
+-- Requires pnpm db:init first (schema + users). Idempotent: skips rows that already exist.
+-- For a full wipe + reseed use: pnpm db:refresh
 \set ON_ERROR_STOP on
+
+\echo '==> Seeding demo tickets (Jan–May 2026)...'
 
 -- -----------------------------------------------------------------------------
 -- Section 1: Jan–May 2026 closed tickets, assignments, satisfaction ratings
@@ -122,6 +125,8 @@ WHERE u.department IN ('Developers', 'QA')
     SELECT 1 FROM tickets t WHERE lower(t.title) = lower(seed.title)
   );
 
+\echo '==> Assigning tickets to Developers / QA...'
+
 -- Assign each seeded ticket to Developers or QA (roughly 50/50) for org visibility demos.
 WITH seeded AS (
   SELECT
@@ -181,6 +186,8 @@ WHERE NOT EXISTS (
   WHERE ta.ticket_id = pool.ticket_id AND ta.is_active = TRUE
 );
 
+\echo '==> Adding satisfaction ratings...'
+
 -- One satisfaction rating per seeded ticket (unique on ticket_id).
 INSERT INTO satisfaction_ratings (ticket_id, rated_by, rating, comment)
 SELECT
@@ -205,6 +212,8 @@ WHERE t.metadata->>'source' = 'seed'
   AND NOT EXISTS (
     SELECT 1 FROM satisfaction_ratings sr WHERE sr.ticket_id = t.id
   );
+
+\echo '==> Seeding sample comments...'
 
 -- -----------------------------------------------------------------------------
 -- Section 2: Sample ticket comments (idempotent)
@@ -231,3 +240,21 @@ WHERE t.metadata->>'source' = 'seed'
     SELECT 1 FROM ticket_comments c
     WHERE c.ticket_id = t.id AND c.author_id = author.id AND c.body = seed.body
   );
+
+\echo ''
+\echo '==> Seed summary (current database):'
+SELECT 'seed tickets' AS item, COUNT(*)::text AS count
+FROM tickets WHERE metadata->>'source' = 'seed'
+UNION ALL
+SELECT 'active assignments on seed tickets', COUNT(DISTINCT ta.ticket_id)::text
+FROM ticket_assignment ta
+JOIN tickets t ON t.id = ta.ticket_id AND t.metadata->>'source' = 'seed' AND ta.is_active
+UNION ALL
+SELECT 'seed comments', COUNT(*)::text
+FROM ticket_comments c
+JOIN tickets t ON t.id = c.ticket_id AND t.metadata->>'source' = 'seed';
+
+\echo ''
+\echo 'Note: INSERT 0 0 means that step had nothing new to add (already seeded).'
+\echo 'To wipe and reload everything, run: pnpm db:refresh'
+\echo ''

@@ -91,16 +91,23 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
 
   const notifications = notificationsData ?? []
 
-  const { data: pendingApprovalCount = 0 } = useApiSWR<number>(
-    showApprovals ? "users:pending-count" : null,
+  const { data: usersMeta } = useApiSWR<{ pending: number; total: number }>(
+    isAdmin ? "users:sidebar-meta" : null,
     async () => {
       const res = await usersApi.list()
       if (!res.ok) throw new Error("Could not load users.")
       const data = await res.json()
-      return Array.isArray(data) ? data.filter((u: ApiUser) => u.status === "pending").length : 0
+      const list = Array.isArray(data) ? data as ApiUser[] : []
+      return {
+        pending: list.filter((u) => u.status === "pending").length,
+        total: list.length,
+      }
     },
     { ttl: 60_000 }
   )
+
+  const pendingApprovalCount = usersMeta?.pending ?? 0
+  const userDirectoryCount = usersMeta?.total ?? 0
 
   const visibleNotifications = notifications.filter((n) => !hiddenIds.has(n.id))
   const unreadCount = visibleNotifications.length
@@ -127,7 +134,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
     ...(isAdmin
       ? [
           {
-            title: "AI Routing Logs",
+            title: "AI Decisions",
             url: "/admin/routing-logs",
             icon: Cpu,
             color: "#c08532",
@@ -137,6 +144,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
             url: "/admin/users",
             icon: ListTree,
             color: "#64748b",
+            badge: userDirectoryCount || undefined,
           },
         ]
       : []),
@@ -181,6 +189,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
       return location.pathname === "/tickets" || /^\/tickets\/(?!history(?:\/|$))/.test(location.pathname)
     }
     if (url === "/tickets/history") return location.pathname.startsWith("/tickets/history")
+    if (url.startsWith("/admin/")) return location.pathname === url
     return location.pathname === url || (url === "/dashboard" && location.pathname === "/dashboard/tickets")
   }
 
@@ -203,11 +212,11 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
             title={`${unreadCount} unread notifications`}
           >
             <Bell size={18} className="notification-bell-icon" />
-            {unreadCount > 0 && (
-              <span className="notification-badge">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
+            {notifLoading ? (
+              <span className="notification-badge notification-badge--loading" />
+            ) : unreadCount > 0 ? (
+              <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+            ) : null}
           </button>
 
           {showNotifications && (
@@ -287,9 +296,6 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
                     <item.icon size={16} />
                   </span>
                   <span>{item.title}</span>
-                  {'badge' in item && Boolean(item.badge) && (
-                    <span className="sidebar-nav-badge">{(item.badge ?? 0) > 9 ? '9+' : item.badge}</span>
-                  )}
                 </Link>
               );
             })}

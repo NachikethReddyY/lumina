@@ -9,6 +9,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { getUserRoleLabel } from '../utils/userDisplay';
 import { getTicketListScope, isTeamManager } from '../utils/orgRoles';
 import { useAdminWorkload, useSolvedByAssignee, useTicketList } from '../hooks/useTicketData';
+import { SolvedByAssigneeChart } from '../components/charts/SolvedByAssigneeChart';
 import { type AdminWorkload, type ApiTicket } from '../utils/apiClient';
 import './Dashboard.css';
 
@@ -91,31 +92,36 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   );
 };
 
-const SOLVED_COLORS = ['#2563eb', '#8b5cf6', '#d97706', '#1f8a65', '#dc2626', '#0891b2', '#ca8a04'];
-
 export function AdminDashboard() {
   const { user } = useCurrentUser();
   const ticketScope = useMemo(() => getTicketListScope(user), [user]);
-  const { tickets } = useTicketList(user ? ticketScope : undefined);
+  const { tickets: orgTickets } = useTicketList(user ? ticketScope : undefined);
+  const { tickets: personalTickets } = useTicketList(user ? {} : undefined);
   const { workload } = useAdminWorkload(Boolean(user));
-  const [solvedPeriod, setSolvedPeriod] = useState('30d');
+  const [solvedPeriod, setSolvedPeriod] = useState('7d');
   const { solvedByAssignee, loading: solvedLoading } = useSolvedByAssignee(solvedPeriod, Boolean(user));
 
   const counts = useMemo(() => ({
-    p1: tickets.filter((t) => t.priority === 'P1').length,
-    p2: tickets.filter((t) => t.priority === 'P2').length,
-    active: tickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length,
-    inProgress: tickets.filter((t) => t.status === 'in_progress').length,
-    resolved: tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
-  }), [tickets]);
+    p1: orgTickets.filter((t) => t.priority === 'P1').length,
+    p2: orgTickets.filter((t) => t.priority === 'P2').length,
+    active: orgTickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length,
+    inProgress: orgTickets.filter((t) => t.status === 'in_progress').length,
+    resolved: orgTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
+  }), [orgTickets]);
+
+  const personalCounts = useMemo(() => ({
+    active: personalTickets.filter((t) => ACTIVE_TICKET_STATUSES.has(t.status)).length,
+    inProgress: personalTickets.filter((t) => t.status === 'in_progress').length,
+    resolved: personalTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
+  }), [personalTickets]);
 
   const myLoad = workload.find((e) => e.id === user?.id);
 
-  const weeklyLine = useMemo(() => buildWeeklyLine(tickets), [tickets]);
-  const statusMix = useMemo(() => buildStatusMix(tickets), [tickets]);
-  const ageBuckets = useMemo(() => buildAgeBuckets(tickets), [tickets]);
+  const weeklyLine = useMemo(() => buildWeeklyLine(orgTickets), [orgTickets]);
+  const statusMix = useMemo(() => buildStatusMix(orgTickets), [orgTickets]);
+  const ageBuckets = useMemo(() => buildAgeBuckets(orgTickets), [orgTickets]);
   const priorityWorkload = useMemo(() => buildPriorityWorkload(workload), [workload]);
-  const completionPct = tickets.length ? Math.round((counts.resolved / tickets.length) * 100) : 0;
+  const completionPct = orgTickets.length ? Math.round((counts.resolved / orgTickets.length) * 100) : 0;
 
   return (
     <DashboardLayout>
@@ -142,16 +148,28 @@ export function AdminDashboard() {
 
           {/* Stats */}
           <div className="stats-grid">
-            <div className="stat-card"><h3>Active Tickets</h3><div className="stat-value">{counts.active}</div></div>
-            <div className="stat-card"><h3>In Progress</h3><div className="stat-value" style={{ color: '#fbbf24' }}>{counts.inProgress}</div></div>
-            <div className="stat-card"><h3>Resolved</h3><div className="stat-value" style={{ color: '#34c759' }}>{counts.resolved}</div></div>
+            <div className="stat-card">
+              <h3>Active Tickets</h3>
+              <div className="stat-value">{counts.active}</div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Your Active: {personalCounts.active}</p>
+            </div>
+            <div className="stat-card">
+              <h3>In Progress</h3>
+              <div className="stat-value" style={{ color: '#fbbf24' }}>{counts.inProgress}</div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Your In Progress: {personalCounts.inProgress}</p>
+            </div>
+            <div className="stat-card">
+              <h3>Resolved</h3>
+              <div className="stat-value" style={{ color: '#34c759' }}>{counts.resolved}</div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Your Resolved: {personalCounts.resolved}</p>
+            </div>
           </div>
 
           {/* Priority workload mini cards */}
           <div className="workload-grid" style={{ marginBottom: '32px' }}>
                 {[
-                  { label: 'P1 Critical', val: counts.p1, color: '#ff3b30', pct: tickets.length ? (counts.p1 / tickets.length) * 100 : 0 },
-                  { label: 'P2 High', val: counts.p2, color: '#ff9500', pct: tickets.length ? (counts.p2 / tickets.length) * 100 : 0 },
+                  { label: 'P1 Critical', val: counts.p1, color: '#ff3b30', pct: orgTickets.length ? (counts.p1 / orgTickets.length) * 100 : 0 },
+                  { label: 'P2 High', val: counts.p2, color: '#ff9500', pct: orgTickets.length ? (counts.p2 / orgTickets.length) * 100 : 0 },
                   { label: 'Your Load Score', val: myLoad?.load_score ?? 0, color: '#3b82f6', pct: Math.min(100, ((myLoad?.load_score ?? 0) / 20) * 100) },
                 ].map((item) => (
                   <div key={item.label} className="workload-card">
@@ -181,7 +199,7 @@ export function AdminDashboard() {
             </div>
 
             <div className="chart-card">
-              <h4 className="chart-card-title">Your Task Progress</h4>
+              <h4 className="chart-card-title">Organization Task Progress</h4>
               <div className="progress-donut-shell">
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
@@ -236,44 +254,13 @@ export function AdminDashboard() {
               </ResponsiveContainer>
             </div>
 
-            <div className="chart-card">
-              <h4 className="chart-card-title">Most Tickets Solved</h4>
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
-                {(['7d', '30d', '90d'] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setSolvedPeriod(p)}
-                    style={{
-                      padding: '4px 10px', fontSize: '11px', borderRadius: '999px', border: '1px solid var(--color-hairline)',
-                      background: solvedPeriod === p ? 'var(--color-pill-blue-bg)' : 'var(--color-surface-card)',
-                      color: solvedPeriod === p ? 'var(--color-pill-blue-fg)' : 'var(--color-ink)',
-                      cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit',
-                    }}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-              {solvedLoading ? (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>Loading...</div>
-              ) : solvedByAssignee.length === 0 ? (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>No data</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={solvedByAssignee} layout="vertical" margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                    <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                    <YAxis type="category" dataKey="name" width={90} tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="count" name="Solved" radius={[0, 4, 4, 0]}>
-                      {solvedByAssignee.map((_, i) => (
-                        <Cell key={i} fill={SOLVED_COLORS[i % SOLVED_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+            <SolvedByAssigneeChart
+              data={solvedByAssignee.map((row) => ({ ...row, takeovers: row.takeovers ?? 0 }))}
+              period={solvedPeriod}
+              loading={solvedLoading}
+              onPeriodChange={setSolvedPeriod}
+              chipClassName="sa-filter-chip"
+            />
           </motion.div>
 
         </Container>

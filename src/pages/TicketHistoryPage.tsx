@@ -116,6 +116,31 @@ function assigneeDisplay(ticket: ApiTicket): string {
   return role ? `${name} · ${role}` : name;
 }
 
+/** Names and email tokens for person-based ticket search (developer, QA, submitter). */
+function ticketPersonSearchText(ticket: ApiTicket): string {
+  const routing = getRouting(ticket);
+  const emailLocal = (email?: string | null) => {
+    if (!email) return '';
+    const local = email.split('@')[0] || '';
+    return local.replace(/\./g, ' ');
+  };
+  return [
+    ticket.assigned_to_name,
+    ticket.qa_assignee_name,
+    ticket.dev_assignee_name,
+    ticket.assigned_to_job_title,
+    ticket.qa_assignee_job_title,
+    ticket.dev_assignee_job_title,
+    routing?.decision?.assignee_name,
+    routing?.decision?.assignee_job_title,
+    emailLocal(ticket.submitted_by_email),
+    ticket.submitted_by_email,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
 function ticketTabForMode(mode: TicketHistoryMode): TicketTab {
   return mode === 'queue' ? 'active' : 'done';
 }
@@ -466,6 +491,8 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   }, [mode, queueOwnership, user]);
 
   const { tickets, loading, revalidate: revalidateTickets, mutate: mutateTickets } = useTicketList(user ? ticketListScope : undefined);
+  const { tickets: orgTickets } = useTicketList(mode === 'queue' && showQueueOwnershipFilter(user) ? { scope: 'org' } : undefined);
+  const { tickets: assignedTickets } = useTicketList(mode === 'queue' && showQueueOwnershipFilter(user) ? { scope: 'assigned' } : undefined);
   const { categories } = useTicketCategories(Boolean(user));
 
   const refreshTicketList = useCallback(async () => {
@@ -504,7 +531,8 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
       if (filterPriority !== 'all' && ticket.priority !== filterPriority) return false;
       if (filterCategory !== 'all' && ticket.category_id !== filterCategory) return false;
       const code = ticketCode(ticket);
-      if (q && !`${code} ${ticket.id} ${ticket.title} ${ticket.description} ${ticket.category_name} ${ticket.status} ${ticket.priority} ${assigneeLabel(ticket)}`.toLowerCase().includes(q)) return false;
+      const haystack = `${code} ${ticket.id} ${ticket.title} ${ticket.description} ${ticket.category_name} ${ticket.status} ${ticket.priority} ${assigneeDisplay(ticket)} ${ticketPersonSearchText(ticket)}`;
+      if (q && !haystack.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [tabbedTickets, filterStatus, filterPriority, filterCategory, deferredSearch]);
@@ -588,6 +616,11 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     all: scopedTickets.length,
     done: scopedTickets.filter((ticket) => COMPLETED_STATUSES.has(ticket.status)).length,
   }), [scopedTickets]);
+
+  const tabCounts = useMemo(() => ({
+    assigned: assignedTickets.filter((ticket) => QUEUE_STATUSES.has(ticket.status)).length,
+    org: orgTickets.filter((ticket) => QUEUE_STATUSES.has(ticket.status)).length,
+  }), [assignedTickets, orgTickets]);
 
   const pageTitle = mode === 'queue' ? 'Ticket Queue' : 'Ticket History';
   const adminQueueOwnership = showQueueOwnershipFilter(user);
@@ -896,7 +929,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                       role="tab"
                       aria-selected={queueOwnership === 'assigned'}
                     >
-                      Assigned to me <span>{counts.active}</span>
+                      Assigned to me <span>{tabCounts.assigned}</span>
                     </button>
                     <button
                       type="button"
@@ -905,7 +938,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                       role="tab"
                       aria-selected={queueOwnership === 'team'}
                     >
-                      {isOrgViewer(user) ? 'Organization' : 'All team'}
+                      {isOrgViewer(user) ? 'Organization' : 'All team'} <span>{tabCounts.org}</span>
                     </button>
                   </>
                 ) : (
@@ -979,7 +1012,7 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
               <Search size={14} className="th-search-icon" />
               <input
                 className="th-search"
-                placeholder="Search working tickets"
+                placeholder="Search tickets, people (e.g. Priya), dev or QA assignee…"
                 value={search}
                 onChange={(event) => { setSearch(event.target.value); resetPage(); }}
               />

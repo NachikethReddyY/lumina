@@ -12,7 +12,7 @@ const {
 } = require('../lib/authValidation');
 const { isMailConfigured, sendMail } = require('../lib/mailer');
 const { getFrontendBaseUrl } = require('../lib/frontendUrl');
-const { verificationEmailHtml, passwordResetEmailHtml } = require('../lib/emailTemplates');
+const { verificationEmailHtml, passwordResetEmailHtml, newSignupNotificationEmailHtml } = require('../lib/emailTemplates');
 const { rateLimit } = require('../middleware/rateLimit');
 const { serializeUser } = require('../lib/userProfile');
 
@@ -75,6 +75,45 @@ async function sendPasswordResetEmail(toEmail, token) {
     text: `We received a request to reset your Lumina password.\n\nOpen this link (expires in 1 hour):\n${url}\n\nIf you did not request this, ignore this email.`,
     html: passwordResetEmailHtml({ url }),
   });
+}
+
+async function notifyHrAdminsOfNewSignup(newUserEmail) {
+  console.log(`[SIGNUP] notifyHrAdminsOfNewSignup called for: ${newUserEmail}`);
+  try {
+    console.log(`[SIGNUP] Querying for active admins...`);
+    const result = await db.query(
+      `SELECT id, email, department FROM users WHERE role = 'admin' AND status = 'active'`
+    );
+    const allAdmins = result.rows;
+    console.log(`[SIGNUP] Query result - found ${allAdmins.length} active admins`);
+    console.log(`[SIGNUP] All active admins in system:`, allAdmins.map(a => ({ email: a.email, department: a.department })));
+
+    const hrAdmins = allAdmins.filter(a => a.department === 'HR' || a.department === 'hr');
+    console.log(`[SIGNUP] Found ${hrAdmins.length} active HR admins to notify about new signup: ${newUserEmail}`);
+
+    if (!hrAdmins.length) {
+      console.log(`[SIGNUP] No active HR admins found. HR notification skipped.`);
+      return;
+    }
+
+    const base = getFrontendBaseUrl();
+    const html = newSignupNotificationEmailHtml({ userEmail: newUserEmail, appUrl: base });
+
+    for (const hr of hrAdmins) {
+      console.log(`[SIGNUP] Sending HR notification to: ${hr.email}`);
+      await sendMail({
+        to: hr.email,
+        subject: `New user signup: ${newUserEmail} — Awaiting approval`,
+        html,
+      }).then(() => {
+        console.log(`[SIGNUP] HR notification sent successfully to: ${hr.email}`);
+      }).catch((err) => {
+        console.error(`[SIGNUP] Failed to send HR notification to ${hr.email}:`, err.message);
+      });
+    }
+  } catch (err) {
+    console.error('[SIGNUP] Failed to notify HR admins of new signup:', err.message);
+  }
 }
 
 router.post('/login', async (req, res, next) => {
@@ -178,6 +217,9 @@ router.post('/signup', async (req, res, next) => {
         code: 'MAIL_FAILED',
       });
     }
+
+    console.log(`[SIGNUP] User created: ${user.email}. Notifying HR admins...`);
+    await notifyHrAdminsOfNewSignup(user.email);
 
     return res.status(201).json({
       user: serializeUser(user),

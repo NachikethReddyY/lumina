@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   type ticket_type NOT NULL,
   priority ticket_priority NOT NULL,
   status ticket_status NOT NULL,
-  submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   replication_steps TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   closed_at TIMESTAMP,
@@ -128,12 +128,48 @@ CREATE TABLE IF NOT EXISTS tickets (
 -- Upgrade path: Add closed_at column for existing databases
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;
 
+-- Upgrade path: Allow user deletion with cascading deletes for user-related records
+DO $$
+BEGIN
+  -- Drop and recreate ticket_assignment constraints for CASCADE deletes
+  ALTER TABLE ticket_assignment DROP CONSTRAINT IF EXISTS ticket_assignment_assigned_to_fkey;
+  ALTER TABLE ticket_assignment ADD CONSTRAINT ticket_assignment_assigned_to_fkey
+    FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE CASCADE;
+
+  ALTER TABLE ticket_assignment DROP CONSTRAINT IF EXISTS ticket_assignment_assigned_by_fkey;
+  ALTER TABLE ticket_assignment ADD CONSTRAINT ticket_assignment_assigned_by_fkey
+    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE;
+
+  -- Drop and recreate satisfaction_ratings constraint for CASCADE
+  ALTER TABLE satisfaction_ratings DROP CONSTRAINT IF EXISTS satisfaction_ratings_rated_by_fkey;
+  ALTER TABLE satisfaction_ratings ADD CONSTRAINT satisfaction_ratings_rated_by_fkey
+    FOREIGN KEY (rated_by) REFERENCES users(id) ON DELETE CASCADE;
+
+  -- Drop and recreate ticket_comments constraint for CASCADE
+  ALTER TABLE ticket_comments DROP CONSTRAINT IF EXISTS ticket_comments_author_id_fkey;
+  ALTER TABLE ticket_comments ADD CONSTRAINT ticket_comments_author_id_fkey
+    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE;
+
+  -- Drop and recreate chat_messages constraint for CASCADE
+  ALTER TABLE chat_messages DROP CONSTRAINT IF EXISTS chat_messages_sender_id_fkey;
+  ALTER TABLE chat_messages ADD CONSTRAINT chat_messages_sender_id_fkey
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE;
+
+  -- Keep these as RESTRICT to preserve audit trail and prevent accidental data loss:
+  -- - audit_logs.actor_id (RESTRICT - keeps action history)
+  -- - categories.created_by (RESTRICT - prevents category deletion)
+
+EXCEPTION WHEN others THEN
+  -- Constraints may already be updated, continue silently
+  NULL;
+END $$;
+
 -- Ticket assignments
 CREATE TABLE IF NOT EXISTS ticket_assignment (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-  assigned_to UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  assigned_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  assigned_to UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   is_active BOOLEAN NOT NULL,
   assignment_role assignment_role NOT NULL DEFAULT 'developer',
   assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -145,7 +181,7 @@ ALTER TABLE ticket_assignment ADD COLUMN IF NOT EXISTS assignment_role assignmen
 CREATE TABLE IF NOT EXISTS satisfaction_ratings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id UUID NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
-  rated_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  rated_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   rating INTEGER NOT NULL,
   comment TEXT
 );
@@ -163,7 +199,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE TABLE IF NOT EXISTS ticket_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-  author_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -189,7 +225,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_conv_user ON chat_conversations (user
 CREATE TABLE IF NOT EXISTS chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
-  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT,
   image_url VARCHAR(500),
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
@@ -418,8 +454,21 @@ FROM (
     ('projmgr.amanda@lumina.test', 'Testpass1', 'Amanda', 'Thompson', 'admin', 'active', TRUE, 'Project Manager', 'Managers'),
     -- HR (1)
     ('hr.director@lumina.test', 'Testpass1', 'Patricia', 'Rivera', 'admin', 'active', TRUE, 'HR Director', 'HR'),
+    -- Additional Developers (2)
+    ('engineer.ryan@lumina.test', 'Testpass1', 'Ryan', 'Foster', 'user', 'active', TRUE, 'Software Engineer', 'Developers'),
+    ('engineer.nina@lumina.test', 'Testpass1', 'Nina', 'Brooks', 'user', 'active', TRUE, 'Platform Engineer', 'Developers'),
+    -- Additional QA (2)
+    ('qa.derek@lumina.test', 'Testpass1', 'Derek', 'Powell', 'user', 'active', TRUE, 'QA Engineer', 'QA'),
+    ('qa.hannah@lumina.test', 'Testpass1', 'Hannah', 'Reed', 'user', 'active', TRUE, 'Test Engineer', 'QA'),
+    -- Additional Managers (4)
+    ('pm.alexandra@lumina.test', 'Testpass1', 'Alexandra', 'Cole', 'admin', 'active', TRUE, 'Product Manager', 'Managers'),
+    ('po.marcus.h@lumina.test', 'Testpass1', 'Marcus', 'Hayes', 'admin', 'active', TRUE, 'Product Owner', 'Managers'),
+    ('prog.elena.m@lumina.test', 'Testpass1', 'Elena', 'Morris', 'admin', 'active', TRUE, 'Program Manager', 'Managers'),
+    ('projmgr.tyler@lumina.test', 'Testpass1', 'Tyler', 'Brooks', 'admin', 'active', TRUE, 'Project Manager', 'Managers'),
     -- Legacy/System accounts
-    ('lumina.ai@lumina.test', 'Testpass1', 'Lumina', 'AI', 'admin', 'active', TRUE, 'Release Manager', 'QA')
+    ('lumina.ai@lumina.test', 'Testpass1', 'Lumina', 'AI', 'admin', 'active', TRUE, 'Release Manager', 'QA'),
+    -- Test account
+    ('test.user@lumina.test', 'Testpass1', 'Test', 'User', 'user', 'active', TRUE, 'Software Engineer', 'Developers')
 ) AS seed(email, password, first_name, last_name, role, status, email_is_verified, job_title, department)
 ON CONFLICT (email) DO UPDATE
 SET first_name = EXCLUDED.first_name,
@@ -468,23 +517,23 @@ SELECT
 FROM (
   VALUES
     -- ✅ RESOLVED / CLOSED (3 tickets — complete lifecycle with audit trail)
-    ('Kubernetes pod crash loop', 'Checkout service pods restart every 30 seconds in staging.', 'Platform & Infrastructure', 'incident', 'P3', 'resolved', 'dan.user@lumina.test', 'kubectl describe pod checkout-api in staging.', '{"source":"seed"}', 5),
-    ('Notification emails delayed', 'Password reset emails arrive after 15 minutes.', 'Software Support', 'software', 'P2', 'closed', 'bob.user@lumina.test', 'Triggered from forgot password page.', '{"source":"seed"}', 4),
-    ('SSO callback loop', 'Logging in with SSO keeps redirecting back to the login page.', 'Software Support', 'software', 'P1', 'resolved', 'eve.user@lumina.test', 'Happens in Chrome and Edge.', '{"source":"seed"}', 3),
+    ('Kubernetes pod crash loop', 'Checkout service pods restart every 30 seconds in staging.', 'Platform & Infrastructure', 'incident', 'P3', 'resolved', 'sre.kevin@lumina.test', 'kubectl describe pod checkout-api in staging.', '{"source":"seed"}', 5),
+    ('Notification emails delayed', 'Password reset emails arrive after 15 minutes.', 'Software Support', 'software', 'P2', 'closed', 'engineer.sophia@lumina.test', 'Triggered from forgot password page.', '{"source":"seed"}', 4),
+    ('SSO callback loop', 'Logging in with SSO keeps redirecting back to the login page.', 'Software Support', 'software', 'P1', 'resolved', 'automation.daniel@lumina.test', 'Happens in Chrome and Edge.', '{"source":"seed"}', 3),
     -- 🟢 ACTIVE — assigned / in_progress (6 tickets — assigned to real admins)
-    ('API latency spike in production', 'P95 response time doubled after the latest API release.', 'Platform & Infrastructure', 'incident', 'P2', 'assigned', 'alice.user@lumina.test', 'Open Grafana dashboard and compare last 24h.', '{"source":"seed"}', 2),
-    ('VPN login blocked', 'The VPN rejects my password after the latest reset.', 'Software Support', 'software', 'P1', 'in_progress', 'bob.user@lumina.test', 'Open VPN client and attempt login.', '{"source":"seed"}', 1),
-    ('App crashes on startup', 'The app closes instantly after showing the splash screen.', 'Bug Reports', 'bug', 'P1', 'assigned', 'carol.user@lumina.test', 'Launch app on Windows 11 after fresh install.', '{"source":"seed"}', 1),
-    ('Reporting export timeout', 'CSV export times out after around 30 seconds.', 'Software Support', 'software', 'P2', 'assigned', 'eve.user@lumina.test', 'Run export from finance dashboard.', '{"source":"seed"}', 2),
-    ('Search results missing records', 'Two recent tickets do not appear in search results.', 'Bug Reports', 'bug', 'P2', 'in_progress', 'carol.user@lumina.test', 'Search by ticket title after creating a ticket.', '{"source":"seed"}', 1),
-    ('Mobile UI overlaps buttons', 'Action buttons overlap on iPhone Safari.', 'Bug Reports', 'bug', 'P3', 'in_progress', 'dan.user@lumina.test', 'Open settings on iPhone 14.', '{"source":"seed"}', 1),
+    ('API latency spike in production', 'P95 response time doubled after the latest API release.', 'Platform & Infrastructure', 'incident', 'P2', 'assigned', 'engineer.maya@lumina.test', 'Open Grafana dashboard and compare last 24h.', '{"source":"seed"}', 2),
+    ('VPN login blocked', 'The VPN rejects my password after the latest reset.', 'Software Support', 'software', 'P1', 'in_progress', 'engineer.alex@lumina.test', 'Open VPN client and attempt login.', '{"source":"seed"}', 1),
+    ('App crashes on startup', 'The app closes instantly after showing the splash screen.', 'Bug Reports', 'bug', 'P1', 'assigned', 'qa.michael@lumina.test', 'Launch app on Windows 11 after fresh install.', '{"source":"seed"}', 1),
+    ('Reporting export timeout', 'CSV export times out after around 30 seconds.', 'Software Support', 'software', 'P2', 'assigned', 'platform.marcus@lumina.test', 'Run export from finance dashboard.', '{"source":"seed"}', 2),
+    ('Search results missing records', 'Two recent tickets do not appear in search results.', 'Bug Reports', 'bug', 'P2', 'in_progress', 'architect.priya@lumina.test', 'Search by ticket title after creating a ticket.', '{"source":"seed"}', 1),
+    ('Mobile UI overlaps buttons', 'Action buttons overlap on iPhone Safari.', 'Bug Reports', 'bug', 'P3', 'in_progress', 'qa.lisa@lumina.test', 'Open settings on iPhone 14.', '{"source":"seed"}', 1),
     -- 🟡 PENDING ROUTING — staged with Lumina AI, waiting for routing engine (6 tickets)
-    ('Production outage after deploy', 'Users cannot log in after v2.4.1 was deployed to production.', 'Platform & Infrastructure', 'incident', 'P1', 'pending_routing', 'alice.user@lumina.test', 'Rollback deploy and check error logs.', '{"source":"seed","routing_intent":"needs_immediate_assignment"}', 0),
-    ('Redis cache cluster unreachable', 'Application cannot connect to Redis after maintenance window.', 'Platform & Infrastructure', 'incident', 'P3', 'pending_routing', 'dan.user@lumina.test', 'Verify Redis endpoint and TLS certs.', '{"source":"seed"}', 0),
-    ('Attachment upload fails', 'PNG attachments fail with a 500 error.', 'Bug Reports', 'bug', 'P2', 'pending_routing', 'alice.user@lumina.test', 'Upload 2MB PNG to a new ticket.', '{"source":"seed"}', 0),
-    ('License activation stuck', 'Activation spinner never completes for a desktop tool.', 'Software Support', 'software', 'P3', 'pending_routing', 'carol.user@lumina.test', 'Click activate after entering key.', '{"source":"seed"}', 0),
-    ('Webhook delivery retry backlog', 'Partner webhooks are queuing and not delivering within SLA.', 'Software Support', 'software', 'P4', 'pending_routing', 'eve.user@lumina.test', 'Inspect webhook worker logs and queue depth.', '{"source":"seed"}', 0),
-    ('Staging environment config drift', 'Staging API returns different schema than documented OpenAPI spec.', 'Software Support', 'software', 'P4', 'pending_routing', 'bob.user@lumina.test', 'Compare staging vs production env vars.', '{"source":"seed"}', 0)
+    ('Production outage after deploy', 'Users cannot log in after v2.4.1 was deployed to production.', 'Platform & Infrastructure', 'incident', 'P1', 'pending_routing', 'engineer.james@lumina.test', 'Rollback deploy and check error logs.', '{"source":"seed","routing_intent":"needs_immediate_assignment"}', 0),
+    ('Redis cache cluster unreachable', 'Application cannot connect to Redis after maintenance window.', 'Platform & Infrastructure', 'incident', 'P3', 'pending_routing', 'sre.arjun@lumina.test', 'Verify Redis endpoint and TLS certs.', '{"source":"seed"}', 0),
+    ('Attachment upload fails', 'PNG attachments fail with a 500 error.', 'Bug Reports', 'bug', 'P2', 'pending_routing', 'automation.victor@lumina.test', 'Upload 2MB PNG to a new ticket.', '{"source":"seed"}', 0),
+    ('License activation stuck', 'Activation spinner never completes for a desktop tool.', 'Software Support', 'software', 'P3', 'pending_routing', 'test.brandon@lumina.test', 'Click activate after entering key.', '{"source":"seed"}', 0),
+    ('Webhook delivery retry backlog', 'Partner webhooks are queuing and not delivering within SLA.', 'Software Support', 'software', 'P4', 'pending_routing', 'engineer.sophia@lumina.test', 'Inspect webhook worker logs and queue depth.', '{"source":"seed"}', 0),
+    ('Staging environment config drift', 'Staging API returns different schema than documented OpenAPI spec.', 'Software Support', 'software', 'P4', 'pending_routing', 'platform.elena@lumina.test', 'Compare staging vs production env vars.', '{"source":"seed"}', 0)
 ) AS seed(title, description, category_name, type, priority, status, submitter_email, replication_steps, metadata, age_days)
 JOIN categories c ON lower(c.name) = lower(seed.category_name)
 JOIN users u ON u.email = lower(seed.submitter_email)
@@ -503,9 +552,9 @@ FROM tickets t
 JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
 JOIN users assignee ON assignee.email = lower(
   CASE t.title
-    WHEN 'Kubernetes pod crash loop' THEN 'admin.platform@lumina.test'
-    WHEN 'Notification emails delayed' THEN 'admin.software@lumina.test'
-    WHEN 'SSO callback loop' THEN 'admin.ops@lumina.test'
+    WHEN 'Kubernetes pod crash loop' THEN 'platform.marcus@lumina.test'
+    WHEN 'Notification emails delayed' THEN 'engineer.james@lumina.test'
+    WHEN 'SSO callback loop' THEN 'sre.arjun@lumina.test'
   END
 )
 WHERE t.title IN ('Kubernetes pod crash loop', 'Notification emails delayed', 'SSO callback loop')
@@ -533,12 +582,12 @@ FROM tickets t
 JOIN users approver ON approver.email = lower('ynrdevs@gmail.com')
 JOIN users assignee ON assignee.email = lower(
   CASE t.title
-    WHEN 'API latency spike in production' THEN 'admin.platform@lumina.test'
-    WHEN 'VPN login blocked' THEN 'admin.software@lumina.test'
-    WHEN 'App crashes on startup' THEN 'admin.bugs@lumina.test'
-    WHEN 'Reporting export timeout' THEN 'admin.software@lumina.test'
-    WHEN 'Search results missing records' THEN 'admin.bugs@lumina.test'
-    WHEN 'Mobile UI overlaps buttons' THEN 'admin.bugs@lumina.test'
+    WHEN 'API latency spike in production' THEN 'platform.marcus@lumina.test'
+    WHEN 'VPN login blocked' THEN 'engineer.alex@lumina.test'
+    WHEN 'App crashes on startup' THEN 'qa.michael@lumina.test'
+    WHEN 'Reporting export timeout' THEN 'engineer.james@lumina.test'
+    WHEN 'Search results missing records' THEN 'architect.priya@lumina.test'
+    WHEN 'Mobile UI overlaps buttons' THEN 'qa.lisa@lumina.test'
   END
 )
 WHERE t.title IN (
