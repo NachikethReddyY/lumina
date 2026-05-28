@@ -43,7 +43,7 @@ BEGIN
       'assigned',
       'in_progress',
       'resolved',
-      'closed',
+      'abandoned',
       'on_hold',
       'pending_routing'
     );

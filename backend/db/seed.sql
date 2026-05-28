@@ -69,13 +69,13 @@ INSERT INTO users (id, email, password_hash, first_name, last_name, role, status
 VALUES
   ('00000000-0000-0000-0000-000000000045', 'nora.hayes@lumina.test',
    crypt('Password1!', gen_salt('bf')),
-   'Nora', 'Hayes', 'admin', 'active', TRUE, TRUE, 'Full Stack Developer', 'Developers', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '22 days', NOW() - INTERVAL '16 hours'),
+   'Nora', 'Hayes', 'admin', 'active', TRUE, TRUE, 'Full Stack Developer', 'Developers', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '22 days', NOW() - INTERVAL '16 hours', NULL),
   ('00000000-0000-0000-0000-000000000046', 'kavin.nair@lumina.test',
    crypt('Password1!', gen_salt('bf')),
-   'Kavin', 'Nair', 'admin', 'active', TRUE, TRUE, 'QA Lead', 'QA', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '21 days', NOW() - INTERVAL '18 hours'),
+   'Kavin', 'Nair', 'admin', 'active', TRUE, TRUE, 'QA Lead', 'QA', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '21 days', NOW() - INTERVAL '18 hours', NULL),
   ('00000000-0000-0000-0000-000000000047', 'meera.iyer@lumina.test',
    crypt('Password1!', gen_salt('bf')),
-   'Meera', 'Iyer', 'admin', 'active', TRUE, TRUE, 'IT Service Delivery Manager', 'Managers', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 hours')
+   'Meera', 'Iyer', 'admin', 'active', TRUE, TRUE, 'IT Service Delivery Manager', 'Managers', NULL, TRUE, '00000000-0000-0000-0000-000000000010', NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 hours', NULL)
 ON CONFLICT DO NOTHING;
 
 -- Normalize core technical/managerial job titles to appear in pairs.
