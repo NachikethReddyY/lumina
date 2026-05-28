@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Kill all ports used by Lumina Fullstack project
-# Ports: 5001 (API), 5173 (Frontend Dev), 4173 (Frontend Preview), 5432 (PostgreSQL)
+# Kill app ports used by Lumina Fullstack project.
+# Checks PostgreSQL on 5432 without killing it.
 
 PORTS=(5001 5173 4173)
 DB_PORT=5432
@@ -46,6 +46,6 @@ echo "✅ Port cleanup complete!"
 echo "==================================="
 echo ""
 echo "Quick start:"
-echo "  npm run dev              (Run dev mode)"
-echo "  npm run db:refresh       (Reset database)"
-echo "  npm run build            (Build for production)"
+echo "  pnpm run dev             (Run dev mode)"
+echo "  pnpm run db:refresh      (Reset database)"
+echo "  pnpm run build           (Build for production)"

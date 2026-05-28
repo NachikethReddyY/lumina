@@ -1,11 +1,12 @@
 import { Suspense, lazy } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { isHrAdmin } from '../utils/orgRoles';
+import { isHrAdmin, isQaManager, isQaUser } from '../utils/orgRoles';
 
 const LazyUserDashboard = lazy(() => import('./UserDashboard'));
 const LazyAdminDashboard = lazy(() => import('./AdminDashboard'));
 const LazySuperAdminDashboard = lazy(() => import('./SuperAdminDashboard'));
+const LazyQAManagerDashboard = lazy(() => import('./QAManagerDashboard'));
 
 function DashboardFallback() {
   return <div style={{ minHeight: '100vh', background: 'var(--color-canvas)' }} />;
@@ -26,6 +27,22 @@ export function RoleDashboardPage() {
     return (
       <Suspense fallback={<DashboardFallback />}>
         <LazySuperAdminDashboard />
+      </Suspense>
+    );
+  }
+
+  if (isQaManager(user)) {
+    return (
+      <Suspense fallback={<DashboardFallback />}>
+        <LazyQAManagerDashboard />
+      </Suspense>
+    );
+  }
+
+  if (isQaUser(user)) {
+    return (
+      <Suspense fallback={<DashboardFallback />}>
+        <LazyUserDashboard />
       </Suspense>
     );
   }

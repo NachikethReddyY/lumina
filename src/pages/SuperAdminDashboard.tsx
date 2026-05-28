@@ -75,7 +75,7 @@ export function SuperAdminDashboard() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.id, user?.department]);
+  }, [user, hrView]);
 
   useEffect(() => {
     if (!hrView && !user) return;
@@ -91,7 +91,7 @@ export function SuperAdminDashboard() {
       }
     })();
     return () => { cancelled = true; };
-  }, [solvedPeriod, user?.id, hrView]);
+  }, [solvedPeriod, user, hrView]);
 
   const pendingUsers = users.filter((u) => u.status === 'pending');
   const statusPie = useMemo(() => buildStatusPie(tickets), [tickets]);
@@ -265,7 +265,7 @@ export function SuperAdminDashboard() {
               </div>
 
               <div className="chart-card">
-                <h4 className="chart-card-title">Priority Load by Admin</h4>
+                <h4 className="chart-card-title">Priority Load</h4>
                 <ResponsiveContainer width="100%" height={Math.max(240, adminPriorityLoad.length * 28 + 40)}>
                   <BarChart layout="vertical" data={adminPriorityLoad} margin={{ top: 4, right: 24, bottom: 0, left: 12 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline-soft)" />

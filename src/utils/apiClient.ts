@@ -50,14 +50,17 @@ export type ApiTicket = {
   assigned_to_avatar_url?: string | null;
   assigned_to_name?: string | null;
   assigned_to_job_title?: string | null;
+  assigned_to_department?: string | null;
   qa_assignee_id?: string | null;
   qa_assignee_avatar_url?: string | null;
   qa_assignee_name?: string | null;
   qa_assignee_job_title?: string | null;
+  qa_assignee_department?: string | null;
   dev_assignee_id?: string | null;
   dev_assignee_avatar_url?: string | null;
   dev_assignee_name?: string | null;
   dev_assignee_job_title?: string | null;
+  dev_assignee_department?: string | null;
   /** Set when status becomes resolved/closed — powers resolution-time analytics. */
   closed_at?: string | null;
 };
@@ -373,9 +376,6 @@ export const ticketsApi = {
 
   qaVerify: (ticketId: string) =>
     apiRequest(`/tickets/${ticketId}/qa-verify`, { method: 'POST' }),
-
-  updateDetails: (ticketId: string, body: Record<string, string>) =>
-    apiRequest(`/tickets/${ticketId}/details`, { method: 'PATCH', body }),
 
   stats: {
     solvedByAssignee: (period?: string) => apiRequest(`/tickets/stats/solved-by-assignee${period ? `?period=${period}` : ''}`),

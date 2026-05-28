@@ -104,7 +104,8 @@ export type TicketListItemProps = {
   mode: 'queue' | 'history';
 };
 
-export function TicketListItem({ ticket, selected, onSelect }: TicketListItemProps) {
+export function TicketListItem({ ticket, selected, onSelect, mode }: TicketListItemProps) {
+  const listTimestamp = mode === 'history' ? (ticket.closed_at || ticket.created_at) : ticket.created_at;
   return (
     <button
       className={`th-list-item ${selected ? 'active' : ''}`}
@@ -115,14 +116,14 @@ export function TicketListItem({ ticket, selected, onSelect }: TicketListItemPro
           {ticket.priority}
         </span>
         <span className="th-ticket-id">{ticketCode(ticket)}</span>
-        <span className="th-list-time">{timeAgo(ticket.created_at)}</span>
+        <span className="th-list-time">{timeAgo(listTimestamp)}</span>
       </span>
       <span className="th-list-title">{ticket.title}</span>
       <span className="th-list-meta-row">
         <span className="th-list-status" style={{ background: `${STATUS_COLOR[ticket.status]}18`, color: STATUS_COLOR[ticket.status] }}>
           {formatTicketStatusLabel(ticket.status)}
         </span>
-        <span className="th-list-assignee">{assigneeLabel(ticket)}</span>
+        <span className="th-list-assignee">{assigneeLabel(ticket)}{ticket.dev_assignee_name && ticket.qa_assignee_name ? ` · ${ticket.qa_assignee_name}` : ''}</span>
       </span>
     </button>
   );

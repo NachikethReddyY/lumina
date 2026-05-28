@@ -105,7 +105,8 @@ export function AdminUsersPage() {
         showToast(`${deleteTarget.email} removed.`, 'success');
         setDeleteTarget(null);
       } else {
-        showToast('Failed to delete user.', 'error');
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        showToast(data.error || 'Failed to delete user.', 'error');
       }
     } catch {
       showToast('Error deleting user.', 'error');

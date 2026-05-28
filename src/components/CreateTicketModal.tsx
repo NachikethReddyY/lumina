@@ -140,7 +140,7 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
               </div>
               <div className="nt-field">
                 <label>Replication Steps</label>
-                <input value={newTicket.replicationSteps} onChange={(e) => setNewTicket((p) => ({ ...p, replicationSteps: e.target.value }))} placeholder="Optional — steps to reproduce" />
+                <textarea rows={3} value={newTicket.replicationSteps} onChange={(e) => setNewTicket((p) => ({ ...p, replicationSteps: e.target.value }))} placeholder="Optional — steps to reproduce" />
               </div>
               <div className="nt-actions">
                 <Button variant="secondary" type="button" onClick={onClose} disabled={creating}>Cancel</Button>

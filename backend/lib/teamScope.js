@@ -6,7 +6,9 @@ function isTeamManager(user = {}) {
 }
 
 function isQaManager(user = {}) {
-  return user.role === 'admin' && String(user.department || '').trim() === 'QA';
+  if (user.role !== 'admin' || String(user.department || '').trim() !== 'Managers') return false;
+  const title = String(user.job_title || '').toLowerCase();
+  return title.includes('qa') && (title.includes('manager') || title.includes('lead'));
 }
 
 /** HR admins see organization-wide tickets, people analytics, routing logs, and user directory. */
@@ -16,6 +18,19 @@ function isHrAdmin(user = {}) {
 
 function isOrgViewer(user = {}) {
   return isHrAdmin(user) || isTeamManager(user) || isQaManager(user);
+}
+
+function canViewOrgQueue(user = {}) {
+  if (!user?.id) return false;
+  if (user.status && user.status !== 'active') return false;
+  if (isOrgViewer(user)) return true;
+  const dept = String(user.department || '').trim();
+  if (dept === 'QA') return true;
+  return isDeveloper(user);
+}
+
+function canAccessUserDirectory(user = {}) {
+  return isHrAdmin(user) || isTeamManager(user);
 }
 
 function isDeveloper(user = {}) {
@@ -29,6 +44,8 @@ function isDeveloper(user = {}) {
 
 module.exports = {
   TEAM_MEMBER_DEPARTMENTS,
+  canViewOrgQueue,
+  canAccessUserDirectory,
   isDeveloper,
   isHrAdmin,
   isOrgViewer,

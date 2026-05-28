@@ -35,7 +35,7 @@ export function OAuthNamePage() {
       setLastName(user.last_name);
     }
     setDraftReady(true);
-  }, [user?.id, user?.first_name, user?.last_name]);
+  }, [user]);
 
   useEffect(() => {
     if (!user || !draftReady) return;
@@ -43,7 +43,7 @@ export function OAuthNamePage() {
       firstName: firstName.trim() || undefined,
       lastName: lastName.trim() || undefined,
     });
-  }, [user?.id, firstName, lastName, draftReady]);
+  }, [user, firstName, lastName, draftReady]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

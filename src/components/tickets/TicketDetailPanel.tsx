@@ -29,19 +29,15 @@ export type TicketDetailPanelProps = {
   user: ApiUser | null;
   canReroute: boolean;
   reroutingTicket: boolean;
-  canEditDetails: boolean;
   canComment: boolean;
   canMutate: boolean;
   isQaUser: boolean;
   isDevUser: boolean;
   canRouteToDeveloper: boolean;
+  routeToDeveloperLabel?: string;
   canRerouteQa: boolean;
   canRouteToQa: boolean;
-  editingTitle: boolean;
-  editingDesc: boolean;
-  editTitleValue: string;
-  editDescValue: string;
-  savingDetails: boolean;
+  routeToQaDisabledReason?: string | null;
   comments: ApiComment[];
   commentsLoading: boolean;
   commentDraft: string;
@@ -53,12 +49,6 @@ export type TicketDetailPanelProps = {
   onRouteToQa: () => void;
   onQaVerify: () => void;
   onCloseTicket: () => void;
-  onEditTitleStart: () => void;
-  onEditDescStart: () => void;
-  onEditTitleChange: (value: string) => void;
-  onEditDescChange: (value: string) => void;
-  onSaveDetails: () => void;
-  onCancelEditDesc: () => void;
   onDraftChange: (value: string) => void;
   onSubmitComment: () => void;
   onDeleteComment?: (commentId: string) => void;
@@ -70,19 +60,15 @@ export function TicketDetailPanel({
   user,
   canReroute,
   reroutingTicket,
-  canEditDetails,
   canComment,
   canMutate,
   isQaUser,
   isDevUser,
   canRouteToDeveloper,
+  routeToDeveloperLabel = 'Route to Developer',
   canRerouteQa,
   canRouteToQa,
-  editingTitle,
-  editingDesc,
-  editTitleValue,
-  editDescValue,
-  savingDetails,
+  routeToQaDisabledReason = null,
   comments,
   commentsLoading,
   commentDraft,
@@ -94,12 +80,6 @@ export function TicketDetailPanel({
   onRouteToQa,
   onQaVerify,
   onCloseTicket,
-  onEditTitleStart,
-  onEditDescStart,
-  onEditTitleChange,
-  onEditDescChange,
-  onSaveDetails,
-  onCancelEditDesc,
   onDraftChange,
   onSubmitComment,
   onDeleteComment,
@@ -128,21 +108,7 @@ export function TicketDetailPanel({
       </div>
 
       <div className="th-detail-title-row">
-        {editingTitle ? (
-          <input
-            className="th-edit-input"
-            value={editTitleValue}
-            onChange={(e) => onEditTitleChange(e.target.value)}
-            placeholder="Ticket title"
-          />
-        ) : (
-          <h2
-            onClick={() => { if (canEditDetails) onEditTitleStart(); }}
-            style={canEditDetails ? { cursor: 'pointer' } : undefined}
-          >
-            {ticket.title}
-          </h2>
-        )}
+        <h2>{ticket.title}</h2>
         <div className="th-detail-actions" role="group" aria-label="Ticket actions">
           {canRouteToDeveloper && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
             <button
@@ -153,7 +119,7 @@ export function TicketDetailPanel({
               aria-busy={reroutingTicket}
             >
               {reroutingTicket ? <Loader2 size={15} className="th-ticket-action-btn__spinner" aria-hidden="true" /> : null}
-              {reroutingTicket ? 'Routing…' : 'Route to Developer'}
+              {reroutingTicket ? 'Routing…' : routeToDeveloperLabel}
             </button>
           )}
           {canRerouteQa && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
@@ -173,8 +139,9 @@ export function TicketDetailPanel({
               type="button"
               className="th-ticket-action-btn th-ticket-action-btn--route"
               onClick={onRouteToQa}
-              disabled={reroutingTicket}
+              disabled={reroutingTicket || Boolean(routeToQaDisabledReason)}
               aria-busy={reroutingTicket}
+              title={routeToQaDisabledReason || undefined}
             >
               {reroutingTicket ? <Loader2 size={15} className="th-ticket-action-btn__spinner" aria-hidden="true" /> : null}
               {reroutingTicket ? 'Routing…' : 'Route to QA'}
@@ -205,35 +172,16 @@ export function TicketDetailPanel({
         </div>
       </div>
 
-      {editingDesc ? (
-        <div className="th-edit-description-wrap">
-          <textarea
-            className="th-edit-textarea"
-            value={editDescValue}
-            onChange={(e) => onEditDescChange(e.target.value)}
-            placeholder="Description"
-            rows={4}
-          />
-          <div className="th-edit-actions">
-            <button type="button" className="th-edit-save" onClick={onSaveDetails} disabled={savingDetails}>
-              {savingDetails ? 'Saving…' : 'Save'}
-            </button>
-            <button type="button" className="th-edit-cancel" onClick={onCancelEditDesc}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <p
-          className="th-detail-description"
-          onClick={() => { if (canEditDetails) onEditDescStart(); }}
-          style={canEditDetails ? { cursor: 'pointer' } : undefined}
-        >
-          {ticket.description}
-        </p>
-      )}
+      <p className="th-detail-description">{ticket.description}</p>
 
       <div className="th-detail-panels">
+        <section className="th-section-card th-replication-card">
+          <header>
+            <span>Replication steps</span>
+            <small>{ticket.replication_steps ? 'Captured' : 'Not provided'}</small>
+          </header>
+          <pre>{ticket.replication_steps?.trim() || 'No replication steps were provided for this ticket.'}</pre>
+        </section>
         <TicketCommentsPanel
           user={user}
           comments={comments}

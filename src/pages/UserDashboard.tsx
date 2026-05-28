@@ -8,10 +8,13 @@ import { ChartSkeleton } from '../components/charts/chartConstants';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { invalidateTicketListCache, useTicketList } from '../hooks/useTicketData';
 import { type ApiTicket } from '../utils/apiClient';
+import { isOrgViewer, isQaUser } from '../utils/orgRoles';
 import { formatStatusLabel } from './admin/dashboardShared';
 import './Dashboard.css';
 
 const LazyUserDashboardCharts = lazy(() => import('../components/charts/UserDashboardCharts'));
+
+type DashboardTab = 'working' | 'organisation';
 
 const PRIORITY_COLOR: Record<string, string> = {
   P1: '#ff3b30', P2: '#ff9500', P3: '#34c759', P4: '#6b7280',
@@ -63,8 +66,14 @@ function buildPriorityBar(tickets: ApiTicket[]) {
 
 export function UserDashboard() {
   const { user } = useCurrentUser();
-  const { tickets, mutate } = useTicketList(user ? { scope: 'submitted' } : undefined);
-  const { tickets: orgTickets } = useTicketList(user ? { scope: 'org' } : undefined);
+  const isQA = isQaUser(user);
+  const canSeeOrgTotals = isOrgViewer(user);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('working');
+
+  const { tickets, mutate } = useTicketList(
+    user ? { scope: isQA ? 'assigned' : 'submitted' } : undefined
+  );
+  const { tickets: orgTickets } = useTicketList(user && canSeeOrgTotals ? { scope: 'org' } : undefined);
   const [showNewTicket, setShowNewTicket] = useState(false);
 
   const openNewTicket = useCallback(() => setShowNewTicket(true), []);
@@ -79,14 +88,25 @@ export function UserDashboard() {
     return () => document.removeEventListener('keydown', handler);
   }, [openNewTicket]);
 
-  const openCount = tickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
-  const resolvedCount = tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
-  const orgOpenCount = orgTickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
-  const orgResolvedCount = orgTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
+  // Determine which tickets to display based on active tab
+  const displayTickets = activeTab === 'working' ? tickets : orgTickets;
 
-  const dailyLine = useMemo(() => buildDailyLine(tickets), [tickets]);
-  const statusBar = useMemo(() => buildStatusBar(tickets), [tickets]);
-  const priorityBar = useMemo(() => buildPriorityBar(tickets), [tickets]);
+  const openCount = displayTickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
+  const resolvedCount = displayTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
+
+  const dailyLine = useMemo(() => buildDailyLine(displayTickets), [displayTickets]);
+  const statusBar = useMemo(() => buildStatusBar(displayTickets), [displayTickets]);
+  const priorityBar = useMemo(() => buildPriorityBar(displayTickets), [displayTickets]);
+
+  const label = isQA
+    ? { total: activeTab === 'working' ? 'My QA Queue' : 'Organisation Tickets', active: 'Active', done: 'Resolved' }
+    : { total: 'Your Tickets', active: 'To Do Queue', done: 'Finished' };
+
+  const pageSubtitle = isQA && activeTab === 'working'
+    ? 'Tickets assigned to you with inline inspection'
+    : isQA && activeTab === 'organisation'
+    ? 'All organization tickets'
+    : undefined;
 
   return (
     <DashboardLayout>
@@ -96,6 +116,9 @@ export function UserDashboard() {
             <div className="header-content">
               <div>
                 <h1 className="dashboard-title">Welcome, {user?.first_name || 'there'}</h1>
+                {isQA && pageSubtitle && (
+                  <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>Ticket Queue • {pageSubtitle}</p>
+                )}
               </div>
               <Button variant="primary" size="lg" onClick={() => setShowNewTicket(true)}>
                 New Ticket
@@ -103,25 +126,65 @@ export function UserDashboard() {
             </div>
           </motion.div>
 
+          {isQA && canSeeOrgTotals && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('working')}
+                className={activeTab === 'working' ? 'active' : ''}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: activeTab === 'working' ? '#111827' : '#e5e7eb',
+                  backgroundColor: activeTab === 'working' ? '#111827' : 'transparent',
+                  color: activeTab === 'working' ? '#ffffff' : '#6b7280',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Working <span style={{ marginLeft: '4px', fontSize: '12px' }}>({tickets.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('organisation')}
+                className={activeTab === 'organisation' ? 'active' : ''}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: activeTab === 'organisation' ? '#111827' : '#e5e7eb',
+                  backgroundColor: activeTab === 'organisation' ? '#111827' : 'transparent',
+                  color: activeTab === 'organisation' ? '#ffffff' : '#6b7280',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Organisation <span style={{ marginLeft: '4px', fontSize: '12px' }}>({orgTickets.length})</span>
+              </button>
+            </div>
+          )}
+
           <div className="stats-grid">
             <div className="stat-card">
-              <h3>Your Tickets</h3>
-              <div className="stat-value">{tickets.length}</div>
-              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgTickets.length}</p>
+              <h3>{label.total}</h3>
+              <div className="stat-value">{displayTickets.length}</div>
             </div>
             <div className="stat-card">
-              <h3>To Do Queue</h3>
+              <h3>{label.active}</h3>
               <div className="stat-value" style={{ color: '#fbbf24' }}>{openCount}</div>
-              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgOpenCount}</p>
             </div>
             <div className="stat-card">
-              <h3>Finished</h3>
+              <h3>{label.done}</h3>
               <div className="stat-value" style={{ color: '#34c759' }}>{resolvedCount}</div>
-              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Org Total: {orgResolvedCount}</p>
             </div>
           </div>
 
-          {tickets.length > 0 && (
+          {displayTickets.length > 0 && (
             <Suspense fallback={<ChartSkeleton height={180} />}>
               <LazyUserDashboardCharts dailyLine={dailyLine} statusBar={statusBar} priorityBar={priorityBar} />
             </Suspense>

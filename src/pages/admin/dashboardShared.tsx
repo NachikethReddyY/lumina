@@ -98,17 +98,33 @@ export function buildHeadcountByDepartment(users: ApiUser[]) {
 
 export function buildTicketsByDepartment(tickets: ApiTicket[], users: ApiUser[]) {
   const byEmail = new Map(users.map((user) => [user.email.toLowerCase(), user]));
-  const counts: Record<string, number> = {};
+  const counts: Record<'HR' | 'Developers' | 'QAs' | 'Managers', number> = {
+    HR: 0,
+    Developers: 0,
+    QAs: 0,
+    Managers: 0,
+  };
+
+  const normalizeDepartment = (department?: string | null): keyof typeof counts | null => {
+    const dept = (department || '').trim().toLowerCase();
+    if (dept === 'hr') return 'HR';
+    if (dept === 'developers') return 'Developers';
+    if (dept === 'qa') return 'QAs';
+    if (dept === 'managers') return 'Managers';
+    return null;
+  };
+
   tickets.forEach((ticket) => {
     const submitter = byEmail.get((ticket.submitted_by_email || '').toLowerCase());
-    const dept = submitter?.department?.trim() || 'Unknown';
-    counts[dept] = (counts[dept] || 0) + 1;
+    const dept = normalizeDepartment(submitter?.department);
+    if (dept) counts[dept] += 1;
   });
-  return Object.entries(counts).map(([name, value]) => ({
-    name,
-    value,
-    fill: DEPT_CHART_COLORS[name] || DEPT_CHART_COLORS.Unknown,
-  }));
+  return [
+    { name: 'HR', value: counts.HR, fill: DEPT_CHART_COLORS.HR },
+    { name: 'Developers', value: counts.Developers, fill: DEPT_CHART_COLORS.Developers },
+    { name: 'QAs', value: counts.QAs, fill: DEPT_CHART_COLORS.QA },
+    { name: 'Managers', value: counts.Managers, fill: DEPT_CHART_COLORS.Managers },
+  ];
 }
 
 export function buildTicketProgressSummary(tickets: ApiTicket[]) {
@@ -122,15 +138,17 @@ export function buildTicketProgressSummary(tickets: ApiTicket[]) {
 }
 
 export function buildAdminPriorityLoad(workload: AdminWorkload[]) {
-  return workload.map((admin) => ({
-    name: `${admin.first_name} ${admin.last_name}`.trim() || admin.email,
-    detail: [admin.job_title?.trim(), admin.department?.trim()].filter(Boolean).join(' · ') || admin.email,
-    P1: admin.p1_count,
-    P2: admin.p2_count,
-    P3: admin.p3_count,
-    P4: admin.p4_count,
-    score: admin.load_score,
-  }));
+  return workload
+    .map((admin) => ({
+      name: `${admin.first_name} ${admin.last_name}`.trim() || admin.email,
+      detail: [admin.job_title?.trim(), admin.department?.trim()].filter(Boolean).join(' · ') || admin.email,
+      P1: admin.p1_count,
+      P2: admin.p2_count,
+      P3: admin.p3_count,
+      P4: admin.p4_count,
+      score: admin.load_score,
+    }))
+    .filter((admin) => (admin.P1 + admin.P2 + admin.P3 + admin.P4) > 0);
 }
 
 export function luminaVoice(text?: string | null): string {

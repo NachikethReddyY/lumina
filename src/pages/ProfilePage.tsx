@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -139,9 +139,18 @@ export function ProfilePage() {
     }
   };
 
-  const resolved = tickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
-  const open = tickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_routing'].includes(t.status)).length;
-  const p1 = tickets.filter((t) => t.priority === 'P1').length;
+  const userTickets = useMemo(() => {
+    if (!user?.id) return [];
+    return tickets.filter((t) => (
+      t.submitted_by_id === user.id
+      || t.assigned_to_id === user.id
+      || t.dev_assignee_id === user.id
+      || t.qa_assignee_id === user.id
+    ));
+  }, [tickets, user?.id]);
+  const resolved = userTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length;
+  const open = userTickets.filter((t) => ['open', 'assigned', 'in_progress'].includes(t.status)).length;
+  const p1 = userTickets.filter((t) => t.priority === 'P1').length;
   const roleBadge = getUserRoleLabel(user);
   const roleBadgeClass = user?.role === 'admin' ? 'badge-admin' : 'badge-user';
   const showRoleBadge = Boolean(roleBadge);
@@ -216,7 +225,7 @@ export function ProfilePage() {
               <div className="profile-stats-grid">
                 <div className="profile-stat-card">
                   <TicketIcon size={20} className="psc-icon blue" />
-                  <div className="psc-value">{tickets.length}</div>
+                  <div className="psc-value">{userTickets.length}</div>
                   <div className="psc-label">Total Tickets</div>
                 </div>
                 <div className="profile-stat-card">
@@ -257,7 +266,7 @@ export function ProfilePage() {
             <div className="profile-recent-section">
               <h2 className="profile-section-title">Recent Activity</h2>
               <div className="profile-recent-list">
-                {tickets.slice(0, 5).map((t) => (
+                {userTickets.slice(0, 5).map((t) => (
                   <div key={t.id} className="profile-recent-item">
                     <span className={`profile-priority-dot p${t.priority.toLowerCase()}`} />
                     <div className="pri-info">
@@ -267,7 +276,7 @@ export function ProfilePage() {
                     <span className="pri-date">{new Date(t.created_at).toLocaleDateString()}</span>
                   </div>
                 ))}
-                {tickets.length === 0 && (
+                {userTickets.length === 0 && (
                   <p style={{ color: '#6b7280', fontSize: '14px' }}>No tickets yet.</p>
                 )}
               </div>

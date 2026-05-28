@@ -152,13 +152,37 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    await db.query(`UPDATE users SET last_login_at = NOW() WHERE id = $1`, [user.id]);
+    const loginResult = await db.query(
+      `UPDATE users
+       SET last_login_at = NOW()
+       WHERE id = $1
+       RETURNING id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at, last_login_at`,
+      [user.id]
+    );
+    const loggedInUser = loginResult.rows[0] || user;
+    await db.query(
+      `INSERT INTO sessions (user_id, session_token, expires_at, user_agent, ipaddress)
+       VALUES ($1, gen_random_uuid()::text, NOW() + INTERVAL '7 days', $2, $3)`,
+      [user.id, req.get('user-agent') || 'unknown', req.ip || 'unknown']
+    );
+    await db.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'user_logged_in', $2::jsonb)`,
+      [
+        user.id,
+        JSON.stringify({
+          method: 'password',
+          user_agent: req.get('user-agent') || 'unknown',
+          ipaddress: req.ip || 'unknown',
+        }),
+      ]
+    );
 
-    const accessToken = signAccessToken(user);
+    const accessToken = signAccessToken(loggedInUser);
     return res.status(200).json({
       accessToken,
       refreshToken: '',
-      user: serializeUser(user),
+      user: serializeUser(loggedInUser),
     });
   } catch (err) {
     return next(err);
@@ -491,11 +515,37 @@ router.post('/google', async (req, res, next) => {
       });
     }
 
-    const accessToken = signAccessToken(userRow);
+    const loginResult = await db.query(
+      `UPDATE users
+       SET last_login_at = NOW()
+       WHERE id = $1
+       RETURNING id, email, first_name, last_name, role, status, email_is_verified, name_set, created_at, last_login_at`,
+      [userRow.id]
+    );
+    const loggedInUser = loginResult.rows[0] || userRow;
+    await db.query(
+      `INSERT INTO sessions (user_id, session_token, expires_at, user_agent, ipaddress)
+       VALUES ($1, gen_random_uuid()::text, NOW() + INTERVAL '7 days', $2, $3)`,
+      [userRow.id, req.get('user-agent') || 'unknown', req.ip || 'unknown']
+    );
+    await db.query(
+      `INSERT INTO audit_logs (actor_id, action, metadata)
+       VALUES ($1, 'user_logged_in', $2::jsonb)`,
+      [
+        userRow.id,
+        JSON.stringify({
+          method: 'google',
+          user_agent: req.get('user-agent') || 'unknown',
+          ipaddress: req.ip || 'unknown',
+        }),
+      ]
+    );
+
+    const accessToken = signAccessToken(loggedInUser);
     return res.json({
       accessToken,
       refreshToken: '',
-      user: serializeUser(userRow, { is_google_account: true }),
+      user: serializeUser(loggedInUser, { is_google_account: true }),
     });
   } catch (err) {
     return next(err);

@@ -15,8 +15,8 @@ const {
   getLuminaAiUserId,
   isLuminaAIUser,
 } = require('../lib/ticketRouting');
-const { isTeamManager, isQaManager, isHrAdmin, isOrgViewer, isDeveloper, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
-const { canMutateTicket, canViewTicket, canRerouteTicket, canEditTicketDetails, canSendToQa, isAssignedToQa } = require('../lib/ticketPermissions');
+const { isTeamManager, isQaManager, isHrAdmin, isOrgViewer, canViewOrgQueue, isDeveloper, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
+const { canMutateTicket, canViewTicket, canRerouteTicket, canSendToQa, isAssignedToQa } = require('../lib/ticketPermissions');
 
 const router = express.Router();
 
@@ -125,23 +125,33 @@ router.get('/', async (req, res, next) => {
     const clauses = [];
 
     const scope = String(req.query.scope || '').trim();
-
-    // Org-wide transparency: default list shows every ticket unless a narrower scope is requested.
-    if (scope === 'submitted') {
+    const addSubmittedByCurrentUserClause = () => {
       values.push(req.user.id);
       clauses.push(`t.submitted_by = $${values.length}`);
-    } else if (scope === 'assigned') {
+    };
+    const addAssignedToCurrentUserClause = () => {
       values.push(req.user.id);
       clauses.push(assignedToUserSql(values.length));
-    } else if (scope === 'team') {
-      values.push(TEAM_MEMBER_DEPARTMENTS);
-      clauses.push(`submitter.department = ANY($${values.length}::text[])`);
-    } else if (scope === 'org' || scope === '' || !scope) {
-      /* All active users: full organization queue (read-only in UI for non-assignees). */
-    } else if (req.user.role === 'user') {
+    };
+    const addOwnedByCurrentUserClause = () => {
       values.push(req.user.id);
       const userParam = `$${values.length}`;
       clauses.push(`(t.submitted_by = ${userParam} OR ${assignedToUserSql(values.length)})`);
+    };
+
+    if (scope === 'submitted') {
+      addSubmittedByCurrentUserClause();
+    } else if (scope === 'assigned') {
+      addAssignedToCurrentUserClause();
+    } else if (scope === 'team' && isOrgViewer(req.user)) {
+      values.push(TEAM_MEMBER_DEPARTMENTS);
+      clauses.push(`submitter.department = ANY($${values.length}::text[])`);
+    } else if (scope === 'org' || scope === '' || !scope) {
+      if (!canViewOrgQueue(req.user)) {
+        addOwnedByCurrentUserClause();
+      }
+    } else {
+      addOwnedByCurrentUserClause();
     }
 
     if (req.query.status) {
@@ -160,17 +170,20 @@ router.get('/', async (req, res, next) => {
               qa_assignee.avatar_url AS qa_assignee_avatar_url,
               ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")} AS qa_assignee_name,
               NULLIF(TRIM(qa_assignee.job_title), '') AS qa_assignee_job_title,
+              NULLIF(TRIM(qa_assignee.department), '') AS qa_assignee_department,
               dev_assignee.id AS dev_assignee_id,
               dev_assignee.avatar_url AS dev_assignee_avatar_url,
               ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")} AS dev_assignee_name,
               NULLIF(TRIM(dev_assignee.job_title), '') AS dev_assignee_job_title,
+              NULLIF(TRIM(dev_assignee.department), '') AS dev_assignee_department,
               COALESCE(dev_assignee.id, qa_assignee.id) AS assigned_to_id,
               COALESCE(dev_assignee.avatar_url, qa_assignee.avatar_url) AS assigned_to_avatar_url,
               COALESCE(
                 ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")},
                 ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")}
               ) AS assigned_to_name,
-              COALESCE(NULLIF(TRIM(dev_assignee.job_title), ''), NULLIF(TRIM(qa_assignee.job_title), '')) AS assigned_to_job_title
+              COALESCE(NULLIF(TRIM(dev_assignee.job_title), ''), NULLIF(TRIM(qa_assignee.job_title), '')) AS assigned_to_job_title,
+              COALESCE(NULLIF(TRIM(dev_assignee.department), ''), NULLIF(TRIM(qa_assignee.department), '')) AS assigned_to_department
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
@@ -357,17 +370,20 @@ router.get('/:id', async (req, res, next) => {
               qa_assignee.avatar_url AS qa_assignee_avatar_url,
               ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")} AS qa_assignee_name,
               NULLIF(TRIM(qa_assignee.job_title), '') AS qa_assignee_job_title,
+              NULLIF(TRIM(qa_assignee.department), '') AS qa_assignee_department,
               dev_assignee.id AS dev_assignee_id,
               dev_assignee.avatar_url AS dev_assignee_avatar_url,
               ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")} AS dev_assignee_name,
               NULLIF(TRIM(dev_assignee.job_title), '') AS dev_assignee_job_title,
+              NULLIF(TRIM(dev_assignee.department), '') AS dev_assignee_department,
               COALESCE(dev_assignee.id, qa_assignee.id) AS assigned_to_id,
               COALESCE(dev_assignee.avatar_url, qa_assignee.avatar_url) AS assigned_to_avatar_url,
               COALESCE(
                 ${cleanPersonNameSql("CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name)")},
                 ${cleanPersonNameSql("CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name)")}
               ) AS assigned_to_name,
-              COALESCE(NULLIF(TRIM(dev_assignee.job_title), ''), NULLIF(TRIM(qa_assignee.job_title), '')) AS assigned_to_job_title
+              COALESCE(NULLIF(TRIM(dev_assignee.job_title), ''), NULLIF(TRIM(qa_assignee.job_title), '')) AS assigned_to_job_title,
+              COALESCE(NULLIF(TRIM(dev_assignee.department), ''), NULLIF(TRIM(qa_assignee.department), '')) AS assigned_to_department
        FROM tickets t
        JOIN categories c ON c.id = t.category_id
        JOIN users submitter ON submitter.id = t.submitted_by
@@ -826,65 +842,19 @@ router.patch('/:id/priority', async (req, res, next) => {
   }
 });
 
-router.patch('/:id/details', async (req, res, next) => {
-  const { title, description, replicationSteps } = req.body || {};
-  if (!title && !description && replicationSteps === undefined) {
-    return res.status(400).json({ error: 'Provide at least one field: title, description, or replicationSteps' });
-  }
-
-  try {
-    const result = await db.query(
-      `SELECT t.id, t.submitted_by,
-              COALESCE(ta_dev.assigned_to, ta_qa.assigned_to) AS assigned_to,
-              ta_qa.assigned_to AS qa_assignee_id,
-              ta_dev.assigned_to AS dev_assignee_id
-       FROM tickets t
-       LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
-       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
-       WHERE t.id = $1`,
-      [req.params.id]
-    );
-    const ticket = result.rows[0];
-    if (!ticket) {
-      return res.status(404).json({ error: 'Ticket not found' });
-    }
-    if (!canEditTicketDetails(req.user, ticket)) {
-      return res.status(403).json({ error: 'You do not have permission to edit this ticket' });
-    }
-
-    const sets = [];
-    const params = [req.params.id];
-    let idx = 2;
-    if (title !== undefined) { sets.push(`title = $${idx}`); params.push(title); idx++; }
-    if (description !== undefined) { sets.push(`description = $${idx}`); params.push(description); idx++; }
-    if (replicationSteps !== undefined) { sets.push(`replication_steps = $${idx}`); params.push(replicationSteps); idx++; }
-
-    const updated = await db.query(
-      `UPDATE tickets SET ${sets.join(', ')} WHERE id = $1 RETURNING id, title, description, replication_steps`,
-      params
-    );
-
-    await db.query(
-      `INSERT INTO audit_logs (actor_id, action, metadata)
-       VALUES ($1, 'ticket_details_updated', $2::jsonb)`,
-      [req.user.id, JSON.stringify({ ticket_id: req.params.id, ...req.body })]
-    );
-
-    res.json(updated.rows[0]);
-  } catch (error) {
-    next(error);
-  }
-});
-
 router.post('/:id/route-to-developer', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const result = await client.query(
       `SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.type, t.priority, t.metadata,
-              ta_qa.assigned_to AS qa_assigned_to
+              ta_qa.assigned_to AS qa_assigned_to,
+              ta_dev.assigned_to AS dev_assigned_to,
+              CONCAT(dev_assignee.first_name, ' ', dev_assignee.last_name) AS dev_assigned_to_name
        FROM tickets t
        LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN ticket_assignment ta_dev ON ta_dev.ticket_id = t.id AND ta_dev.is_active = TRUE AND ta_dev.assignment_role = 'developer'
+       LEFT JOIN users dev_assignee ON dev_assignee.id = ta_dev.assigned_to
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -893,9 +863,36 @@ router.post('/:id/route-to-developer', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (req.user.department !== 'QA' && !isTeamManager(req.user) && !isQaManager(req.user)) {
+    if (!isTeamManager(req.user) && !isQaManager(req.user) && ticket.qa_assigned_to !== req.user.id) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Only QA users or QA managers can route to developer' });
+      return res.status(403).json({ error: 'Only the assigned QA owner or a manager can route to developer' });
+    }
+
+    // Paired handoff: if developer is already assigned, skip AI routing and hand back directly.
+    if (ticket.dev_assigned_to) {
+      await client.query(`UPDATE tickets SET status = 'assigned'::ticket_status WHERE id = $1`, [ticket.id]);
+      await client.query(
+        `INSERT INTO audit_logs (actor_id, action, metadata)
+         VALUES ($1, 'ticket_routed_to_developer', $2::jsonb)`,
+        [
+          req.user.id,
+          JSON.stringify({
+            ticket_id: ticket.id,
+            assigned_to: ticket.dev_assigned_to,
+            assigned_to_name: ticket.dev_assigned_to_name || null,
+            source: 'existing_assignee',
+            assignment_mode: 'paired_handoff',
+            routing_skipped: true,
+          }),
+        ]
+      );
+      await client.query('COMMIT');
+      return res.json({
+        ticketId: ticket.id,
+        assignedToId: ticket.dev_assigned_to,
+        assignedToName: ticket.dev_assigned_to_name || null,
+        routingSkipped: true,
+      });
     }
 
     const admins = await getAdminWorkloads(client);
@@ -945,9 +942,9 @@ router.post('/:id/reroute-to-another-qa', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    if (req.user.department !== 'QA' && !isTeamManager(req.user) && !isQaManager(req.user)) {
+    if (!isTeamManager(req.user) && !isQaManager(req.user) && ticket.qa_assigned_to !== req.user.id) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Only QA users or QA managers can reroute to another QA' });
+      return res.status(403).json({ error: 'Only the assigned QA owner or a manager can reroute to another QA' });
     }
 
     const admins = await getAdminWorkloads(client);
@@ -983,9 +980,11 @@ router.post('/:id/route-to-qa', async (req, res, next) => {
     await client.query('BEGIN');
     const result = await client.query(
       `SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.type, t.priority, t.metadata,
-              ta_qa.assigned_to AS qa_assigned_to
+              ta_qa.assigned_to AS qa_assigned_to,
+              CONCAT(qa_assignee.first_name, ' ', qa_assignee.last_name) AS qa_assigned_to_name
        FROM tickets t
        LEFT JOIN ticket_assignment ta_qa ON ta_qa.ticket_id = t.id AND ta_qa.is_active = TRUE AND ta_qa.assignment_role = 'qa'
+       LEFT JOIN users qa_assignee ON qa_assignee.id = ta_qa.assigned_to
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -997,6 +996,33 @@ router.post('/:id/route-to-qa', async (req, res, next) => {
     if (req.user.department === 'QA' && !isTeamManager(req.user) && !isQaManager(req.user)) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'QA users cannot route to QA' });
+    }
+
+    // Paired handoff: if QA is already assigned, skip AI routing and hand back directly.
+    if (ticket.qa_assigned_to) {
+      await client.query(`UPDATE tickets SET status = 'assigned'::ticket_status WHERE id = $1`, [ticket.id]);
+      await client.query(
+        `INSERT INTO audit_logs (actor_id, action, metadata)
+         VALUES ($1, 'ticket_routed_to_qa', $2::jsonb)`,
+        [
+          req.user.id,
+          JSON.stringify({
+            ticket_id: ticket.id,
+            assigned_to: ticket.qa_assigned_to,
+            assigned_to_name: ticket.qa_assigned_to_name || null,
+            source: 'existing_assignee',
+            assignment_mode: 'paired_handoff',
+            routing_skipped: true,
+          }),
+        ]
+      );
+      await client.query('COMMIT');
+      return res.json({
+        ticketId: ticket.id,
+        assignedToId: ticket.qa_assigned_to,
+        assignedToName: ticket.qa_assigned_to_name || null,
+        routingSkipped: true,
+      });
     }
 
     const admins = await getAdminWorkloads(client);

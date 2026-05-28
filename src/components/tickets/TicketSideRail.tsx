@@ -126,12 +126,14 @@ function luminaVoice(text?: string | null): string {
 
 function aiDecisionReason(ticket: ApiTicket): string {
   const routing = getRouting(ticket);
-  const assignee = assigneeDisplay(ticket);
+  const name = routing?.decision?.assignee_name || ticket.assigned_to_name || 'Unassigned';
+  const role = routing?.decision?.assignee_job_title || ticket.assigned_to_job_title || '';
+  const display = role ? `${name} · ${role}` : name;
   return luminaVoice(routing?.decision?.ticket_note?.rationale
     || routing?.decision?.rationale
     || routing?.reasoning
     || (ticket.assigned_to_name || routing?.decision?.assignee_name
-      ? `Routed to ${assignee} because ${teamFor(ticket)} matches the ticket category and the current ownership/load profile is the best fit.`
+      ? `Routed to ${display} because ${teamFor(ticket)} matches the ticket category and the current ownership/load profile is the best fit.`
       : `Recommended ${teamFor(ticket)} based on priority, category, and current queue ownership.`));
 }
 
@@ -251,6 +253,10 @@ export function TicketSideRail({
                 <dt>Created</dt>
                 <dd>{ticket ? formatDate(ticket.created_at) : '—'}</dd>
               </div>
+              <div>
+                <dt>Solved</dt>
+                <dd>{ticket?.closed_at ? formatDate(ticket.closed_at) : '—'}</dd>
+              </div>
             </dl>
           </section>
 
@@ -271,12 +277,12 @@ export function TicketSideRail({
                     <p>{selectedRouting?.decision?.ticket_note?.summary || `Recommended lane: ${teamFor(ticket)}`}</p>
                   </div>
                 </div>
-                {(ticket.assigned_to_name || selectedRouting?.decision?.assignee_name) && (
+                {(selectedRouting?.decision?.assignee_name || ticket.assigned_to_name) && (
                   <div className="th-routed-assignee">
                     <span>Routed to</span>
-                    <strong>{assigneeLabel(ticket)}</strong>
-                    {assigneeRoleLabel(ticket) ? (
-                      <em>{assigneeRoleLabel(ticket)}</em>
+                    <strong>{selectedRouting?.decision?.assignee_name || assigneeLabel(ticket) || 'Unknown'}</strong>
+                    {(selectedRouting?.decision?.assignee_job_title || assigneeRoleLabel(ticket)) ? (
+                      <em>{selectedRouting?.decision?.assignee_job_title || assigneeRoleLabel(ticket)}</em>
                     ) : null}
                   </div>
                 )}

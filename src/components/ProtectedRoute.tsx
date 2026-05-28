@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useUserContext } from '../context/UserContext';
 import { getRequiredPath, isSetupPath } from '../utils/authFlow';
-import { canAccessApprovalQueue } from '../utils/orgRoles';
+import { canAccessApprovalQueue, canAccessUserDirectory } from '../utils/orgRoles';
 import { clearAuthSession, isSessionExpired } from '../utils/sessionAuth';
 import { SetupLoading } from './SetupLoading';
 
@@ -10,9 +10,11 @@ type Props = {
   roles?: Array<'user' | 'admin'>;
   /** Restrict route to HR admins (e.g. approval queue). */
   hrAdminOnly?: boolean;
+  /** Restrict route to people-management users. */
+  userDirectoryOnly?: boolean;
 };
 
-export function ProtectedRoute({ children, roles, hrAdminOnly }: Props) {
+export function ProtectedRoute({ children, roles, hrAdminOnly, userDirectoryOnly }: Props) {
   const location = useLocation();
   const { user, loading } = useUserContext();
   const token = localStorage.getItem('authToken');
@@ -57,6 +59,10 @@ export function ProtectedRoute({ children, roles, hrAdminOnly }: Props) {
   }
 
   if (hrAdminOnly && !canAccessApprovalQueue(user)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (userDirectoryOnly && !canAccessUserDirectory(user)) {
     return <Navigate to="/dashboard" replace />;
   }
 

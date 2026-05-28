@@ -8,12 +8,31 @@ export function isTeamManager(user: ApiUser | null | undefined): boolean {
   return user?.role === 'admin' && user?.department === 'Managers';
 }
 
+export function isQaUser(user: ApiUser | null | undefined): boolean {
+  return user?.department === 'QA';
+}
+
 export function isQaManager(user: ApiUser | null | undefined): boolean {
-  return user?.role === 'admin' && user?.department === 'QA';
+  if (user?.role !== 'admin' || user?.department !== 'Managers') return false;
+  const title = (user.job_title || '').toLowerCase();
+  return title.includes('qa') && (title.includes('manager') || title.includes('lead'));
+}
+
+export function isQaJobManager(user: ApiUser | null | undefined): boolean {
+  return isQaManager(user);
 }
 
 export function isOrgViewer(user: ApiUser | null | undefined): boolean {
   return isHrAdmin(user) || isTeamManager(user) || isQaManager(user);
+}
+
+export function canViewOrgQueue(user: ApiUser | null | undefined): boolean {
+  if (!user || user.status !== 'active') return false;
+  return isOrgViewer(user) || isQaUser(user) || isDeveloper(user);
+}
+
+export function canAccessUserDirectory(user: ApiUser | null | undefined): boolean {
+  return isHrAdmin(user) || isTeamManager(user);
 }
 
 export function isDeveloper(user: ApiUser | null | undefined): boolean {
@@ -24,21 +43,34 @@ export function isDeveloper(user: ApiUser | null | undefined): boolean {
   return devKeywords.some((kw) => title.includes(kw));
 }
 
-/**
- * Read access mirrors backend canViewTicket: active users see the whole organization.
- */
 export function canViewTicket(
   user: ApiUser | null | undefined,
-  ticket: { submitted_by_id?: string | null; assigned_to_id?: string | null } | null | undefined
+  ticket: {
+    submitted_by_id?: string | null;
+    assigned_to_id?: string | null;
+    qa_assignee_id?: string | null;
+    dev_assignee_id?: string | null;
+  } | null | undefined
 ): boolean {
   if (!user?.id || !ticket) return false;
   if (user.status !== 'active') return false;
-  return true;
+  if (canViewOrgQueue(user)) return true;
+  return (
+    ticket.submitted_by_id === user.id
+    || ticket.assigned_to_id === user.id
+    || ticket.qa_assignee_id === user.id
+    || ticket.dev_assignee_id === user.id
+  );
 }
 
 export function canCommentOnTicket(
   user: ApiUser | null | undefined,
-  ticket: { submitted_by_id?: string | null; assigned_to_id?: string | null } | null | undefined
+  ticket: {
+    submitted_by_id?: string | null;
+    assigned_to_id?: string | null;
+    qa_assignee_id?: string | null;
+    dev_assignee_id?: string | null;
+  } | null | undefined
 ): boolean {
   return canViewTicket(user, ticket);
 }
@@ -126,12 +158,13 @@ export function isTicketOversightAdmin(user: ApiUser | null | undefined): boolea
   return isOrgViewer(user);
 }
 
-/** Default ticket list: organization-wide for every active user. */
 export function getTicketListScope(
   user: ApiUser | null | undefined
-): { scope?: 'org' | 'team' | 'assigned' } {
+): { scope?: 'org' | 'team' | 'assigned' | 'submitted' } {
   if (!user || user.status !== 'active') return {};
-  return { scope: 'org' };
+  if (isOrgViewer(user)) return { scope: 'org' };
+  if (user.role === 'user') return { scope: 'submitted' };
+  return { scope: 'assigned' };
 }
 
 export function canAccessApprovalQueue(user: ApiUser | null | undefined): boolean {
@@ -146,20 +179,22 @@ export function canDeleteAccounts(user: ApiUser | null | undefined): boolean {
   return isHrAdmin(user);
 }
 
-export type QueueOwnershipFilter = 'team' | 'assigned';
+export type QueueOwnershipFilter = 'org' | 'assigned';
 
 export function showQueueOwnershipFilter(user: ApiUser | null | undefined): boolean {
-  return Boolean(user);
+  return canViewOrgQueue(user);
 }
 
 export function getTicketQueueListScope(
   user: ApiUser | null | undefined,
   ownership: QueueOwnershipFilter
-): { scope?: 'org' | 'team' | 'assigned' } {
+): { scope?: 'org' | 'team' | 'assigned' | 'submitted' } {
   if (!user || user.status !== 'active') return {};
 
   if (ownership === 'assigned') {
     return { scope: 'assigned' };
   }
-  return { scope: 'org' };
+  if (canViewOrgQueue(user)) return { scope: 'org' };
+  if (user.role === 'user') return { scope: 'submitted' };
+  return { scope: 'assigned' };
 }

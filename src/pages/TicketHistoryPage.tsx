@@ -33,8 +33,8 @@ import { formatTicketStatusLabel } from '../utils/ticketStatusLabel';
 import {
   canMutateTicket,
   canRerouteTicket,
+  canViewOrgQueue,
   canCommentOnTicket,
-  canEditTicketDetails,
   getTicketListScope,
   getTicketQueueListScope,
   isOrgViewer,
@@ -371,6 +371,14 @@ function teamFor(ticket: ApiTicket): string {
   return 'Bug Reports';
 }
 
+function ticketSortTimestamp(ticket: ApiTicket): number {
+  if (COMPLETED_STATUSES.has(ticket.status)) {
+    const finishedAt = ticket.closed_at || ticket.created_at;
+    return new Date(finishedAt).getTime();
+  }
+  return new Date(ticket.created_at).getTime();
+}
+
 function fallbackTimelineEvents(ticket: ApiTicket): TimelineEvent[] {
   const routing = getRouting(ticket);
   const events: TimelineEvent[] = [
@@ -482,13 +490,8 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const [commentDraft, setCommentDraft] = useState('');
   const [commentSending, setCommentSending] = useState(false);
   const [commentDeletingId, setCommentDeletingId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [editingDesc, setEditingDesc] = useState(false);
-  const [editTitleValue, setEditTitleValue] = useState('');
-  const [editDescValue, setEditDescValue] = useState('');
-  const [editReplicationValue, setEditReplicationValue] = useState('');
-  const [savingDetails, setSavingDetails] = useState(false);
-  const [queueOwnership, setQueueOwnership] = useState<QueueOwnershipFilter>('team');
+
+  const [queueOwnership, setQueueOwnership] = useState<QueueOwnershipFilter>('assigned');
   const [profileCardUserId, setProfileCardUserId] = useState<string | null>(null);
   const [showNewTicket, setShowNewTicket] = useState(false);
 
@@ -549,11 +552,13 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const sorted = useMemo(() => {
     const priorityRank: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
     return [...filtered].sort((a, b) => {
-      const priorityDiff = (priorityRank[a.priority] || 99) - (priorityRank[b.priority] || 99);
-      if (priorityDiff !== 0) return priorityDiff;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (mode !== 'history') {
+        const priorityDiff = (priorityRank[a.priority] || 99) - (priorityRank[b.priority] || 99);
+        if (priorityDiff !== 0) return priorityDiff;
+      }
+      return ticketSortTimestamp(b) - ticketSortTimestamp(a);
     });
-  }, [filtered]);
+  }, [filtered, mode]);
 
   useEffect(() => {
     if (!selectedTicketId) return;
@@ -633,15 +638,18 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
 
   const pageTitle = mode === 'queue' ? 'Ticket Queue' : 'Ticket History';
   const adminQueueOwnership = showQueueOwnershipFilter(user);
+  const orgQueueReadOnly = canViewOrgQueue(user) && !isOrgViewer(user);
   const pageSubtitle = mode === 'history'
     ? 'Completed ticket records with inline inspection'
     : user?.role === 'user'
       ? 'Your tickets in one compact workspace'
       : adminQueueOwnership && queueOwnership === 'assigned'
         ? 'Tickets currently assigned to you'
-        : isOrgViewer(user)
-          ? 'All organization tickets — view-only unless assigned to you'
-          : 'All active ticket records with inline inspection';
+        : orgQueueReadOnly
+          ? 'All organization tickets — read-only and comment-only unless assigned to you'
+          : isOrgViewer(user)
+            ? 'All organization tickets with manager controls'
+          : 'Tickets assigned to you with inline inspection';
 
   const changeTab = (tab: TicketTab) => {
     setActiveTab(tab);
@@ -656,10 +664,19 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
   const canChangePriority = canMutateSelected;
   const canChangeStatus = canMutateSelected;
   const canComment = Boolean(selectedTicket && canCommentOnTicket(user, selectedTicket));
-  const canEditDetails = Boolean(selectedTicket && canEditTicketDetails(user, selectedTicket));
+  const selectedTicketPrimaryOwnerDepartment = selectedTicket?.dev_assignee_department || selectedTicket?.assigned_to_department || null;
+  const selectedTicketIsDeveloperOwned = selectedTicketPrimaryOwnerDepartment === 'Developers';
   const canRouteToDeveloper = Boolean(selectedTicket && (canManageReroutes || (isQaUser && selectedTicket.qa_assignee_id === user?.id)));
   const canRerouteQa = Boolean(selectedTicket && (canManageReroutes || (isQaUser && selectedTicket.qa_assignee_id === user?.id)));
-  const canRouteToQa = Boolean(selectedTicket && (canManageReroutes || (isDevUser && selectedTicket.dev_assignee_id === user?.id)));
+  const canRouteToQa = Boolean(
+    selectedTicket
+      && selectedTicketIsDeveloperOwned
+      && (canManageReroutes || (isDevUser && selectedTicket.dev_assignee_id === user?.id))
+  );
+  const routeToDeveloperLabel = selectedTicket?.dev_assignee_id ? 'Route Back to Developer' : 'Route to Developer';
+  const routeToQaDisabledReason = selectedTicket?.qa_assignee_id
+    ? 'QA already assigned. Use reroute to another QA if that person is busy.'
+    : null;
   const ownerEyebrow = isRegularUser ? 'support owner' : 'assigned';
 
   const handlePriorityChange = useCallback(async (priority: ApiTicket['priority']) => {
@@ -812,45 +829,23 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
     }
   }, [refreshActivity, refreshTicketList, selectedTicket, showToast]);
 
-  const handleSaveDetails = useCallback(async () => {
-    if (!selectedTicket || savingDetails) return;
-    setSavingDetails(true);
-    try {
-      const body: Record<string, string> = {};
-      if (editingTitle) body.title = editTitleValue;
-      if (editingDesc) body.description = editDescValue;
-      if (editingTitle || editingDesc) body.replicationSteps = editReplicationValue;
-      if (!Object.keys(body).length) { setSavingDetails(false); return; }
-
-      const res = await ticketsApi.updateDetails(selectedTicket.id, body);
-      if (!res.ok) {
-        showToast('Could not save changes.', 'error');
-        return;
-      }
-      await refreshTicketList();
-      setEditingTitle(false);
-      setEditingDesc(false);
-      showToast('Ticket details updated.', 'success');
-    } catch {
-      showToast('Could not save changes.', 'error');
-    } finally {
-      setSavingDetails(false);
-    }
-  }, [selectedTicket, savingDetails, editingTitle, editingDesc, editTitleValue, editDescValue, editReplicationValue, refreshTicketList, showToast]);
-
   const handleRouteToDeveloper = useCallback(async () => {
     if (!selectedTicket || reroutingTicket) return;
     setReroutingTicket(true);
     try {
       const res = await ticketsApi.routeToDeveloper(selectedTicket.id);
-      const data = (await res.json().catch(() => ({}))) as { error?: string; assignedToName?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; assignedToName?: string; routingSkipped?: boolean };
       if (!res.ok) {
         showToast(data.error || 'Could not route to developer.', 'error');
         return;
       }
       await refreshTicketList();
       await refreshActivity(selectedTicket.id, true);
-      showToast(data.assignedToName ? `Routed to ${data.assignedToName}.` : 'Routed to developer.', 'success');
+      if (data.routingSkipped) {
+        showToast(data.assignedToName ? `Routed back to ${data.assignedToName}.` : 'Routed back to the assigned developer.', 'success');
+      } else {
+        showToast(data.assignedToName ? `Routed to ${data.assignedToName}.` : 'Routed to developer.', 'success');
+      }
     } catch {
       showToast('Could not route to developer.', 'error');
     } finally {
@@ -943,12 +938,12 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
                     </button>
                     <button
                       type="button"
-                      className={queueOwnership === 'team' ? 'active' : ''}
-                      onClick={() => { setQueueOwnership('team'); resetPage(); }}
+                      className={queueOwnership === 'org' ? 'active' : ''}
+                      onClick={() => { setQueueOwnership('org'); resetPage(); }}
                       role="tab"
-                      aria-selected={queueOwnership === 'team'}
+                      aria-selected={queueOwnership === 'org'}
                     >
-                      {isOrgViewer(user) ? 'Organization' : 'All team'} <span>{tabCounts.org}</span>
+                      Organization <span>{tabCounts.org}</span>
                     </button>
                   </>
                 ) : (
@@ -1089,19 +1084,15 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
               user={user}
               canReroute={canReroute}
               reroutingTicket={reroutingTicket}
-              canEditDetails={canEditDetails}
               canComment={canComment}
               canMutate={canMutateSelected}
               isQaUser={isQaUser}
               isDevUser={isDevUser}
               canRouteToDeveloper={canRouteToDeveloper}
+      routeToDeveloperLabel={routeToDeveloperLabel}
               canRerouteQa={canRerouteQa}
               canRouteToQa={canRouteToQa}
-              editingTitle={editingTitle}
-              editingDesc={editingDesc}
-              editTitleValue={editTitleValue}
-              editDescValue={editDescValue}
-              savingDetails={savingDetails}
+              routeToQaDisabledReason={routeToQaDisabledReason}
               comments={selectedComments}
               commentsLoading={commentsLoading}
               commentDraft={commentDraft}
@@ -1113,21 +1104,6 @@ export function TicketHistoryPage({ mode = 'history' }: { mode?: TicketHistoryMo
               onRouteToQa={() => { void handleRouteToQa(); }}
               onQaVerify={() => { void handleQaVerify(); }}
               onCloseTicket={() => { void handleStatusChange('closed'); }}
-              onEditTitleStart={() => {
-                if (!selectedTicket) return;
-                setEditingTitle(true);
-                setEditTitleValue(selectedTicket.title);
-              }}
-              onEditDescStart={() => {
-                if (!selectedTicket) return;
-                setEditingDesc(true);
-                setEditDescValue(selectedTicket.description);
-                setEditReplicationValue(selectedTicket.replication_steps || '');
-              }}
-              onEditTitleChange={setEditTitleValue}
-              onEditDescChange={setEditDescValue}
-              onSaveDetails={() => { void handleSaveDetails(); }}
-              onCancelEditDesc={() => setEditingDesc(false)}
               onDraftChange={setCommentDraft}
               onSubmitComment={() => { void handleAddComment(); }}
               onDeleteComment={(id) => { void handleDeleteComment(id); }}

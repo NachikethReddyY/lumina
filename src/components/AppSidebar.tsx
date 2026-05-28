@@ -11,7 +11,6 @@ import {
   UserCheck,
   AlertCircle,
   Clock,
-  Cpu,
   TicketIcon,
   ChevronRight,
   Inbox,
@@ -23,7 +22,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser"
 import { useApiSWR } from "../hooks/useApiSWR"
 import { notificationsApi, usersApi, type ApiNotification, type ApiUser } from "../utils/apiClient"
 import { getUserRoleLabel } from "../utils/userDisplay"
-import { canAccessApprovalQueue } from "../utils/orgRoles"
+import { canAccessApprovalQueue, canAccessUserDirectory } from "../utils/orgRoles"
 import { clearAuthSession } from "../utils/sessionAuth"
 import { apiAssetUrl } from "../utils/apiBase"
 import "./Sidebar.css"
@@ -75,7 +74,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
-  const isAdmin = user?.role === "admin"
+  const showUserDirectory = canAccessUserDirectory(user)
   const showApprovals = canAccessApprovalQueue(user)
 
   const { data: notificationsData, loading: notifLoading, revalidate: revalidateNotifications } = useApiSWR<ApiNotification[]>(
@@ -92,7 +91,7 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
   const notifications = notificationsData ?? []
 
   const { data: usersMeta } = useApiSWR<{ pending: number; total: number }>(
-    isAdmin ? "users:sidebar-meta" : null,
+    showUserDirectory ? "users:sidebar-meta" : null,
     async () => {
       const res = await usersApi.list()
       if (!res.ok) throw new Error("Could not load users.")
@@ -131,14 +130,8 @@ export function AppSidebar({ isCollapsed, onToggle }: AppSidebarProps) {
           },
         ]
       : []),
-    ...(isAdmin
+    ...(showUserDirectory
       ? [
-          {
-            title: "AI Decisions",
-            url: "/admin/routing-logs",
-            icon: Cpu,
-            color: "#c08532",
-          },
           {
             title: "User Directory",
             url: "/admin/users",

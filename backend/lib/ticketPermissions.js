@@ -1,4 +1,4 @@
-const { isOrgViewer, isTeamManager, isHrAdmin, isDeveloper, isQaManager } = require('./teamScope');
+const { canViewOrgQueue, isTeamManager, isHrAdmin, isDeveloper, isQaManager } = require('./teamScope');
 
 function ticketAssigneeId(ticket = {}) {
   return ticket.assigned_to ?? ticket.assigned_to_id ?? ticket.qa_assignee_id ?? null;
@@ -28,14 +28,11 @@ function isSubmitter(user = {}, ticket = {}) {
   return ticketSubmitterId(ticket) === user.id;
 }
 
-/**
- * READ access: approved org policy — every active user sees all tickets and assignments.
- * Mutations (status, reroute, edit) stay restricted in their own handlers.
- */
 function canViewTicket(user = {}, ticket = {}) {
   if (!user?.id || !ticket) return false;
   if (user.status && user.status !== 'active') return false;
-  return true;
+  if (canViewOrgQueue(user)) return true;
+  return isSubmitter(user, ticket) || isAssignee(user, ticket);
 }
 
 function canCommentOnTicket(user = {}, ticket = {}) {
@@ -118,7 +115,6 @@ module.exports = {
   isDevAssignee,
   isDeveloper,
   isHrAdmin,
-  isOrgViewer,
   isQaAssignee,
   isSubmitter,
   isTeamManager,

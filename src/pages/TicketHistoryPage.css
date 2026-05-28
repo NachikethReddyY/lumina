@@ -1710,6 +1710,28 @@
 .th-comment-thread {
   display: grid;
   gap: 10px;
+  max-height: none;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Keep comments panel scrollable regardless of surrounding layout constraints. */
+.th-comments-card {
+  display: flex;
+  flex-direction: column;
+  max-height: none;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.th-comments-card .th-comment-thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(56vh, 680px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
 }
 
 .th-comment-item {
@@ -2307,6 +2329,8 @@
 
 .th-detail-panels {
   gap: 12px;
+  align-content: start;
+  min-height: 0;
 }
 
 .th-section-card {
@@ -2342,6 +2366,8 @@
   background: rgba(250, 250, 247, 0.72);
   font-size: 12.5px;
   line-height: 1.58;
+  max-height: 240px;
+  overflow: auto;
 }
 
 .th-route-badge {
@@ -3682,4 +3708,14 @@
   .th-ticket-action-btn {
     width: 100%;
   }
+}
+
+/* Ensure middle panel always owns vertical scrolling. */
+.th-ticket-main {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }

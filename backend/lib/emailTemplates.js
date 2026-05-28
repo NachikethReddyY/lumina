@@ -232,9 +232,6 @@ function onboardingSubmittedNotificationEmailHtml({ userName, userEmail, jobTitl
 module.exports = {
   verificationEmailHtml,
   passwordResetEmailHtml,
-  passwordResetOtpEmailHtml,
-  ticketAssignedEmailHtml,
-  ticketStatusChangedEmailHtml,
   userRejectedEmailHtml,
   userApprovedEmailHtml,
   userDeletedEmailHtml,

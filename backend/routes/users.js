@@ -5,7 +5,7 @@ const db = require('../db');
 const { requireAuth, requireAuthAny, requireOnboarding, requireRole } = require('../middleware/auth');
 const { validationError } = require('../lib/authValidation');
 const { isPlaceholderName, serializeUser } = require('../lib/userProfile');
-const { isHrAdmin, isTeamManager } = require('../lib/teamScope');
+const { canAccessUserDirectory, isHrAdmin, isTeamManager } = require('../lib/teamScope');
 const { sendMail } = require('../lib/mailer');
 const { getFrontendBaseUrl } = require('../lib/frontendUrl');
 const { userDeletedEmailHtml, userApprovedEmailHtml, userRejectedEmailHtml, onboardingSubmittedNotificationEmailHtml } = require('../lib/emailTemplates');
@@ -265,6 +265,10 @@ router.patch('/me', requireAuthAny, async (req, res, next) => {
 });
 
 router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
+  if (!canAccessUserDirectory(req.user)) {
+    return res.status(403).json({ error: 'Only HR and managers can view the user directory.' });
+  }
+
   try {
     const values = [];
     const clauses = [];
@@ -301,7 +305,7 @@ router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin
   }
 
   const canManageAnyStatus = isHrAdmin(req.user);
-  const canSuspendOnly = req.user.role === 'admin' && status === 'suspended';
+  const canSuspendOnly = isTeamManager(req.user) && status === 'suspended';
   if (!canManageAnyStatus && !canSuspendOnly) {
     return res.status(403).json({ error: 'Only HR can approve accounts. Managers can suspend active accounts.' });
   }
@@ -354,6 +358,10 @@ router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin
 });
 
 router.patch('/:id/role', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
+  if (!isHrAdmin(req.user)) {
+    return res.status(403).json({ error: 'Only HR can change user roles.' });
+  }
+
   const role = String(req.body?.role ?? '').trim();
   if (!['user', 'admin'].includes(role)) {
     return res.status(400).json(validationError({ role: 'Role must be user or admin' }));
@@ -393,20 +401,52 @@ router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => 
     return res.status(403).json({ error: 'Managers cannot delete users. Suspend the account instead.' });
   }
 
+  const client = await db.pool.connect();
   try {
-    const check = await db.query(`SELECT id, email, role, first_name FROM users WHERE id = $1`, [targetId]);
+    await client.query('BEGIN');
+    const check = await client.query(`SELECT id, email, role, first_name FROM users WHERE id = $1`, [targetId]);
     if (!check.rows[0]) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Prevent admins from deleting themselves
-    if (!isOwnAccount && check.rows[0].role === 'admin') {
-      return res.status(400).json({ error: 'Cannot delete another admin account' });
     }
 
     const { email, first_name } = check.rows[0];
 
-    await db.query(
+    // Reassign categories owned by the target user before delete (FK is RESTRICT).
+    // Prefer the current actor when deleting someone else; otherwise pick any active HR admin.
+    let categoriesOwnerId = isOwnAccount ? null : req.user.id;
+    if (!categoriesOwnerId) {
+      const fallbackOwner = await client.query(
+        `SELECT id
+         FROM users
+         WHERE id <> $1 AND role = 'admin' AND status = 'active' AND department = 'HR'
+         ORDER BY created_at ASC
+         LIMIT 1`,
+        [targetId]
+      );
+      categoriesOwnerId = fallbackOwner.rows[0]?.id || null;
+    }
+
+    const ownedCategories = await client.query(
+      `SELECT COUNT(*)::int AS count FROM categories WHERE created_by = $1`,
+      [targetId]
+    );
+    if ((ownedCategories.rows[0]?.count || 0) > 0 && !categoriesOwnerId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'Cannot delete this account because it owns categories and no alternate HR admin is available to transfer ownership.',
+      });
+    }
+    if (categoriesOwnerId) {
+      await client.query(
+        `UPDATE categories
+         SET created_by = $2
+         WHERE created_by = $1`,
+        [targetId, categoriesOwnerId]
+      );
+    }
+
+    await client.query(
       `INSERT INTO audit_logs (actor_id, action, metadata)
        VALUES ($1, 'user_deleted', $2::jsonb)`,
       [req.user.id, JSON.stringify({ deleted_email: email, target_id: targetId })]
@@ -426,10 +466,14 @@ router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => 
       // Continue with deletion even if email fails
     }
 
-    await db.query(`DELETE FROM users WHERE id = $1`, [targetId]);
+    await client.query(`DELETE FROM users WHERE id = $1`, [targetId]);
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (error) {
+    await client.query('ROLLBACK');
     next(error);
+  } finally {
+    client.release();
   }
 });
 

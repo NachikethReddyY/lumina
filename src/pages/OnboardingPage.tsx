@@ -126,7 +126,7 @@ export function OnboardingPage() {
     if (category) setSelectedCategory(category);
     if (role) setSelectedRole(role);
     setRestored(true);
-  }, [user?.id, user?.department, user?.job_title]);
+  }, [user]);
 
   useEffect(() => {
     if (!user || !restored) return;
@@ -134,7 +134,7 @@ export function OnboardingPage() {
       category: selectedCategory,
       subtitle: selectedRole,
     });
-  }, [user?.id, selectedCategory, selectedRole, restored]);
+  }, [user, selectedCategory, selectedRole, restored]);
 
   const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { width, height } = e.currentTarget;

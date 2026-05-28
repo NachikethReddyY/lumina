@@ -211,8 +211,11 @@ function getReportPeriod(period = '30d') {
     const start = startOfWeekMonday(end);
     const weekEnd = new Date(start);
     weekEnd.setDate(weekEnd.getDate() + 6);
-    const titleHeading = `WEEK OF ${formatShortDate(start).toUpperCase()} – ${formatShortDate(weekEnd).toUpperCase()}, ${end.getFullYear()} REPORT`;
-    const periodLabel = `Week of ${formatShortDate(start)} – ${formatShortDate(weekEnd)}, ${end.getFullYear()}`;
+    const startDay = start.toLocaleDateString('en-US', { day: '2-digit' });
+    const endDay = weekEnd.toLocaleDateString('en-US', { day: '2-digit' });
+    const monthName = weekEnd.toLocaleDateString('en-US', { month: 'short' });
+    const titleHeading = `${startDay}-${endDay} ${monthName} HR REPORT`;
+    const periodLabel = `Week range: ${formatShortDate(start)} - ${formatShortDate(weekEnd)}, ${end.getFullYear()}`;
     return {
       periodType: 'week',
       start,
