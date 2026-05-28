@@ -20,12 +20,21 @@ const { canMutateTicket, canViewTicket, canRerouteTicket, canSendToQa, isAssigne
 
 const router = express.Router();
 
+// Ticket API backing the main product experience:
+// - useTicketList feeds UserDashboard, QAManagerDashboard, RoleDashboardPage,
+//   TicketHistoryPage, and the queue/history routes.
+// - CreateTicketModal posts new user tickets here.
+// - TicketDetailPanel, TicketSideRail, charts, comments, and timeline controls
+//   depend on the joined assignee/category fields returned by these queries.
 router.use(requireAuth, requireOnboarding);
 
+// Shared SQL fragment: normalize names so the frontend can render null instead
+// of empty strings when an assignee profile is incomplete.
 function cleanPersonNameSql(expr) {
   return `NULLIF(TRIM(${expr}), '')`;
 }
 
+// Reusable visibility predicate for "tickets assigned to current user" scopes.
 function assignedToUserSql(paramIndex) {
   return `EXISTS (
     SELECT 1
@@ -34,10 +43,13 @@ function assignedToUserSql(paramIndex) {
   )`;
 }
 
+// User-facing names returned to route responses and audit metadata.
 function userDisplayName(user) {
   return `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || null;
 }
 
+// Keep developer routing pools focused on developers even though the database
+// uses the broad "admin" role for all staff-like users.
 function isDeveloperRoutingCandidate(admin = {}) {
   const department = String(admin.department || '').trim();
   if (department === 'Developers') return true;
@@ -45,6 +57,8 @@ function isDeveloperRoutingCandidate(admin = {}) {
   return isDeveloper(admin);
 }
 
+// Store a compact copy of each AI/manual routing decision on tickets.metadata.
+// notificationsApi.aiDecisions reads this JSON for the frontend decision panel.
 function buildRoutingMetadata(routing) {
   return {
     source: routing.source,
@@ -54,6 +68,10 @@ function buildRoutingMetadata(routing) {
   };
 }
 
+// Common assignment transaction used by manual reroute, AI reroute, QA handoff,
+// and developer handoff flows. It updates ticket_assignment, ticket status,
+// tickets.metadata.routing, and audit_logs together so frontend lists, timelines,
+// notifications, and AI decision screens stay consistent after one API call.
 async function applyRoutingAssignment(client, { ticket, routing, actorId, auditAction, assignmentMode, assignmentRole = 'developer', requestedAssignee = null }) {
   if (!routing.assignedAdminId) {
     throw Object.assign(new Error('No admins are available for routing'), { status: 409 });
@@ -119,6 +137,9 @@ async function applyRoutingAssignment(client, { ticket, routing, actorId, auditA
   return { assignedUser, assignedToName, routingMetadata };
 }
 
+// Ticket list endpoint. Query params map directly to ticketsApi.list({ scope,
+// status }) in src/utils/apiClient.ts. The response shape matches ApiTicket and
+// includes both QA and developer assignment slots for role-specific UI controls.
 router.get('/', async (req, res, next) => {
   try {
     const values = [];
@@ -201,6 +222,8 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Workload cards and routing controls use this to show who has capacity before
+// or after Lumina makes an assignment.
 router.get('/admin/workload', requireRole('admin'), async (_req, res, next) => {
   try {
     const data = await getAdminWorkloads();
@@ -210,6 +233,7 @@ router.get('/admin/workload', requireRole('admin'), async (_req, res, next) => {
   }
 });
 
+// SolvedByAssigneeChart source for team/admin dashboards.
 router.get('/stats/solved-by-assignee', async (req, res, next) => {
   try {
     const period = String(req.query.period || '7d').trim();
@@ -277,6 +301,7 @@ router.get('/stats/solved-by-assignee', async (req, res, next) => {
   }
 });
 
+// Throughput chart source: created/resolved/rerouted counts for the last week.
 router.get('/stats/throughput', requireRole('admin'), async (_req, res, next) => {
   try {
     const result = await db.query(
@@ -323,6 +348,8 @@ router.get('/stats/throughput', requireRole('admin'), async (_req, res, next) =>
   }
 });
 
+// TicketTimelinePanel source. It returns audit events for exactly one ticket
+// after checking the same visibility rules as the detail view.
 router.get('/:id/activity', async (req, res, next) => {
   try {
     const ticketRow = await db.query(
@@ -359,6 +386,7 @@ router.get('/:id/activity', async (req, res, next) => {
   }
 });
 
+// Ticket detail endpoint used when TicketHistoryPage opens a selected row by ID.
 router.get('/:id', async (req, res, next) => {
   try {
     const result = await db.query(
@@ -407,6 +435,9 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+// CreateTicketModal posts here. New tickets start as pending_routing so the
+// backend can immediately choose QA or developer ownership before the queue
+// displays the ticket as actively assigned.
 router.post('/', requireRole('user'), async (req, res, next) => {
   const parsed = validateTicketCreateBody(req.body);
   if (!parsed.ok) {
@@ -570,6 +601,9 @@ router.post('/', requireRole('user'), async (req, res, next) => {
   }
 });
 
+// Manual assignment endpoint for admin ticket controls. Selecting the special
+// Lumina AI account intentionally delegates to chooseAssignee instead of storing
+// that system account as the owner.
 router.post('/:id/assign', async (req, res, next) => {
   const parsed = validateTicketAssignmentBody(req.body);
   if (!parsed.ok) {
@@ -679,6 +713,7 @@ router.post('/:id/assign', async (req, res, next) => {
   }
 });
 
+// Reroute the current developer assignment through the routing engine.
 router.post('/:id/route', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
@@ -729,6 +764,8 @@ router.post('/:id/route', async (req, res, next) => {
   }
 });
 
+// Status updates from ticket action buttons. closed_at is stamped here so the
+// analytics page reflects real workflow changes, not only seed data.
 router.patch('/:id/status', async (req, res, next) => {
   const parsed = validateTicketStatusBody(req.body);
   if (!parsed.ok) {
@@ -788,6 +825,7 @@ router.patch('/:id/status', async (req, res, next) => {
   }
 });
 
+// Priority edits from assignee controls; audit_logs feeds timeline and sidebar.
 router.patch('/:id/priority', async (req, res, next) => {
   const parsed = validateTicketPriorityBody(req.body);
   if (!parsed.ok) {
@@ -842,6 +880,8 @@ router.patch('/:id/priority', async (req, res, next) => {
   }
 });
 
+// QA-to-developer handoff action used by TicketDetailPanel. It either returns to
+// the existing paired developer or asks Lumina to pick one from developer staff.
 router.post('/:id/route-to-developer', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
@@ -925,6 +965,8 @@ router.post('/:id/route-to-developer', async (req, res, next) => {
   }
 });
 
+// QA reassignment action for QA owners/managers when testing work needs a new QA
+// assignee but should remain in the QA lane.
 router.post('/:id/reroute-to-another-qa', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
@@ -974,6 +1016,8 @@ router.post('/:id/reroute-to-another-qa', async (req, res, next) => {
   }
 });
 
+// Developer-to-QA handoff action. The frontend uses this when a developer wants
+// QA verification before a ticket can be resolved.
 router.post('/:id/route-to-qa', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
@@ -1052,6 +1096,8 @@ router.post('/:id/route-to-qa', async (req, res, next) => {
   }
 });
 
+// QA verification action. Marks the ticket resolved after the active QA assignee
+// confirms the fix, then timeline/analytics pick up the audit and status change.
 router.post('/:id/qa-verify', async (req, res, next) => {
   try {
     const result = await db.query(

@@ -1,5 +1,8 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Validation helpers for /auth and password/account forms. The returned
+// `details` object is shaped for AuthValidationErrorBody in src/utils/apiClient.ts
+// so React forms can attach messages to individual fields.
 function validationError(details) {
   return {
     error: 'Validation failed',

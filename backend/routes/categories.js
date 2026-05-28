@@ -5,6 +5,9 @@ const { validateCategoryBody, validationError } = require('../lib/ticketValidati
 
 const router = express.Router();
 
+// Category API for CreateTicketModal and any admin category management UI. The
+// ticket form only offers active categories, while historical tickets keep their
+// category labels through tickets.category_id.
 router.get('/', requireAuth, requireOnboarding, async (_req, res, next) => {
   try {
     const result = await db.query(
@@ -61,4 +64,3 @@ router.put('/:id', requireAuth, requireOnboarding, requireRole('admin'), async (
 });
 
 module.exports = router;
-

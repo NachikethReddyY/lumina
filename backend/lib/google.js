@@ -2,6 +2,9 @@ const { OAuth2Client } = require('google-auth-library');
 
 let client;
 
+// Google token verification for GoogleAuthButton. The backend accepts either an
+// ID token or access token, verifies it with Google, then /auth/google links the
+// provider identity to the local users table.
 function getClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {

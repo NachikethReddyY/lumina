@@ -3,6 +3,9 @@
 const LUMINA_LOGO_DATA_URI =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDIiIGhlaWdodD0iNDIiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0ibGciIHgxPSI2NCIgeTE9IjAiIHgyPSI2NCIgeTI9IjEyOCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNGRjhBNUIiLz48c3RvcCBvZmZzZXQ9IjM0JSIgc3RvcC1jb2xvcj0iI0ZGN0FBRSIvPjxzdG9wIG9mZnNldD0iNjglIiBzdG9wLWNvbG9yPSIjQzA4NEZDIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjQTc4QkZBIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHBhdGggZD0iTTY0IDBRNjQgNjQgMTI4IDY0UTY0IDY0IDY0IDEyOFE2NCA2NCAwIDY0UTY0IDY0IDY0IDBaIiBmaWxsPSJ1cmwoI2xnKSIvPjwvc3ZnPg==';
 
+// Central HTML email templates for auth, account approval, ticket assignment,
+// and HR notification flows. Routes pass frontend URLs into these templates so
+// email buttons land in the React app, not on the API server.
 function card({ title, preview, intro, buttonText, url, footer, extraHtml }) {
   const safeUrl = url ? String(url) : '';
 

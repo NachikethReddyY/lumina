@@ -1,3 +1,7 @@
+// User serialization helpers shared by auth, /users/me, and setup flows.
+// ProtectedRoute relies on needs_profile_name to route users to
+// /complete-profile before onboarding and dashboard pages.
+
 /** Placeholder names before the user enters their real name (email signup / OAuth). */
 function isPlaceholderName(firstName, lastName) {
   const f = String(firstName ?? '').trim().toLowerCase();

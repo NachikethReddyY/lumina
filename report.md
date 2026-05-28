@@ -11,8 +11,8 @@ AI-Powered Helpdesk and Issue Tracking Platform
 | **GitHub**          | [Repository: soc-DBSP/react-nodejs-project1-NachikethReddyY](https://github.com/soc-DBSP/react-nodejs-project1-NachikethReddyY)                          |
 | **DDL**             | [DDL.sql](https://github.com/soc-DBSP/react-nodejs-project1-NachikethReddyY/blob/main/backend/db/DDL.sql)                                                |
 | **Seed Data**       | [seed.sql](https://github.com/soc-DBSP/react-nodejs-project1-NachikethReddyY/blob/main/backend/db/seed.sql)                                              |
-| **Demonstration**   | In progress                                                                                                                                              |
-| **Lucid Chart ERD** | [Lucid Chart ERD](https://lucid.app/lucidchart/d7d61fe3-ddef-4f76-abc5-c4e2bb971056/edit?invitationId=inv_d83dadf3-d00a-4177-8953-c1ea82ba3906&page=0_0) |
+| **Demonstration**   | [Demo Video](https://youtu.be/JE08HKLTtxM?si=jWNEdIFWVrkYlv2e)                                                                                                                                           |
+| **Lucid Chart ERD** | [Lucid Chart ERD](https://lucid.app/lucidchart/d7d61fe3-ddef-4f76-abc5-c4e2bb971056/edit?viewport_loc=-4248%2C-1913%2C8492%2C5141%2C0_0&invitationId=inv_d83dadf3-d00a-4177-8953-c1ea82ba3906) |
 
 
 *Submitted for database design, implementation, and web development assessment.*
@@ -21,43 +21,25 @@ Date: May 28, 2026
 
 **Table of Contents**
 
-**1 Introduction**
-
-1.1 Project Overview
-
-1.2 Project Workflow
-
-**2 Database Design**
-
-2.1 Entity-Relationship Diagram (ERD)
-
-2.2 Entities and Attributes
-
-2.3 Data Integrity
-
-**3 Database Implementation**
-
-3.1 Implementation of Relationships
-
-3.1.1 One-to-One (1:1) Relationships
-
-3.1.2 One-to-Many (1:M) Relationships
-
-3.1.3 Many-to-Many (N:M) Relationships
-
-3.2 Creation of SQL Tables
-
-3.3 Repository and Tooling Evolution
-
-3.4 Sample Data and Queries
-
-**4 Challenges Encountered and Solutions**
-
-**5 Web Development**
-
-5.1 Key Features Implemented
-
-**Conclusion**
+- [1 Introduction](#1-introduction)
+  - [1.1 Project Overview](#11-project-overview)
+  - [1.2 Project Workflow](#12-project-workflow)
+- [2 Database Design](#2-database-design)
+  - [2.1 Entity-Relationship Diagram (ERD)](#21-entity-relationship-diagram-erd)
+  - [2.2 Entities and Attributes](#22-entities-and-attributes)
+  - [2.3 Data Integrity](#23-data-integrity)
+- [3 Database Implementation](#3-database-implementation)
+  - [3.1 Implementation of Relationships](#31-implementation-of-relationships)
+    - [3.1.1 One-to-One (1:1) Relationships](#311-one-to-one-11-relationships)
+    - [3.1.2 One-to-Many (1:M) Relationships](#312-one-to-many-1m-relationships)
+    - [3.1.3 Many-to-Many (M:M) Relationships](#313-many-to-many-mm-relationships)
+  - [3.2 Creation of SQL Tables](#32-creation-of-sql-tables)
+  - [3.3 Repository and Tooling Evolution](#33-repository-and-tooling-evolution)
+  - [3.4 Sample Data and Queries](#34-sample-data-and-queries)
+- [4 Challenges Encountered and Solutions](#4-challenges-encountered-and-solutions)
+- [5 Web Development](#5-web-development)
+  - [5.1 Key Features Implemented](#51-key-features-implemented)
+- [Conclusion](#conclusion)
 
 # 1 Introduction
 
@@ -165,7 +147,7 @@ One-to-many relationships form the backbone of the system. Users submit tickets,
 
 The delete behaviour is intentional. Deleting a user removes personal operational records where appropriate, but audit logs keep their historical event rows by setting `actor_id` to `NULL`. This protects reporting integrity while still allowing account cleanup.
 
-### 3.1.3 Many-to-Many (N:M) Relationships
+### 3.1.3 Many-to-Many (M:M) Relationships
 
 Ticket assignment is the most important many-to-many relationship. A ticket may move between assigned users over time, and each assignee may work on many tickets. Instead of storing a single `assigned_to` column directly on `tickets`, Lumina uses `ticket_assignment`.
 

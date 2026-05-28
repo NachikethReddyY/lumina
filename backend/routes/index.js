@@ -11,6 +11,9 @@ const usersRoutes = require('./users');
 
 const router = express.Router();
 
+// /api/v1 route registry. The frontend API client mirrors these mount points in
+// src/utils/apiClient.ts, so changing a path here also means updating the client
+// wrapper, hooks, and page-level cache keys that call it.
 router.get('/health', (req, res) => {
   res.json({ ok: true, service: 'lumina-api', version: '1' });
 });

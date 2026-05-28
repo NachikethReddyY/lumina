@@ -5,6 +5,9 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 /**
  * Resolve which env file to load at the repo root.
+ * The backend and Vite frontend both depend on root-level environment choices:
+ * API/base URL, Google OAuth, SMTP, and database settings need to point at the
+ * same deployment profile for auth redirects and CORS to work.
  *
  * Priority:
  * 1. `LUMINA_ENV_FILE` — absolute path, or relative to `process.cwd()`

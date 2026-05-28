@@ -1,5 +1,8 @@
 const jwt = require('jsonwebtoken');
 
+// JWT helpers for apiClient's Authorization: Bearer token flow. The payload is
+// intentionally small because every protected API call re-loads the latest user
+// record before applying permissions.
 function getSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret && process.env.NODE_ENV === 'production') {

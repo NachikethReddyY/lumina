@@ -1,104 +1,33 @@
 require('./lib/loadRootEnv').loadRootEnv();
 
-const fs = require('fs');
 const { createApp } = require('./app');
 const db = require('./db');
-
-// #region agent log
-const _AGENT_LOG = '/Users/nr/Developer/dbs-restart/.cursor/debug-082fa8.log';
-const _AGENT_SESSION = '082fa8';
-function _agentDbg(hypothesisId, location, message, data) {
-  const payload = {
-    sessionId: _AGENT_SESSION,
-    hypothesisId,
-    location,
-    message,
-    data,
-    timestamp: Date.now(),
-  };
-  try {
-    fs.appendFileSync(_AGENT_LOG, JSON.stringify(payload) + '\n');
-  } catch (_) {}
-}
-// #endregion
 
 const PORT = process.env.PORT || 5000;
 const app = createApp();
 
-// #region agent log
-process.on('exit', (code) => {
-  try {
-    fs.appendFileSync(
-      _AGENT_LOG,
-      JSON.stringify({
-        sessionId: _AGENT_SESSION,
-        hypothesisId: 'H3',
-        location: 'server.js:exit',
-        message: 'process_exit',
-        data: { code },
-        timestamp: Date.now(),
-      }) + '\n'
-    );
-  } catch (_) {}
-});
-process.on('uncaughtException', (err) => {
-  _agentDbg('H4', 'server.js:uncaughtException', err.message, {
-    name: err.name,
-  });
-});
-process.on('unhandledRejection', (reason) => {
-  _agentDbg('H5', 'server.js:unhandledRejection', String(reason), {});
-});
-// #endregion
-
+// Startup guard for local development and serverless cold starts. The schema is
+// owned by backend/db/DDL.sql; this check only tells developers when the API is
+// pointed at an empty or unapplied database instead of running migrations here.
 const initializeDatabase = async () => {
-  // #region agent log
-  _agentDbg('H1', 'server.js:initializeDatabase', 'start', {});
-  // #endregion
   try {
-    await db.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = 'audit_logs'
-        ) THEN
-          ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_actor_id_fkey;
-          ALTER TABLE audit_logs ALTER COLUMN actor_id DROP NOT NULL;
-          ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_actor_id_fkey
-            FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;
-        END IF;
-      END $$;
-    `);
-
     const result = await db.query('SELECT COUNT(*)::int AS n FROM users');
     if (result.rows[0].n === 0) {
       console.warn(
         'No users found. Apply backend/db/DDL.sql to load the schema and development seed data.'
       );
     }
-    // #region agent log
-    _agentDbg('H1', 'server.js:initializeDatabase', 'query_ok', {
-      userCount: result.rows[0].n,
-    });
-    // #endregion
   } catch (error) {
     console.error('Error initializing database:', error.message);
     console.error(
       'Hint: apply schema with `psql "$DATABASE_URL" -f db/DDL.sql` if tables are missing.'
     );
-    // #region agent log
-    _agentDbg('H1', 'server.js:initializeDatabase', 'query_err', {
-      message: error.message,
-    });
-    // #endregion
   }
 };
 
 if (process.env.VERCEL) {
-  // Database check without blocking in serverless context
+  // In serverless deployments, start handling requests while the non-mutating
+  // database check runs in the background.
   initializeDatabase();
 } else {
   initializeDatabase().then(() => {
@@ -106,49 +35,17 @@ if (process.env.VERCEL) {
       // Express wires this callback to `server.once('error', done)` as well as the
       // listening callback, so it runs with an Error on bind failures (e.g. EADDRINUSE).
       if (arg instanceof Error) {
-        // #region agent log
-        _agentDbg('H2', 'server.js:listen', 'listen_failed_callback', {
-          code: arg.code,
-          message: arg.message,
-        });
-        // #endregion
         console.error(`Server failed to listen on port ${PORT}:`, arg.message);
         process.exit(1);
       }
       console.log(`Server is running on http://localhost:${PORT}`);
-      // #region agent log
-      _agentDbg('H2', 'server.js:listen', 'listen_callback', {
-        listening: server.listening,
-        address: server.address(),
-      });
-      // #endregion
     });
-    // #region agent log
+
+    // Surface port collisions and other bind failures in local development.
     server.on('error', (err) => {
-      _agentDbg('H2', 'server.js:server.error', err.message, {
-        code: err.code,
-      });
+      console.error(`Server error on port ${PORT}:`, err.message);
     });
-    server.on('close', () => {
-      _agentDbg('H2', 'server.js:server.close', 'server_closed', {});
-    });
-    // #endregion
   }).catch((err) => {
-    // #region agent log
-    try {
-      fs.appendFileSync(
-        _AGENT_LOG,
-        JSON.stringify({
-          sessionId: _AGENT_SESSION,
-          hypothesisId: 'H6',
-          location: 'server.js:init_chain',
-          message: 'initializeDatabase_then_rejected',
-          data: { message: err && err.message },
-          timestamp: Date.now(),
-        }) + '\n'
-      );
-    } catch (_) {}
-    // #endregion
     throw err;
   });
 }

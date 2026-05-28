@@ -5,11 +5,15 @@ const { isOrgViewer } = require('../lib/teamScope');
 
 const router = express.Router();
 
+// Notification feed for AppSidebar. It derives user-visible events from
+// audit_logs instead of maintaining a separate inbox table, so ticket actions,
+// routing decisions, comments, and account approvals all use one activity source.
 router.use(requireAuth, requireOnboarding);
 
 // Returns recent activity relevant to the current user:
 // - for users: events on tickets they submitted
-// - for admins/super_admin: all recent system events
+// - for org viewers: all recent system events
+// - for admins: events on tickets currently assigned to them plus their own work
 router.get('/', async (req, res, next) => {
   try {
     let result;
@@ -76,6 +80,8 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// AI decision drawer/analytics source. The frontend displays routing reasoning
+// from tickets.metadata so admins can inspect why Lumina chose an assignee.
 router.get('/ai-decisions', requireAuth, async (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Access denied' });

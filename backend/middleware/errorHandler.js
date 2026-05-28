@@ -1,7 +1,12 @@
+// Final Express fallbacks. apiClient surfaces these JSON bodies to the React
+// pages, so errors stay machine-readable instead of returning an HTML error
+// document that the frontend cannot parse.
 function notFoundHandler(req, res) {
   res.status(404).json({ error: 'Not Found' });
 }
 
+// Hide unexpected server details in production while preserving validation and
+// permission messages that frontend forms can display directly.
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
     return next(err);

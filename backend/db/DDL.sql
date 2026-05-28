@@ -1,6 +1,28 @@
+-- Lumina backend schema
+-- -----------------------------------------------------------------------------
+-- This file is the clean, fresh-install definition for the PostgreSQL database
+-- used by the Express API under backend/routes/*.js. It intentionally avoids
+-- migration/backfill ALTER blocks; changes for already-running databases should
+-- live in a separate migration path, while this script describes the current
+-- desired schema from scratch.
+--
+-- Frontend connection map:
+-- - src/utils/apiClient.ts defines the browser-side API contract.
+-- - src/context/UserContext.tsx and auth pages read/write users, sessions,
+--   oauth_accounts, email_verifications, and password_reset through /auth and
+--   /users endpoints.
+-- - ticket dashboards, queue/history pages, and analytics views read tickets,
+--   ticket_assignment, ticket_comments, audit_logs, categories, and the
+--   admin_workload view through /tickets, /categories, /notifications, and
+--   /reports endpoints.
+
+-- pgcrypto supplies gen_random_uuid() for primary keys and crypt()/gen_salt()
+-- for development seed passwords below.
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Enums
+-- Domain enums keep database values aligned with TypeScript union types in
+-- src/utils/apiClient.ts. If a value is added here, update the frontend types,
+-- validation helpers, and status/role labels at the same time.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
@@ -35,6 +57,15 @@ BEGIN
 END $$;
 
 -- Users
+-- -----------------------------------------------------------------------------
+-- Central account table used by:
+-- - /auth/* for login, signup, email verification, Google OAuth, and reset flows.
+-- - /users/me for the current-user context, profile setup, avatar upload, and
+--   notification preferences.
+-- - /users admin endpoints for approvals, directory filtering, role changes,
+--   and profile maintenance.
+-- Frontend consumers include UserContext, ProtectedRoute, Login/SignUp,
+-- OAuthName, Onboarding, AccountSettings, Profile, AdminUsers, and AdminApprovals.
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
@@ -51,56 +82,16 @@ CREATE TABLE IF NOT EXISTS users (
   department VARCHAR(100),
   onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE,
   name_set BOOLEAN NOT NULL DEFAULT FALSE,
+  email_notifications BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at TIMESTAMP
 );
 
--- Upgrade path for databases created before columns were folded into CREATE TABLE above.
-ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title VARCHAR(255);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS name_set BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS email_notifications BOOLEAN NOT NULL DEFAULT FALSE;
-
--- Backfill: mark existing users with real names as having completed the name step.
--- Placeholders: OAuth (Google/New + User) and email signup (User + New).
-UPDATE users SET name_set = TRUE
-WHERE NOT (
-    (lower(last_name) = 'user' AND lower(first_name) IN ('new', 'google'))
-    OR (lower(last_name) = 'new' AND lower(first_name) = 'user')
-  )
-  AND first_name <> ''
-  AND last_name <> ''
-  AND name_set = FALSE;
-
--- Correct users who were incorrectly marked name_set from the User/New placeholder.
-UPDATE users SET name_set = FALSE
-WHERE name_set = TRUE
-  AND (
-    (lower(last_name) = 'user' AND lower(first_name) IN ('new', 'google'))
-    OR (lower(last_name) = 'new' AND lower(first_name) = 'user')
-  );
-
--- Migrate: remove super_admin role (legacy DBs only — skipped on fresh install).
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM pg_enum e
-    JOIN pg_type t ON t.oid = e.enumtypid
-    WHERE t.typname = 'user_role' AND e.enumlabel = 'super_admin'
-  ) THEN
-    UPDATE users SET role = 'admin'::user_role WHERE role::text = 'super_admin';
-    ALTER TYPE user_role RENAME TO user_role_old;
-    CREATE TYPE user_role AS ENUM ('user', 'admin');
-    ALTER TABLE users ALTER COLUMN role TYPE user_role USING role::text::user_role;
-    DROP TYPE user_role_old;
-  END IF;
-END $$;
-
 -- Categories
+-- -----------------------------------------------------------------------------
+-- Ticket category options shown in CreateTicketModal and used by the admin
+-- category API. tickets.category_id is restricted so historical tickets keep a
+-- valid category label even if category management is expanded later.
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(100) NOT NULL,
@@ -110,6 +101,11 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 
 -- Tickets
+-- -----------------------------------------------------------------------------
+-- Core support records behind the ticket queue, ticket history, role dashboards,
+-- and closure analytics. metadata stores routing decisions and flexible details
+-- that the backend can expose without adding a new relational column for every
+-- AI-routing explanation or workflow note.
 CREATE TABLE IF NOT EXISTS tickets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title VARCHAR(255) NOT NULL,
@@ -125,69 +121,11 @@ CREATE TABLE IF NOT EXISTS tickets (
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
--- Upgrade path: Add closed_at column for existing databases
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;
-
--- Upgrade path: allow deleting users who created categories
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_name = 'categories'
-      AND column_name = 'created_by'
-      AND is_nullable = 'NO'
-  ) THEN
-    ALTER TABLE categories ALTER COLUMN created_by DROP NOT NULL;
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-    FROM information_schema.table_constraints
-    WHERE table_name = 'categories'
-      AND constraint_name = 'categories_created_by_key'
-      AND constraint_type = 'FOREIGN KEY'
-  ) THEN
-    ALTER TABLE categories DROP CONSTRAINT categories_created_by_key;
-  END IF;
-
-  ALTER TABLE categories
-    ADD CONSTRAINT categories_created_by_key
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
-END $$;
-
--- Upgrade path: Allow user deletion with cascading deletes for user-related records
-DO $$
-BEGIN
-  -- Drop and recreate ticket_assignment constraints for CASCADE deletes
-  ALTER TABLE ticket_assignment DROP CONSTRAINT IF EXISTS ticket_assignment_assigned_to_fkey;
-  ALTER TABLE ticket_assignment ADD CONSTRAINT ticket_assignment_assigned_to_fkey
-    FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE CASCADE;
-
-  ALTER TABLE ticket_assignment DROP CONSTRAINT IF EXISTS ticket_assignment_assigned_by_fkey;
-  ALTER TABLE ticket_assignment ADD CONSTRAINT ticket_assignment_assigned_by_fkey
-    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE;
-
--- Drop and recreate ticket_comments constraint for CASCADE
-  ALTER TABLE ticket_comments DROP CONSTRAINT IF EXISTS ticket_comments_author_id_fkey;
-  ALTER TABLE ticket_comments ADD CONSTRAINT ticket_comments_author_id_fkey
-    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE;
-
-
-  -- Allow audit history to survive user deletion by nulling deleted actors.
-  ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_actor_id_fkey;
-  ALTER TABLE audit_logs ALTER COLUMN actor_id DROP NOT NULL;
-  ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_actor_id_fkey
-    FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;
-
-  -- - categories.created_by (RESTRICT - prevents category deletion)
-
-EXCEPTION WHEN others THEN
-  -- Constraints may already be updated, continue silently
-  NULL;
-END $$;
-
 -- Ticket assignments
+-- -----------------------------------------------------------------------------
+-- Tracks the active QA and developer owners for each ticket. The frontend reads
+-- these joins as qa_assignee_* and dev_assignee_* fields on ApiTicket, which
+-- drive role-specific actions in TicketDetailPanel and the queue/history cards.
 CREATE TABLE IF NOT EXISTS ticket_assignment (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -198,9 +136,11 @@ CREATE TABLE IF NOT EXISTS ticket_assignment (
   assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE ticket_assignment ADD COLUMN IF NOT EXISTS assignment_role assignment_role NOT NULL DEFAULT 'developer';
-
 -- Audit logs
+-- -----------------------------------------------------------------------------
+-- Immutable activity stream for notifications, admin audit views, ticket
+-- timelines, and report diagnostics. actor_id is nullable so audit history
+-- survives account deletion.
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -210,22 +150,27 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 -- Ticket comments
+-- -----------------------------------------------------------------------------
+-- Conversation thread shown in TicketCommentsPanel. Deletes are soft deletes:
+-- body is nulled, deleted_at/deleted_by/deletion_type become a tombstone, and
+-- audit_logs records the delete action for ticket activity.
 CREATE TABLE IF NOT EXISTS ticket_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
   author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP,
+  deleted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  deletion_type VARCHAR(20)
 );
 CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments (ticket_id, created_at ASC);
 
--- Soft-delete support: authors and admins remove comments without erasing audit history.
--- body is cleared on delete so API responses never leak the original text.
-ALTER TABLE ticket_comments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
-ALTER TABLE ticket_comments ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id);
-ALTER TABLE ticket_comments ADD COLUMN IF NOT EXISTS deletion_type VARCHAR(20);
-
 -- OAuth accounts
+-- -----------------------------------------------------------------------------
+-- Links Google identities to users for GoogleAuthButton and the /auth/google
+-- route. The provider_user_id uniqueness prevents one Google account from
+-- binding to multiple Lumina users.
 CREATE TABLE IF NOT EXISTS oauth_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -237,6 +182,9 @@ CREATE TABLE IF NOT EXISTS oauth_accounts (
 );
 
 -- Email verifications
+-- -----------------------------------------------------------------------------
+-- Stores link tokens and hashed OTP codes used by VerifyEmailPage,
+-- VerifyEmailOtpPage, and resend-verification flows. used_at prevents replay.
 CREATE TABLE IF NOT EXISTS email_verifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -247,10 +195,11 @@ CREATE TABLE IF NOT EXISTS email_verifications (
   used_at TIMESTAMP
 );
 
-ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS otp_hash TEXT;
-ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
-
 -- Password resets
+-- -----------------------------------------------------------------------------
+-- Same token/OTP pattern as email verification, consumed by ForgotPasswordPage
+-- and ResetPasswordPage. Tokens remain server-side and only hashes of OTPs are
+-- stored.
 CREATE TABLE IF NOT EXISTS password_reset (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -261,10 +210,11 @@ CREATE TABLE IF NOT EXISTS password_reset (
   used_at TIMESTAMP
 );
 
-ALTER TABLE password_reset ADD COLUMN IF NOT EXISTS otp_hash TEXT;
-ALTER TABLE password_reset ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
-
 -- Sessions
+-- -----------------------------------------------------------------------------
+-- Server-side session/audit trail created during login. The current frontend
+-- stores JWTs locally, while this table gives account settings and audit
+-- reporting a durable record of user agent, IP address, and expiry metadata.
 CREATE TABLE IF NOT EXISTS sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -275,6 +225,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   ipaddress TEXT NOT NULL
 );
 
+-- Query support for API screens and dashboards. These indexes mirror common
+-- filters in src/hooks/useTicketData.ts, src/hooks/useUsersList.ts, the sidebar
+-- notification fetch, and admin analytics endpoints.
 CREATE INDEX IF NOT EXISTS idx_categories_active ON categories (is_active);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_name_lower_unique ON categories ((lower(name)));
 CREATE INDEX IF NOT EXISTS idx_users_role_status ON users (role, status);
@@ -283,28 +236,19 @@ CREATE INDEX IF NOT EXISTS idx_tickets_category_id ON tickets (category_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status_priority ON tickets (status, priority);
 CREATE INDEX IF NOT EXISTS idx_ticket_assignment_active ON ticket_assignment (ticket_id, assigned_to, is_active);
 
--- Deactivate duplicate active assignments for the same role before creating unique indexes
-WITH ranked_assignments AS (
-  SELECT
-    id,
-    ticket_id,
-    assignment_role,
-    ROW_NUMBER() OVER (PARTITION BY ticket_id, assignment_role ORDER BY assigned_at DESC) AS rn
-  FROM ticket_assignment
-  WHERE is_active = TRUE
-)
-UPDATE ticket_assignment
-SET is_active = FALSE
-WHERE id IN (
-  SELECT id FROM ranked_assignments WHERE rn > 1
-);
-
+-- Enforce one active QA assignment and one active developer assignment per
+-- ticket. Historical inactive rows are preserved for timelines and reports.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_qa_assignment_unique ON ticket_assignment (ticket_id) WHERE is_active AND assignment_role = 'qa';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_dev_assignment_unique ON ticket_assignment (ticket_id) WHERE is_active AND assignment_role = 'developer';
 CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_email_verifications_user_id ON email_verifications (user_id, used_at, expires_at);
 CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset (user_id, used_at, expires_at);
 
+-- Admin workload view
+-- -----------------------------------------------------------------------------
+-- Summarizes open assignment load for AI routing and the admin workload chart.
+-- Backend consumers: ticketRouting.getAdminWorkloads and GET /tickets/admin/workload.
+-- Frontend consumers: useAdminWorkload, role dashboards, and routing controls.
 CREATE OR REPLACE VIEW admin_workload AS
 SELECT
   u.id AS admin_id,

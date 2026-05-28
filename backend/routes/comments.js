@@ -5,9 +5,17 @@ const { canCommentOnTicket, canDeleteComment, canViewTicket } = require('../lib/
 
 const router = express.Router({ mergeParams: true });
 
+// Nested ticket comments API mounted at /tickets/:ticketId/comments. The React
+// TicketCommentsPanel uses this for the side conversation in ticket detail
+// views, while audit_logs receives create/delete events for TicketTimelinePanel
+// and the sidebar notification feed.
 router.use(requireAuth, requireOnboarding);
 
-/** Load ticket row needed for permission checks on this thread. */
+/**
+ * Load ticket assignment context before exposing comments. This keeps comment
+ * visibility aligned with the parent ticket detail endpoint instead of letting a
+ * user enumerate comments for a ticket they cannot open in the frontend.
+ */
 async function loadTicketForComments(ticketId) {
   const result = await db.query(
     `SELECT t.id, t.submitted_by, t.status,
@@ -25,7 +33,10 @@ async function loadTicketForComments(ticketId) {
   return result.rows[0] || null;
 }
 
-/** Shape one comment row for the API (active or tombstone). */
+/**
+ * Shape one comment row for ApiComment in src/utils/apiClient.ts. Deleted bodies
+ * are withheld from the browser; TicketCommentsPanel renders tombstone_message.
+ */
 function mapCommentRow(row) {
   const authorName = `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.email;
   const isDeleted = Boolean(row.deleted_at);
@@ -65,6 +76,7 @@ function mapCommentRow(row) {
   };
 }
 
+// List comments for the selected ticket row in TicketHistoryPage.
 router.get('/', async (req, res, next) => {
   try {
     const ticket = await loadTicketForComments(req.params.ticketId);
@@ -94,6 +106,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Add a visible comment and emit a timeline event for the same ticket.
 router.post('/', async (req, res, next) => {
   const body = String(req.body?.body ?? '').trim();
   if (!body) {
@@ -143,6 +156,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// Soft-delete comments so the thread order and audit history remain intact.
 router.delete('/:commentId', async (req, res, next) => {
   try {
     const ticket = await loadTicketForComments(req.params.ticketId);

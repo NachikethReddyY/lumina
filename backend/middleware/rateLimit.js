@@ -1,5 +1,8 @@
 const buckets = new Map();
 
+// Lightweight in-memory limiter for auth and OTP endpoints. It protects the
+// frontend's login, signup, verification, and password reset forms from rapid
+// retry abuse without adding another service for the local/dev deployment.
 function rateLimit({ windowMs, max, key = (req) => req.ip || 'global' }) {
   return (req, res, next) => {
     const now = Date.now();
@@ -22,4 +25,3 @@ function rateLimit({ windowMs, max, key = (req) => req.ip || 'global' }) {
 }
 
 module.exports = { rateLimit };
-

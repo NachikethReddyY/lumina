@@ -12,6 +12,9 @@ const { userDeletedEmailHtml, userApprovedEmailHtml, userRejectedEmailHtml, onbo
 
 const router = express.Router();
 
+// Avatar uploads are written to backend/uploads/avatars and served publicly from
+// app.js at /uploads. The frontend stores only the returned URL on ApiUser and
+// uses it in profile cards, ticket assignee chips, and comments.
 const avatarStorage = multer.diskStorage({
   destination: path.join(__dirname, '../uploads/avatars'),
   filename: (_req, file, cb) => {
@@ -30,6 +33,8 @@ const avatarUpload = multer({
   },
 });
 
+// Email HR when a user finishes onboarding so the AdminApprovals page has a
+// human workflow behind it, not just a silent status change.
 async function notifyHrAdminsOfOnboardingSubmission(userName, userEmail, jobTitle, department) {
   console.log(`[ONBOARDING] notifyHrAdminsOfOnboardingSubmission called for: ${userEmail}`);
   try {
@@ -65,6 +70,8 @@ async function notifyHrAdminsOfOnboardingSubmission(userName, userEmail, jobTitl
   }
 }
 
+// Current-user endpoint for UserContext. It is intentionally available through
+// requireAuthAny so setup pages can load pending/incomplete accounts.
 router.get('/me', requireAuthAny, async (req, res, next) => {
   try {
     const google = await db.query(
@@ -79,6 +86,8 @@ router.get('/me', requireAuthAny, async (req, res, next) => {
   }
 });
 
+// OnboardingPage saves job title/department here. The backend derives role from
+// department so the frontend cannot promote itself by sending a role field.
 router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
   const jobTitle = String(req.body?.jobTitle ?? '').trim();
   const department = String(req.body?.department ?? '').trim();
@@ -100,7 +109,7 @@ router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
       paramIdx++;
     }
 
-    // Derive role from department — server-side, never trust client-provided role
+    // Derive role from department server-side; never trust client-provided role.
     const adminDepartments = ['HR', 'Managers'];
     const userDepartments = ['Developers', 'QA'];
     const derivedRole = adminDepartments.includes(department)
@@ -138,6 +147,8 @@ router.patch('/me/onboarding', requireAuthAny, async (req, res, next) => {
   }
 });
 
+// AccountSettingsPage password form. Google-only users have no password_hash and
+// receive a clear 400 so the UI can show the OAuth-specific path.
 router.patch('/me/password', requireAuth, requireOnboarding, async (req, res, next) => {
   const current = String(req.body?.currentPassword ?? '').trim();
   const next_ = String(req.body?.newPassword ?? '').trim();
@@ -177,6 +188,7 @@ router.patch('/me/password', requireAuth, requireOnboarding, async (req, res, ne
   }
 });
 
+// Profile/avatar upload path used by UserProfileCard and setup/profile screens.
 router.post('/me/avatar', requireAuthAny, avatarUpload.single('avatar'), async (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -194,6 +206,8 @@ router.post('/me/avatar', requireAuthAny, avatarUpload.single('avatar'), async (
   }
 });
 
+// AccountSettingsPage notification toggle. This persists the user's email
+// preference for backend mail notifications.
 router.patch('/me/notifications', requireAuth, requireOnboarding, async (req, res, next) => {
   const emailNotifications = req.body?.email_notifications;
   if (typeof emailNotifications !== 'boolean') {
@@ -218,7 +232,8 @@ router.patch('/me/notifications', requireAuth, requireOnboarding, async (req, re
   }
 });
 
-// PATCH /me/name — update first_name and last_name (used by NamePrompt after OAuth)
+// OAuthNamePage / complete-profile flow: replace placeholder Google/New User
+// names before the account can pass requireOnboarding.
 router.patch('/me', requireAuthAny, async (req, res, next) => {
   const firstName = String(req.body?.firstName ?? '').trim();
   const lastName  = String(req.body?.lastName  ?? '').trim();
@@ -264,6 +279,8 @@ router.patch('/me', requireAuthAny, async (req, res, next) => {
   }
 });
 
+// AdminUsersPage, AdminApprovalsPage, and sidebar admin counts use this list.
+// HR/managers can filter by role/status using usersApi.list(params).
 router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   if (!canAccessUserDirectory(req.user)) {
     return res.status(403).json({ error: 'Only HR and managers can view the user directory.' });
@@ -298,6 +315,8 @@ router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req
   }
 });
 
+// AdminApprovalsPage approval/suspension action. Approval stamps approved_by and
+// approved_at so user cards can display the account lifecycle accurately.
 router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   const status = String(req.body?.status ?? '').trim();
   if (!['active', 'pending', 'suspended'].includes(status)) {
@@ -357,6 +376,8 @@ router.patch('/:id/approval', requireAuth, requireOnboarding, requireRole('admin
   }
 });
 
+// HR-only role editor. Department-driven role derivation handles most users, but
+// this endpoint remains for explicit HR corrections from the admin UI.
 router.patch('/:id/role', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   if (!isHrAdmin(req.user)) {
     return res.status(403).json({ error: 'Only HR can change user roles.' });
@@ -390,6 +411,9 @@ router.patch('/:id/role', requireAuth, requireOnboarding, requireRole('admin'), 
   }
 });
 
+// Account deletion for self-service account settings and HR user management.
+// Related rows cascade through the schema except category ownership, which is
+// transferred first so historical tickets keep valid category creators.
 router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => {
   const targetId = req.params.id;
   const isOwnAccount = targetId === req.user.id;
@@ -477,6 +501,8 @@ router.delete('/:id', requireAuth, requireOnboarding, async (req, res, next) => 
   }
 });
 
+// HR profile editor for job title/department maintenance. Department changes
+// also re-derive the coarse user/admin role used by ProtectedRoute.
 router.patch('/:id/profile', requireAuth, requireOnboarding, requireRole('admin'), (req, res, next) => {
   if (!isHrAdmin(req.user)) {
     return res.status(403).json({ error: 'Only HR can update user profiles.' });

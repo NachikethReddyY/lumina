@@ -4,6 +4,9 @@ const { requireAuth, requireOnboarding } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Compact profile popover endpoint for UserProfileCard. It exposes enough user
+// and ticket-count context for hover/detail UI without granting full directory
+// access to every authenticated user.
 router.get('/:id/summary', requireAuth, requireOnboarding, async (req, res, next) => {
   try {
     const targetId = req.params.id;

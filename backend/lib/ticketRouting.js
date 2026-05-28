@@ -1,5 +1,9 @@
 const db = require('../db');
 
+// Lumina ticket routing engine. Ticket routes call chooseAssignee() when the
+// frontend asks to route, reroute, or assign to the Lumina AI placeholder. The
+// returned decision is stored in tickets.metadata.routing and later read by
+// notificationsApi.aiDecisions and ticket timeline/detail views.
 const LUMINA_AI_EMAIL = 'lumina.ai@lumina.test';
 const SUPPORTED_PROVIDERS = ['groq', 'gemini', 'openrouter', 'opencode'];
 
@@ -269,6 +273,8 @@ const ROUTING_RESPONSE_SCHEMA = {
   additionalProperties: false,
 };
 
+// The Lumina AI user is a selectable routing trigger in the UI, not a real
+// assignee. Guards prevent tickets from being owned by this system account.
 function isLuminaAIUser(user = {}) {
   const email = String(user.email || '').trim().toLowerCase();
   const firstName = String(user.first_name || '').trim().toLowerCase();
@@ -461,6 +467,8 @@ function buildRoutingDecision({ ticket, admins, chosen, source, reasoning, confi
   };
 }
 
+// Load the same workload features used by /tickets/admin/workload and the
+// routing prompt. Keeping the calculation here keeps charts and routing aligned.
 async function getAdminWorkloads(client = db) {
   const result = await client.query(
     `SELECT u.id,
@@ -502,6 +510,9 @@ async function getAdminWorkloads(client = db) {
   }));
 }
 
+// Local fallback route selection for missing/rate-limited model providers.
+// This keeps the frontend workflow responsive even when Lumina AI cannot call an
+// external model.
 function deterministicRoute(ticket, admins) {
   if (!admins.length) {
     const reasoning = 'No active admins are available, so the ticket remains pending routing.';
@@ -635,6 +646,8 @@ async function routeWithLuminaModel(ticket, admins) {
   };
 }
 
+// Main routing facade for ticket routes: prefer Lumina AI model output, fall
+// back to deterministic rules, and always return a frontend-readable decision.
 async function chooseAssignee(ticket, admins) {
   const eligibleAdmins = eligibleRoutingAdmins(admins);
 

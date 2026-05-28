@@ -1,5 +1,9 @@
 const { canViewOrgQueue, isTeamManager, isHrAdmin, isDeveloper, isQaManager } = require('./teamScope');
 
+// Ticket authorization rules used by ticket routes and comments. The frontend
+// hides actions based on similar user/ticket fields, but these checks are the
+// source of truth before any assignment, status, priority, comment, or routing
+// mutation reaches the database.
 function ticketAssigneeId(ticket = {}) {
   return ticket.assigned_to ?? ticket.assigned_to_id ?? ticket.qa_assignee_id ?? null;
 }

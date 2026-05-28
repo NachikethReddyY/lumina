@@ -1,6 +1,9 @@
 const { Pool } = require('pg');
 require('../lib/loadRootEnv').loadRootEnv();
 
+// Shared PostgreSQL access layer for all route modules. Keeping query execution
+// here gives the backend one place to configure SSL, sanitize logs, and attach
+// request metadata so API calls from React can be traced to their SQL work.
 const connectionString = process.env.DATABASE_URL || '';
 const isLocal =
   connectionString.includes('localhost') ||
@@ -19,6 +22,9 @@ const requestContext = require('../lib/requestContext');
 
 const enableLogging = process.env.NODE_ENV !== 'production';
 
+// Produce short, stable labels such as "SELECT on users" instead of logging
+// entire SQL strings. That keeps local terminal output readable while debugging
+// frontend screens that make several API calls at once.
 function summarizeQuery(text) {
   const cleanText = text.replace(/\s+/g, ' ').trim();
   const upperText = cleanText.toUpperCase();
@@ -50,6 +56,9 @@ function summarizeQuery(text) {
   return action || 'Query';
 }
 
+// Redact credentials and long tokens before they reach local logs. This matters
+// because auth pages and account settings send passwords, JWTs, and OTP-related
+// values through the same query wrapper as ordinary dashboard queries.
 function sanitizeParams(params) {
   if (!params || !Array.isArray(params)) return params;
   return params.map(p => {

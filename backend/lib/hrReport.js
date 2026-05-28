@@ -1,6 +1,9 @@
 const db = require('../db');
 const { getLuminaApiKey, getLuminaProvider, getLuminaModel, requestLuminaPlainText } = require('./ticketRouting');
 
+// HR report generator used by POST /reports/hr-generate. It pulls users,
+// tickets, assignments, and audit history, computes performance/diagnostic
+// metrics, and returns an HTML report the frontend can display or download.
 const DEPT_COLORS = {
   Developers: '#2563eb',
   QA: '#8b5cf6',

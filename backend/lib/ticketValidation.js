@@ -1,5 +1,8 @@
 const { validationError } = require('./authValidation');
 
+// Request body validators for ticket/category routes. These return field-level
+// error maps that the React ticket modal and action controls can display without
+// guessing which input failed.
 const ALLOWED_TYPES = ['software', 'bug', 'incident'];
 const ALLOWED_PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const ALLOWED_STATUSES = [

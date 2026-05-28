@@ -5,6 +5,14 @@ const { needsProfileName } = require('../lib/userProfile');
 const USER_SELECT = `id, email, first_name, last_name, role, status, email_is_verified, avatar_url,
               approved_by, approved_at, created_at, last_login_at, job_title, department, onboarding_completed, name_set`;
 
+/**
+ * Strict auth gate for product screens after account setup.
+ *
+ * Frontend connection:
+ * - ProtectedRoute and apiClient expect 401 to clear the local JWT and return
+ *   to /login.
+ * - Non-active users are blocked here before route handlers can mutate data.
+ */
 async function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization || '';
@@ -37,6 +45,11 @@ async function requireAuth(req, res, next) {
   }
 }
 
+/**
+ * Auth gate for setup screens that must allow pending or incomplete users.
+ * OAuthNamePage, VerifyEmailOtpPage, OnboardingPage, and avatar upload can use
+ * this path because those users are authenticated but not fully active yet.
+ */
 async function requireAuthAny(req, res, next) {
   try {
     const header = req.headers.authorization || '';
@@ -66,6 +79,8 @@ async function requireAuthAny(req, res, next) {
   }
 }
 
+// Role guard used by admin-only pages such as AdminUsersPage,
+// AdminApprovalsPage, analytics/report routes, and category management.
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) {

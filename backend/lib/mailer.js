@@ -1,5 +1,8 @@
 const nodemailer = require('nodemailer');
 
+// SMTP adapter used by auth, onboarding, approval, and ticket notification
+// flows. Frontend forms receive MAIL_NOT_CONFIGURED/MAIL_FAILED style errors
+// from routes when this layer cannot send required setup email.
 function isMailConfigured() {
   return Boolean(
     process.env.SMTP_HOST &&

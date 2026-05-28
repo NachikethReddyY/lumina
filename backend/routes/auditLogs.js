@@ -4,6 +4,9 @@ const { requireAuth, requireOnboarding, requireRole } = require('../middleware/a
 
 const router = express.Router();
 
+// Admin audit feed for people-management and diagnostics screens. Each row joins
+// the actor profile so the React UI can render "who did what" without making a
+// second /users lookup per event.
 router.get('/', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   try {
     const result = await db.query(

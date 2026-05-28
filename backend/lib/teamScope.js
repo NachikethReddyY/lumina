@@ -1,6 +1,9 @@
 /** Individual-contributor departments whose ticket progress managers track. */
 const TEAM_MEMBER_DEPARTMENTS = ['Developers', 'QA'];
 
+// Department/role predicates shared by route guards and ticket visibility
+// filters. These mirror frontend concepts in src/utils/orgRoles.ts and keep
+// dashboards, directories, and queues from drifting in access semantics.
 function isTeamManager(user = {}) {
   return user.role === 'admin' && String(user.department || '').trim() === 'Managers';
 }

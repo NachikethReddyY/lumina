@@ -20,6 +20,11 @@ const router = express.Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, key: (req) => req.ip });
 const otpLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, key: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}` });
 
+// Authentication API consumed by LoginPage, SignUpPage, GoogleAuthButton,
+// VerifyEmailPage, VerifyEmailOtpPage, ForgotPasswordPage, and ResetPasswordPage.
+// Responses intentionally include redirect-friendly codes such as
+// EMAIL_NOT_VERIFIED so src/utils/authFlow.ts and ProtectedRoute can send users
+// to the correct setup screen.
 router.use(authLimiter);
 
 const VERIFY_TTL_MS = 48 * 60 * 60 * 1000;
@@ -34,7 +39,8 @@ function hashOtp(otp) {
 }
 
 async function createVerificationChallenge(userId) {
-  // Invalidate all prior unused challenges for this user so old OTPs can't interfere
+  // Invalidate all prior unused challenges for this user so old OTPs cannot
+  // interfere with the latest code displayed by the frontend verification form.
   await db.query(
     `UPDATE email_verifications SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
     [userId]
@@ -66,6 +72,8 @@ async function sendVerificationEmail(toEmail, token, otp) {
   });
 }
 
+// Builds links back into the Vite frontend rather than the API host. In local
+// development this normally points at http://localhost:5173.
 async function sendPasswordResetEmail(toEmail, token) {
   const base = getFrontendBaseUrl();
   const url = `${base}/reset-password?token=${encodeURIComponent(token)}`;
@@ -116,6 +124,9 @@ async function notifyHrAdminsOfNewSignup(newUserEmail) {
   }
 }
 
+// Password login used by LoginPage. On success this updates the profile payload
+// returned to UserContext and records a sessions/audit_logs row for account and
+// notification surfaces.
 router.post('/login', async (req, res, next) => {
   const parsed = validateLoginBody(req.body);
   if (!parsed.ok) {
@@ -189,6 +200,9 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
+// Email/password signup creates a pending user, sends verification, and notifies
+// HR admins. The frontend then moves the user through email verification,
+// profile naming, onboarding, and approval before protected routes unlock.
 router.post('/signup', async (req, res, next) => {
   const parsed = validateSignupBody(req.body);
   if (!parsed.ok) {
@@ -258,6 +272,8 @@ router.post('/signup', async (req, res, next) => {
   }
 });
 
+// Link-token verification endpoint used when a user opens the email link from
+// verificationEmailHtml. The OTP endpoint below supports manual code entry.
 router.post('/verify-email', async (req, res, next) => {
   const token = String(req.body?.token ?? '').trim();
   if (!token) {
@@ -304,6 +320,7 @@ router.post('/verify-email', async (req, res, next) => {
   }
 });
 
+// Manual verification code endpoint for VerifyEmailOtpPage.
 router.post('/verify-email-otp', otpLimiter, async (req, res, next) => {
   const email = String(req.body?.email ?? '').trim();
   const otp = String(req.body?.otp ?? '').trim();
@@ -359,6 +376,8 @@ router.post('/verify-email-otp', otpLimiter, async (req, res, next) => {
   }
 });
 
+// Lets the verification page issue a new email/code without creating another
+// account. Prior challenges are marked used by createVerificationChallenge.
 router.post('/resend-verification', otpLimiter, async (req, res, next) => {
   const parsed = validateForgotPasswordBody(req.body);
   if (!parsed.ok) {
@@ -409,6 +428,9 @@ router.post('/resend-verification', otpLimiter, async (req, res, next) => {
   }
 });
 
+// GoogleAuthButton lands here after Google returns an ID token or access token.
+// Existing email accounts are linked to oauth_accounts; new Google users still
+// pass through the same email verification and HR approval flow as password users.
 router.post('/google', async (req, res, next) => {
   const { credential, accessToken } = req.body;
   if (!credential && !accessToken) {
@@ -552,6 +574,8 @@ router.post('/google', async (req, res, next) => {
   }
 });
 
+// ForgotPasswordPage intentionally receives the same generic response whether
+// the email exists or not, preventing account enumeration from the UI.
 router.post('/forgot-password', otpLimiter, async (req, res, next) => {
   const parsed = validateForgotPasswordBody(req.body);
   if (!parsed.ok) {
@@ -622,6 +646,7 @@ router.post('/forgot-password', otpLimiter, async (req, res, next) => {
   }
 });
 
+// ResetPasswordPage exchanges a valid reset token for a new password hash.
 router.post('/reset-password', async (req, res, next) => {
   const parsed = validateResetPasswordBody(req.body);
   if (!parsed.ok) {
@@ -652,6 +677,8 @@ router.post('/reset-password', async (req, res, next) => {
   }
 });
 
+// The frontend keeps this wrapper for future refresh-token support. Current
+// access tokens are short-lived JWTs, so this endpoint is a no-op placeholder.
 router.post('/refresh', (req, res) => {
   res.status(501).json({ error: 'Refresh token flow is not implemented yet' });
 });

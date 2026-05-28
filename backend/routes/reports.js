@@ -8,6 +8,9 @@ const router = express.Router();
 
 let lastRunTimestamp = null;
 
+// HR diagnostics panel endpoint. It powers reportsApi.hrDiagnostics() with
+// department workload, QA queue depth, and resolution-time summaries without
+// requiring the frontend to run several expensive chart queries itself.
 router.post('/hr-diagnostics', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   if (!isHrAdmin(req.user)) {
     return res.status(403).json({ error: 'Only HR can run diagnostics.' });
@@ -81,6 +84,9 @@ router.post('/hr-diagnostics', requireAuth, requireOnboarding, requireRole('admi
   }
 });
 
+// Generates the richer HTML HR report used by the HR/admin report workflow.
+// The heavy rendering lives in lib/hrReport so this route stays focused on
+// authorization, period validation, and JSON response shape.
 router.post('/hr-generate', requireAuth, requireOnboarding, requireRole('admin'), async (req, res, next) => {
   if (!isHrAdmin(req.user)) {
     return res.status(403).json({ error: 'Only HR can generate reports.' });
@@ -99,6 +105,9 @@ router.post('/hr-generate', requireAuth, requireOnboarding, requireRole('admin')
   }
 });
 
+// TicketClosureAnalyticsPage chart source. The result is already grouped into
+// frontend-friendly series: monthly average, duration buckets, priority slices,
+// and per-ticket timeline points.
 router.get('/ticket-closure-analytics', requireAuth, requireOnboarding, async (req, res, next) => {
   try {
     const monthlyAvgResult = await db.query(`
