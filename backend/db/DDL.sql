@@ -39,7 +39,7 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_status') THEN
     CREATE TYPE ticket_status AS ENUM (
-      'open',
+      'todo',
       'assigned',
       'in_progress',
       'resolved',
@@ -255,16 +255,16 @@ SELECT
   u.email,
   u.first_name,
   u.last_name,
-  COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_1_count,
-  COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_2_count,
-  COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_3_count,
-  COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_4_count,
-  COALESCE(COUNT(CASE WHEN t.status IN ('open', 'assigned', 'in_progress') THEN 1 END), 0)::int AS total_open,
+  COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_1_count,
+  COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_2_count,
+  COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_3_count,
+  COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)::int AS priority_4_count,
+  COALESCE(COUNT(CASE WHEN t.status IN ('todo', 'assigned', 'in_progress') THEN 1 END), 0)::int AS total_open,
   (
-    COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('open', 'assigned', 'in_progress') THEN 3 ELSE 0 END), 0) +
-    COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('open', 'assigned', 'in_progress') THEN 2 ELSE 0 END), 0) +
-    COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0) +
-    COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('open', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)
+    COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 3 ELSE 0 END), 0) +
+    COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 2 ELSE 0 END), 0) +
+    COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0) +
+    COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('todo', 'assigned', 'in_progress') THEN 1 ELSE 0 END), 0)
   )::int AS load_score
 FROM users u
 LEFT JOIN ticket_assignment ta

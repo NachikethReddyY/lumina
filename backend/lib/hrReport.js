@@ -127,7 +127,7 @@ function computePeriodKpis(tickets, users, assignmentHist, start, end) {
   );
   const resolved = resolvedInPeriod.length;
   const active = tickets.filter((t) =>
-    ['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)
+    ['todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)
   ).length;
 
   const employeeStats = new Map();
@@ -139,7 +139,7 @@ function computePeriodKpis(tickets, users, assignmentHist, start, end) {
     if (!t.assigned_to_id) return;
     const stat = employeeStats.get(t.assigned_to_id);
     if (!stat) return;
-    if (['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)) {
+    if (['todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)) {
       stat.active++;
     }
   });
@@ -1111,7 +1111,7 @@ async function generateHrReport(period = '30d') {
        LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
        WHERE (t.closed_at >= $1 AND t.closed_at <= $2)
           OR (t.created_at >= $1 AND t.created_at <= $2)
-          OR t.status IN ('open', 'assigned', 'in_progress', 'on_hold', 'pending_routing')
+          OR t.status IN ('todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing')
        ORDER BY t.created_at DESC`,
       [startIso, endIso]
     ),
@@ -1139,7 +1139,7 @@ async function generateHrReport(period = '30d') {
   );
   const resolved = resolvedInPeriod.length;
   const active = tickets.filter((t) =>
-    ['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)
+    ['todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)
   ).length;
 
   const employeeStats = new Map();
@@ -1164,7 +1164,7 @@ async function generateHrReport(period = '30d') {
     if (['resolved', 'closed'].includes(t.status) && isWithinRange(t.closed_at, start, end)) {
       stat.resolved++;
     }
-    if (['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)) {
+    if (['todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)) {
       stat.active++;
     }
   });
@@ -1238,7 +1238,7 @@ async function generateHrReport(period = '30d') {
 
   const deptActiveTickets = new Map();
   tickets
-    .filter((t) => ['open', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status))
+    .filter((t) => ['todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status))
     .forEach((t) => {
       const assignee = users.find((u) => u.id === t.assigned_to_id);
       const dept = assignee?.department?.trim() || 'Unassigned';
@@ -1373,7 +1373,7 @@ Cover resolution trends, workload by department, and 2-3 actionable recommendati
        LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
        WHERE (t.closed_at >= $1 AND t.closed_at <= $2)
           OR (t.created_at >= $1 AND t.created_at <= $2)
-          OR t.status IN ('open', 'assigned', 'in_progress', 'on_hold', 'pending_routing')
+          OR t.status IN ('todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing')
        ORDER BY t.created_at DESC`,
       [prevStartIso, prevEndIso]
     ),

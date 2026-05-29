@@ -55,7 +55,7 @@ router.get('/:id/summary', requireAuth, requireOnboarding, async (req, res, next
            JOIN tickets t ON t.id = ta.ticket_id
            WHERE ta.assigned_to = u.id
              AND ta.is_active = TRUE
-             AND t.status IN ('open', 'assigned', 'in_progress', 'on_hold', 'pending_routing')
+             AND t.status IN ('todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing')
          ), 0)::int AS open_ticket_count,
          COALESCE((
            SELECT COUNT(*) FROM ticket_assignment ta

@@ -478,11 +478,11 @@ async function getAdminWorkloads(client = db) {
             u.job_title,
             u.department,
             u.role,
-            COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p1_count,
-            COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p2_count,
-            COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p3_count,
-            COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('assigned', 'in_progress', 'open') THEN 1 ELSE 0 END), 0)::int AS p4_count,
-            COALESCE(COUNT(CASE WHEN t.status IN ('assigned', 'in_progress', 'open') THEN 1 END), 0)::int AS total_open
+            COALESCE(SUM(CASE WHEN t.priority = 'P1' AND t.status IN ('assigned', 'in_progress', 'todo') THEN 1 ELSE 0 END), 0)::int AS p1_count,
+            COALESCE(SUM(CASE WHEN t.priority = 'P2' AND t.status IN ('assigned', 'in_progress', 'todo') THEN 1 ELSE 0 END), 0)::int AS p2_count,
+            COALESCE(SUM(CASE WHEN t.priority = 'P3' AND t.status IN ('assigned', 'in_progress', 'todo') THEN 1 ELSE 0 END), 0)::int AS p3_count,
+            COALESCE(SUM(CASE WHEN t.priority = 'P4' AND t.status IN ('assigned', 'in_progress', 'todo') THEN 1 ELSE 0 END), 0)::int AS p4_count,
+            COALESCE(COUNT(CASE WHEN t.status IN ('assigned', 'in_progress', 'todo') THEN 1 END), 0)::int AS total_open
      FROM users u
      LEFT JOIN ticket_assignment ta
        ON ta.assigned_to = u.id

@@ -255,7 +255,7 @@ router.get('/stats/solved-by-assignee', async (req, res, next) => {
          JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
          JOIN users u ON u.id = ta.assigned_to
          CROSS JOIN cutoff c
-         WHERE t.status IN ('resolved', 'closed')
+          WHERE t.status = 'resolved'
            AND COALESCE(t.closed_at, t.created_at) >= c.at
          GROUP BY u.id, u.first_name, u.last_name, u.department
        ),

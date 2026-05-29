@@ -156,7 +156,7 @@ VALUES
 ('20000000-0000-0000-0000-000000000004',
  'Dark mode toggle does not persist across page navigation',
  'When a user toggles dark mode in Settings → Appearance, the theme switches correctly. However, navigating to any other page (or doing a full page reload) reverts to light mode. The preference is not being persisted to localStorage or the backend.',
- '10000000-0000-0000-0000-000000000002', 'bug', 'P2', 'open',
+ '10000000-0000-0000-0000-000000000002', 'bug', 'P2', 'todo',
  '00000000-0000-0000-0000-000000000020',
  '1. Go to Settings → Appearance\n2. Toggle dark mode ON → theme switches correctly\n3. Click any nav link (Dashboard, Tickets, etc.)\n4. Observe: theme reverts to light mode',
  NOW() - INTERVAL '1 day', NULL,
@@ -277,7 +277,7 @@ ticket_shape AS (
       ELSE 'P4'
     END::ticket_priority AS priority,
     CASE
-      WHEN n > 588 AND n % 4 = 0 THEN 'open'
+      WHEN n > 588 AND n % 4 = 0 THEN 'todo'
       WHEN n > 588 AND n % 4 = 1 THEN 'assigned'
       WHEN n > 588 AND n % 4 = 2 THEN 'in_progress'
       WHEN n > 588 THEN 'on_hold'
