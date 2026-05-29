@@ -172,11 +172,11 @@ VALUES
  NOW() - INTERVAL '2 hours', NULL,
  '{}'),
 
--- Ticket 6: P4 hardware — closed
+-- Ticket 6: P4 hardware — abandoned
 ('20000000-0000-0000-0000-000000000006',
  'Keyboard replacement request — Dell KB216 (Emily Davis)',
  'My Dell KB216 keyboard has a stuck "E" key that registers double presses intermittently. Requesting a replacement under the hardware warranty. Asset tag: LUM-DESK-0421.',
- '10000000-0000-0000-0000-000000000001', 'software', 'P4', 'closed',
+ '10000000-0000-0000-0000-000000000001', 'software', 'P4', 'abandoned',
  '00000000-0000-0000-0000-000000000020', NULL,
  NOW() - INTERVAL '20 days', NOW() - INTERVAL '18 days',
  '{"routing": {"source": "lumina_ai", "assigned_admin_id": "00000000-0000-0000-0000-000000000014", "reasoning": "Hardware replacement routed to James Wilson who handles desktop hardware provisioning.", "decision": {"assigned_admin_id": "00000000-0000-0000-0000-000000000014", "source": "lumina_ai", "confidence": 0.72}}}'),
@@ -281,7 +281,7 @@ ticket_shape AS (
       WHEN n > 588 AND n % 4 = 1 THEN 'assigned'
       WHEN n > 588 AND n % 4 = 2 THEN 'in_progress'
       WHEN n > 588 THEN 'on_hold'
-      WHEN n % 20 = 0 THEN 'closed'
+      WHEN n % 20 = 0 THEN 'abandoned'
       ELSE 'resolved'
     END::ticket_status AS status,
     CASE
@@ -317,7 +317,7 @@ SELECT
   replication_steps,
   created_at,
   CASE
-    WHEN status IN ('resolved', 'closed') THEN LEAST(
+    WHEN status IN ('resolved', 'abandoned') THEN LEAST(
       created_at + CASE
         -- May should look strongest in HR monthly reports
         WHEN local_month = 5 THEN CASE (n % 6)
@@ -388,7 +388,7 @@ VALUES
   ('30000000-0000-0000-0000-000000000013', '20000000-0000-0000-0000-000000000005',
    '00000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000011', TRUE, 'developer', NOW() - INTERVAL '2 hours'),
 
-  -- Ticket 6: closed — James Wilson (dev, historical)
+  -- Ticket 6: abandoned — James Wilson (dev, historical)
   ('30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000006',
    '00000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000011', FALSE, 'developer', NOW() - INTERVAL '20 days'),
 
@@ -734,6 +734,6 @@ SELECT
 FROM tickets t
 JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
 WHERE t.metadata->>'seed_batch' = 'historical_six_months_600'
-  AND t.status IN ('resolved', 'closed')
+  AND t.status IN ('resolved', 'abandoned')
   AND t.closed_at IS NOT NULL
 ON CONFLICT (id) DO NOTHING;
