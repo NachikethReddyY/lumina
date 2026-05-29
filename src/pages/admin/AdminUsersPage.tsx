@@ -20,7 +20,7 @@ import { canAccessApprovalQueue, canDeleteAccounts, canSuspendAccounts } from '.
 import { useUsersList } from '../../hooks/useUsersList';
 import { AdminPageHeader, AdminPageShell } from './dashboardShared';
 import '../Dashboard.css';
-import '../SuperAdminDashboard.css';
+import '../HrDashboard.css';
 
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 

@@ -22,10 +22,10 @@
 | 3 | Validation Strategy | Server-side only (existing pattern) | Express routes validate comment body length; reject edits on deleted comments. No new client validation library. |
 | 4 | Routing Structure | No new routes; extend existing | `GET/POST/DELETE /tickets/:id/comments`; ticket list uses `scope=org` for all active users. Optional: add "Organization" nav link for non-admin roles. |
 | 5 | Auth Flow | **Expand read scope** — breaking change | `canViewTicket` + `getTicketListScope`: all `status=active` users get `scope: org` read. Mutations unchanged (assignee/admin only). Comments: author soft-delete; admin soft-delete with label. |
-| 6 | CSS Methodology | Tailwind v4 + CSS variables (`index.css` @theme) | Remove inline dark gradients from `DeleteUserModal`. Use `var(--color-surface-card)`, hairlines, Playfair headings. Audit `SuperAdminDashboard.css` for dark overrides. |
+| 6 | CSS Methodology | Tailwind v4 + CSS variables (`index.css` @theme) | Remove inline dark gradients from `DeleteUserModal`. Use `var(--color-surface-card)`, hairlines, Playfair headings. Audit `HrDashboard.css` for dark overrides. |
 | 7 | UI Framework | Existing: custom components + Recharts + framer-motion | No shadcn migration. Modal uses shared `.nt-modal` from `Dashboard.css`. |
 | 8 | Client–Server Communication | REST via `apiClient.ts` | `ticketsApi.list({ scope: 'org' })`, `commentsApi` CRUD. |
-| 9 | Folder Structure | Match repo | `backend/db/`, `backend/routes/comments.js`, `backend/lib/ticketPermissions.js`, `src/components/DeleteUserModal.tsx`, `src/pages/SuperAdminDashboard.tsx`. |
+| 9 | Folder Structure | Match repo | `backend/db/`, `backend/routes/comments.js`, `backend/lib/ticketPermissions.js`, `src/components/DeleteUserModal.tsx`, `src/pages/HrDashboard.tsx`. |
 
 ---
 
@@ -46,7 +46,7 @@
 
 ### Phase B — Dashboard chart
 
-**File:** `src/pages/SuperAdminDashboard.tsx`
+**File:** `src/pages/HrDashboard.tsx`
 
 - Remove or demote `pendingAgeBuckets` / "Approval Wait Time" chart.
 - Add `buildResolutionTimeByMonth(tickets)` — avg hours to resolve per month (Jan–May), only closed/resolved.
@@ -56,7 +56,7 @@
 
 ### Phase C — Light mode + Delete User modal
 
-**Files:** `DeleteUserModal.tsx`, `Dashboard.css`, `SuperAdminDashboard.css`, spot-check `index.css`
+**Files:** `DeleteUserModal.tsx`, `Dashboard.css`, `HrDashboard.css`, spot-check `index.css`
 
 - Delete modal: white card, red accent border-left, ink text, no `rgba(31,34,40)` gradients.
 - Use `Button` component variants instead of raw styled buttons.

@@ -17,6 +17,7 @@ const {
 } = require('../lib/ticketRouting');
 const { isTeamManager, isQaManager, isHrAdmin, isOrgViewer, canViewOrgQueue, isDeveloper, TEAM_MEMBER_DEPARTMENTS } = require('../lib/teamScope');
 const { canMutateTicket, canViewTicket, canRerouteTicket, canSendToQa, isAssignedToQa } = require('../lib/ticketPermissions');
+const { mapTicketRow, mapTicketRows, toDbStatus } = require('../lib/ticketStatus');
 
 const router = express.Router();
 
@@ -176,7 +177,7 @@ router.get('/', async (req, res, next) => {
     }
 
     if (req.query.status) {
-      values.push(String(req.query.status));
+      values.push(toDbStatus(String(req.query.status)));
       clauses.push(`t.status = $${values.length}::ticket_status`);
     }
 
@@ -216,7 +217,7 @@ router.get('/', async (req, res, next) => {
        ORDER BY t.id, t.created_at DESC`,
       values
     );
-    res.json(result.rows);
+    res.json(mapTicketRows(result.rows));
   } catch (error) {
     next(error);
   }
@@ -318,7 +319,7 @@ router.get('/stats/throughput', requireRole('admin'), async (_req, res, next) =>
        resolved AS (
          SELECT closed_at::date AS day_date, COUNT(*)::int AS count
          FROM tickets
-         WHERE status IN ('resolved', 'closed')
+         WHERE status IN ('resolved', 'abandoned')
            AND closed_at IS NOT NULL
            AND closed_at >= CURRENT_DATE - INTERVAL '6 days'
          GROUP BY closed_at::date
@@ -429,7 +430,7 @@ router.get('/:id', async (req, res, next) => {
     if (!canViewTicket(req.user, ticket)) {
       return res.status(403).json({ error: 'You do not have access to this ticket' });
     }
-    res.json(ticket);
+    res.json(mapTicketRow(ticket));
   } catch (error) {
     next(error);
   }
@@ -576,23 +577,25 @@ router.post('/', requireRole('user'), async (req, res, next) => {
     }
 
     await client.query('COMMIT');
-    res.status(201).json({
-      ...ticket,
-      status: routing.assignedAdminId ? 'assigned' : ticket.status,
-      metadata: {
-        ...ticket.metadata,
-        routing: routingMetadata,
-      },
-      category_name: category.rows[0].name,
-      submitted_by_id: req.user.id,
-      submitted_by_email: req.user.email,
-      submitted_by_avatar_url: req.user.avatar_url || null,
-      assigned_to_id: assignedUser?.id || null,
-      assigned_to_avatar_url: assignedUser?.avatar_url || null,
-      assigned_to_name: assignedUser ? `${assignedUser.first_name} ${assignedUser.last_name}` : null,
-      assigned_to_job_title: assignedUser?.job_title?.trim() || null,
-      routing,
-    });
+    res.status(201).json(
+      mapTicketRow({
+        ...ticket,
+        status: routing.assignedAdminId ? 'assigned' : ticket.status,
+        metadata: {
+          ...ticket.metadata,
+          routing: routingMetadata,
+        },
+        category_name: category.rows[0].name,
+        submitted_by_id: req.user.id,
+        submitted_by_email: req.user.email,
+        submitted_by_avatar_url: req.user.avatar_url || null,
+        assigned_to_id: assignedUser?.id || null,
+        assigned_to_avatar_url: assignedUser?.avatar_url || null,
+        assigned_to_name: assignedUser ? `${assignedUser.first_name} ${assignedUser.last_name}` : null,
+        assigned_to_job_title: assignedUser?.job_title?.trim() || null,
+        routing,
+      })
+    );
   } catch (error) {
     await client.query('ROLLBACK');
     next(error);
@@ -795,16 +798,17 @@ router.patch('/:id/status', async (req, res, next) => {
     }
 
     // Stamp closed_at when resolving so dashboard "time to resolve" charts use live data, not seed-only.
+    const dbStatus = toDbStatus(parsed.value.status);
     const updated = await db.query(
       `UPDATE tickets
        SET status = $2::ticket_status,
            closed_at = CASE
-             WHEN $2::text IN ('resolved', 'closed') AND closed_at IS NULL THEN NOW()
+             WHEN $2::text IN ('resolved', 'abandoned') AND closed_at IS NULL THEN NOW()
              ELSE closed_at
            END
        WHERE id = $1
        RETURNING id, status, closed_at`,
-      [req.params.id, parsed.value.status]
+      [req.params.id, dbStatus]
     );
     await db.query(
       `INSERT INTO audit_logs (actor_id, action, metadata)
@@ -819,7 +823,7 @@ router.patch('/:id/status', async (req, res, next) => {
         }),
       ]
     );
-    res.json(updated.rows[0]);
+    res.json(mapTicketRow(updated.rows[0]));
   } catch (error) {
     next(error);
   }

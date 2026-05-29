@@ -5,7 +5,7 @@ import { isHrAdmin, isQaManager, isQaUser } from '../utils/orgRoles';
 
 const LazyUserDashboard = lazy(() => import('./UserDashboard'));
 const LazyAdminDashboard = lazy(() => import('./AdminDashboard'));
-const LazySuperAdminDashboard = lazy(() => import('./SuperAdminDashboard'));
+const LazyHrDashboard = lazy(() => import('./HrDashboard'));
 const LazyQAManagerDashboard = lazy(() => import('./QAManagerDashboard'));
 
 function DashboardFallback() {
@@ -26,7 +26,7 @@ export function RoleDashboardPage() {
   if (isHrAdmin(user)) {
     return (
       <Suspense fallback={<DashboardFallback />}>
-        <LazySuperAdminDashboard />
+        <LazyHrDashboard />
       </Suspense>
     );
   }

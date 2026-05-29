@@ -6,11 +6,13 @@ const { validationError } = require('./authValidation');
 const ALLOWED_TYPES = ['software', 'bug', 'incident'];
 const ALLOWED_PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const ALLOWED_STATUSES = [
+  'open',
   'todo',
   'assigned',
   'in_progress',
   'resolved',
   'closed',
+  'abandoned',
   'on_hold',
   'pending_routing',
 ];

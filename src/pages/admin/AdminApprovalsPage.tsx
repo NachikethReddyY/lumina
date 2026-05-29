@@ -10,7 +10,7 @@ import { useUsersList } from '../../hooks/useUsersList';
 import { usersApi } from '../../utils/apiClient';
 import { AdminPageHeader, AdminPageShell } from './dashboardShared';
 import '../Dashboard.css';
-import '../SuperAdminDashboard.css';
+import '../HrDashboard.css';
 
 export function AdminApprovalsPage() {
   const { users, setUsers, loading, reload } = useUsersList();

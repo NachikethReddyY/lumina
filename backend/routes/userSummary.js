@@ -62,7 +62,7 @@ router.get('/:id/summary', requireAuth, requireOnboarding, async (req, res, next
            JOIN tickets t ON t.id = ta.ticket_id
            WHERE ta.assigned_to = u.id
              AND ta.is_active = TRUE
-             AND t.status IN ('resolved', 'closed')
+             AND t.status IN ('resolved', 'abandoned')
              AND t.created_at >= NOW() - INTERVAL '30 days'
          ), 0)::int AS recently_resolved_count
        FROM users u

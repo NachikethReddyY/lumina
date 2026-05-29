@@ -158,7 +158,7 @@ Total route handlers found: **43**.
 | `categories.js` | 3 | list/create/update categories |
 | `comments.js` | 3 | list/create/delete ticket comments |
 | `notifications.js` | 2 | notifications and AI decision logs |
-| `auditLogs.js` | 1 | audit log list for admin/super admin |
+| `auditLogs.js` | 1 | audit log list for admin/HR oversight |
 | `index.js` | 1 | health check |
 
 ## Database

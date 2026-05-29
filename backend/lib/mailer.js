@@ -18,6 +18,24 @@ function smtpPassword() {
   return String(process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
 }
 
+/** Skip real SMTP in local dev when explicitly requested or README placeholders are set. */
+function isMailLogOnly() {
+  if (process.env.MAIL_LOG_ONLY === 'true' || process.env.MAIL_LOG_ONLY === '1') {
+    return true;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
+  const from = String(process.env.SMTP_FROM_EMAIL || '').toLowerCase();
+  const user = String(process.env.SMTP_USER || '').toLowerCase();
+  return (
+    from.includes('example.com') ||
+    from.includes('your-email') ||
+    user.includes('example.com') ||
+    user.includes('your-email')
+  );
+}
+
 function createTransport() {
   if (!isMailConfigured()) {
     return null;
@@ -39,7 +57,17 @@ async function sendMail({ to, subject, text, html }) {
     to,
     subject: subject.substring(0, 60),
     smtpConfigured: isMailConfigured(),
+    logOnly: isMailLogOnly(),
   });
+
+  if (isMailLogOnly()) {
+    console.log('[MAILER] LOG_ONLY — email not sent via SMTP:', {
+      to,
+      subject,
+      textPreview: String(text || '').slice(0, 400),
+    });
+    return;
+  }
 
   const transporter = createTransport();
   if (!transporter) {
@@ -68,6 +96,14 @@ async function sendMail({ to, subject, text, html }) {
       response: result.response?.substring(0, 100) || 'No response',
     });
   } catch (err) {
+    if (err.code === 'EAUTH' && process.env.NODE_ENV !== 'production') {
+      console.warn(
+        '[MAILER] SMTP auth failed in development — logging email instead. Fix SMTP_* or set MAIL_LOG_ONLY=true.',
+        { to, subject: subject.substring(0, 60) }
+      );
+      console.log('[MAILER] Body preview:', String(text || '').slice(0, 500));
+      return;
+    }
     console.error('[MAILER] Failed to send email:', {
       to,
       subject: subject.substring(0, 60),

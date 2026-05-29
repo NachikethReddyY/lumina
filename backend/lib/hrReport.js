@@ -123,7 +123,7 @@ function buildKpiDeltas(current, previous, periodMeta) {
 
 function computePeriodKpis(tickets, users, assignmentHist, start, end) {
   const resolvedInPeriod = tickets.filter(
-    (t) => ['resolved', 'closed'].includes(t.status) && isWithinRange(t.closed_at, start, end)
+    (t) => ['resolved', 'abandoned'].includes(t.status) && isWithinRange(t.closed_at, start, end)
   );
   const resolved = resolvedInPeriod.length;
   const active = tickets.filter((t) =>
@@ -1135,7 +1135,7 @@ async function generateHrReport(period = '30d') {
   const assignmentHist = assignmentHistRes.rows;
 
   const resolvedInPeriod = tickets.filter(
-    (t) => ['resolved', 'closed'].includes(t.status) && isWithinRange(t.closed_at, start, end)
+    (t) => ['resolved', 'abandoned'].includes(t.status) && isWithinRange(t.closed_at, start, end)
   );
   const resolved = resolvedInPeriod.length;
   const active = tickets.filter((t) =>
@@ -1161,7 +1161,7 @@ async function generateHrReport(period = '30d') {
     if (!t.assigned_to_id) return;
     const stat = employeeStats.get(t.assigned_to_id);
     if (!stat) return;
-    if (['resolved', 'closed'].includes(t.status) && isWithinRange(t.closed_at, start, end)) {
+    if (['resolved', 'abandoned'].includes(t.status) && isWithinRange(t.closed_at, start, end)) {
       stat.resolved++;
     }
     if (['todo', 'assigned', 'in_progress', 'on_hold', 'pending_routing'].includes(t.status)) {

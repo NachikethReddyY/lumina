@@ -83,7 +83,7 @@ WITH shaped AS (
     EXTRACT(MONTH FROM (t.created_at + INTERVAL '8 hours'))::int AS local_month
   FROM tickets t
   WHERE t.metadata->>'seed_batch' = 'historical_six_months_600'
-    AND t.status IN ('resolved', 'closed')
+    AND t.status IN ('resolved', 'abandoned')
 )
 UPDATE tickets t
 SET closed_at = LEAST(

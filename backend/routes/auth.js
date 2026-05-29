@@ -158,7 +158,7 @@ router.post('/login', async (req, res, next) => {
     }
     if (user.status === 'suspended') {
       return res.status(403).json({
-        error: 'This account has been suspended. Contact a super admin.',
+        error: 'This account has been suspended. Contact an HR admin.',
         code: 'ACCOUNT_SUSPENDED',
       });
     }
@@ -508,7 +508,7 @@ router.post('/google', async (req, res, next) => {
 
     if (userRow.status === 'suspended') {
       return res.status(403).json({
-        error: 'This account has been suspended. Contact a super admin.',
+        error: 'This account has been suspended. Contact an HR admin.',
         code: 'ACCOUNT_SUSPENDED',
       });
     }

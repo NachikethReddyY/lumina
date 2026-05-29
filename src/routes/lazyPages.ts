@@ -2,7 +2,7 @@ import { lazy } from 'react';
 
 export const LazyUserDashboard = lazy(() => import('../pages/UserDashboard'));
 export const LazyAdminDashboard = lazy(() => import('../pages/AdminDashboard'));
-export const LazySuperAdminDashboard = lazy(() => import('../pages/SuperAdminDashboard'));
+export const LazyHrDashboard = lazy(() => import('../pages/HrDashboard'));
 export const LazyAdminApprovalsPage = lazy(() => import('../pages/admin/AdminApprovalsPage'));
 export const LazyAdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'));
 export const LazyRoleDashboardPage = lazy(() => import('../pages/RoleDashboardPage'));

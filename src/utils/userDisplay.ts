@@ -1,6 +1,6 @@
 import type { ApiUser } from './apiClient';
 
-/** Onboarding department bucket for Super Admin filters and charts. */
+/** Onboarding department bucket for HR/admin filters and charts. */
 export type DepartmentGroup = 'manager' | 'developer' | 'qa';
 
 export type DepartmentGroupFilter = 'all' | DepartmentGroup;

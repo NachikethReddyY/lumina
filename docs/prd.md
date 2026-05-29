@@ -61,7 +61,7 @@ Lumina provides a unified experience where users can submit and track support ti
 - Role-based dashboard surfaces:
   - User dashboard for ticket creation and ticket tracking
   - Admin dashboard for queue monitoring, filtering, and status updates
-  - Super Admin dashboard for admin management, system visibility, and auditing
+  - HR dashboard for admin management, system visibility, and auditing
 - Core ticket model fields:
   - ID, title, description, category, priority, status, created date, assignee
 - Ticket routing logic leveraging initial AI-assisted triaging (simple rules-based or lightweight model).

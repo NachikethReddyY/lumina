@@ -27,9 +27,9 @@ import {
   buildTicketsByDepartment,
 } from './admin/dashboardShared';
 import './Dashboard.css';
-import './SuperAdminDashboard.css';
+import './HrDashboard.css';
 
-export function SuperAdminDashboard() {
+export function HrDashboard() {
   const { user } = useCurrentUser();
   const hrView = isHrAdmin(user);
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
@@ -406,4 +406,4 @@ export function SuperAdminDashboard() {
   );
 }
 
-export default SuperAdminDashboard;
+export default HrDashboard;

@@ -25,7 +25,7 @@ router.post('/hr-diagnostics', requireAuth, requireOnboarding, requireRole('admi
       FROM tickets t
       JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
       JOIN users u ON u.id = ta.assigned_to
-      WHERE t.status IN ('resolved', 'closed')
+      WHERE t.status IN ('resolved', 'abandoned')
       GROUP BY u.id, u.first_name, u.last_name, u.department
       ORDER BY count DESC
     `);
@@ -36,10 +36,10 @@ router.post('/hr-diagnostics', requireAuth, requireOnboarding, requireRole('admi
           MIN(a.created_at) AS resolved_at
         FROM tickets t
         JOIN audit_logs a ON a.metadata->>'ticket_id' = t.id::text
-        WHERE t.status IN ('resolved', 'closed')
+        WHERE t.status IN ('resolved', 'abandoned')
           AND a.action = 'ticket_status_changed'
-          AND (a.metadata->>'new_status' IN ('resolved', 'closed')
-            OR a.metadata->>'status' IN ('resolved', 'closed'))
+          AND (a.metadata->>'new_status' IN ('resolved', 'abandoned', 'closed')
+            OR a.metadata->>'status' IN ('resolved', 'abandoned', 'closed'))
         GROUP BY t.id, t.created_at
       )
       SELECT
@@ -56,7 +56,7 @@ router.post('/hr-diagnostics', requireAuth, requireOnboarding, requireRole('admi
       FROM tickets t
       LEFT JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
       LEFT JOIN users u ON u.id = ta.assigned_to
-      WHERE t.status NOT IN ('resolved', 'closed')
+      WHERE t.status NOT IN ('resolved', 'abandoned')
       GROUP BY u.department
       ORDER BY open_tickets DESC
     `);
@@ -66,7 +66,7 @@ router.post('/hr-diagnostics', requireAuth, requireOnboarding, requireRole('admi
       FROM tickets t
       JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_active = TRUE
       JOIN users u ON u.id = ta.assigned_to
-      WHERE t.status NOT IN ('resolved', 'closed')
+      WHERE t.status NOT IN ('resolved', 'abandoned')
         AND u.department = 'QA'
     `);
 
@@ -118,7 +118,7 @@ router.get('/ticket-closure-analytics', requireAuth, requireOnboarding, async (r
           AVG(EXTRACT(EPOCH FROM (t.closed_at - t.created_at)) / 3600), 0
         ) AS avg_hours
       FROM tickets t
-      WHERE t.status IN ('closed', 'resolved')
+      WHERE t.status IN ('abandoned', 'resolved')
         AND t.closed_at IS NOT NULL
         AND t.created_at >= NOW() - INTERVAL '6 months'
       GROUP BY TO_CHAR(t.created_at, 'Mon YYYY'), DATE_TRUNC('month', t.created_at)
@@ -130,7 +130,7 @@ router.get('/ticket-closure-analytics', requireAuth, requireOnboarding, async (r
         SELECT
           EXTRACT(EPOCH FROM (t.closed_at - t.created_at)) / 3600 AS hours_to_close
         FROM tickets t
-        WHERE t.status IN ('closed', 'resolved')
+        WHERE t.status IN ('abandoned', 'resolved')
           AND t.closed_at IS NOT NULL
           AND t.created_at >= NOW() - INTERVAL '6 months'
       )
@@ -165,7 +165,7 @@ router.get('/ticket-closure-analytics', requireAuth, requireOnboarding, async (r
         ) AS avg_hours,
         COUNT(DISTINCT t.id) AS count
       FROM tickets t
-      WHERE t.status IN ('closed', 'resolved')
+      WHERE t.status IN ('abandoned', 'resolved')
         AND t.closed_at IS NOT NULL
         AND t.created_at >= NOW() - INTERVAL '6 months'
       GROUP BY t.priority
@@ -185,7 +185,7 @@ router.get('/ticket-closure-analytics', requireAuth, requireOnboarding, async (r
         EXTRACT(EPOCH FROM (t.closed_at - t.created_at)) / 3600 AS hours,
         TO_CHAR(t.created_at, 'Mon') AS month
       FROM tickets t
-      WHERE t.status IN ('closed', 'resolved')
+      WHERE t.status IN ('abandoned', 'resolved')
         AND t.closed_at IS NOT NULL
         AND t.created_at >= NOW() - INTERVAL '6 months'
       ORDER BY t.created_at
